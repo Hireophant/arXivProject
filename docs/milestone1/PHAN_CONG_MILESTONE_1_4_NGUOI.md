@@ -1,731 +1,458 @@
-# Phân công Milestone 1 cho nhóm 4 người
+# Phân công Milestone 1 — Khánh, Khang, Nguyên, Danh
 
-Ngày lập: 11/10/2026.
+Bản cập nhật ngày 12/10/2026, thay thế toàn bộ bản phân công cũ.
 
-Căn cứ: [Kế hoạch Milestone 1](./KE_HOACH_MILESTONE_1.md) và [đề bài đầy đủ](../../ARXIV_PROJECT_FULL.md).
+Căn cứ: [đề bài](../../ARXIV_PROJECT_FULL.md), [kế hoạch](./KE_HOACH_MILESTONE_1.md) và [hướng dẫn prototype](./HUONG_DAN_PROTOTYPE.md).
 
-## Các lựa chọn nhóm đã xác nhận
+## 1. Quyết định chung
 
-- Giữ tên phân công **Người 1, Người 2, Người 3, Người 4**.
-- **Chưa nhận khoảng mã bài chính thức** từ thầy/trợ giảng. Dùng BERT/RoBERTa để phát triển và kiểm tra, không xem đó là phạm vi nộp bài.
-- Phát triển bằng **Jupyter Notebook trên máy**, benchmark cuối trên **Google Colab CPU**.
-- Báo cáo nộp bằng **tiếng Anh**. Kế hoạch và phân công này viết tiếng Việt để nhóm dễ trao đổi; phần phương pháp và nhận xét mỗi thành viên bàn giao cho báo cáo phải viết tiếng Anh.
-- Các schema, tên hàm, chính sách file dưới đây là quy ước kỹ thuật đề xuất cho nhóm, không phải yêu cầu đặt tên bắt buộc của thầy. Có thể bắt đầu theo bản này; nếu đổi phải cập nhật đồng bộ trước khi ghép.
-- Phiên bản Python cụ thể và phiên bản thư viện sẽ được ghi lại sau khi chạy thành công mẫu trên máy và Colab; tài liệu này chưa khẳng định đã kiểm tra tương thích môi trường.
+- **Khánh:** discovery và metadata bằng arXiv API.
+- **Khang:** tải, nhận diện và xử lý nguồn từng phiên bản.
+- **Nguyên:** lấy metadata tham khảo từ Semantic Scholar.
+- **Danh:** điều phối, lưu tiến độ, thống kê, benchmark và tổng hợp báo cáo.
+- **Chỉ dùng một notebook:** [milestone1.ipynb](../../src/notebooks/milestone1.ipynb). Không tạo notebook riêng cho từng thành viên.
+- Viết hàm trong module .py mình phụ trách; notebook gọi hàm để thử, không chép toàn bộ thân hàm vào các cell.
+- Phát triển bằng Jupyter trên máy; benchmark cuối Colab CPU. Báo cáo nộp bằng tiếng Anh trong repository Jupyter Book riêng.
+- Chưa có phạm vi bài thầy giao. BERT/RoBERTa chỉ là mẫu phát triển, không phải dữ liệu nộp mặc định.
+- Hiện tại là **prototype**: hàm nghiệp vụ chưa triển khai. Fixture và notebook chạy được không chứng minh crawler đã hoạt động.
 
-## Toàn bộ quy trình Milestone 1 theo 4 bước chính
+## 2. Hợp đồng kỹ thuật — cả nhóm đọc trước
 
-Có thể gom Milestone 1 thành **4 bước chính** dưới đây để dễ triển khai. Mỗi bước có đầu vào, xử lý và đầu ra rõ ràng. Đây là cách nhóm tổ chức công việc; không phải khẳng định đề chỉ có đúng bốn mục.
+Nguồn chuẩn là `src/crawling/__init__.py` và chữ ký hàm trong các module. Không tự đổi tên khóa, kiểu dữ liệu hoặc keyword của hàm. Nếu cần đổi, phải thống nhất và cập nhật các bên dùng cùng lúc.
 
-### Bước 1 — Tìm bài và lấy thông tin bài
+| Dữ liệu | Hình dạng và ý nghĩa |
+|---|---|
+| Scope | mode=ids/range, ids, start_id, end_id; chưa có phạm vi thật thì dùng fixture |
+| HttpPolicy | timeout, số lần thử, nhịp arXiv/S2, trần backoff và User-Agent |
+| PaperRecord | arxiv_id gốc, versions dạng list[int], metadata dạng PaperMetadata |
+| DiscoveryResult | status, scope, requested_count, scope_complete, papers, issues, elapsed_seconds |
+| DateLookupResult | dates: mã → ngày/None; errors: mã → lý do không lấy được |
+| DownloadResult | ID/version, status, byte trước/sau, archive_bytes, số file, thời gian, attempts, used_cache, error |
+| ReferenceResult | ID, status, references, số lượng/thiếu trường, đủ trang hay chưa, thời gian truy vấn, attempts/cache/error |
+| Manifest | schema_version, run_id, scope, discovery, papers và updated_at |
+| CorpusSummary | Số bài/phiên bản/trạng thái, tỷ lệ và trung bình kèm mẫu số |
+| BenchmarkResult | Môi trường, CPU/cache, chu kỳ mẫu, thời gian, RAM/đĩa |
+| RunResult | status, run_id, đường dẫn manifest/metrics, summary, benchmark |
 
-**Nhận vào:** khoảng mã arXiv thầy giao. Nhóm chưa nhận nên chưa biết định dạng thông báo cụ thể. Khi chạy thử, có thể đưa vào danh sách mã:
+**Quy ước:** mã arXiv gốc không có hậu tố v; phiên bản là int >=1. Path dùng ở input; output lưu JSON chỉ dùng primitive và chuỗi đường dẫn. Ngày dữ liệu YYYY-MM-DD theo UTC; timestamp truy vấn có múi giờ. Byte là int, giây là float. None là chưa biết, khác 0. Không nhầm API lỗi với danh sách rỗng.
 
-```python
-["1810.04805", "1907.11692"]
-```
+**Protocol** chỉ quy định khuôn hàm, không phải mock. **Fixture** là dữ liệu mẫu trong fixtures.py. **Mock/fake** là hàm giả để kiểm tra điều phối, nếu cần thì viết trong môi trường kiểm tra, không thay code nghiệp vụ. Dữ liệu mẫu không được dùng làm kết quả báo cáo thật.
 
-Đó là BERT và RoBERTa, chỉ dùng minh họa, không phải danh sách bài nộp.
+## 3. Khánh — Tìm bài, metadata và ngày gửi
 
-**Làm gì:**
+**File sở hữu:** `src/crawling/discover.py`. Thử trong phần Khánh của notebook chung.
 
-- Tìm những bài thuộc phạm vi được giao.
-- Lấy tên bài, danh sách tác giả, ngày gửi, ngày sửa và nơi xuất bản nếu có.
-- Xác định **tất cả phiên bản** của từng bài.
+### Input nhận gì?
 
-**Làm bằng cách nào:** viết Python trong notebook, chọn **arXiv API hoặc metadata Kaggle** để tìm/lọc bài. Nếu dữ liệu Kaggle thiếu thông tin cần thiết, bổ sung từ arXiv. Không bắt buộc triển khai cả hai phương án; kế hoạch ban đầu chọn arXiv API.
+- discover_papers nhận Scope và keyword policy: HttpPolicy.
+- fetch_paper nhận một mã arXiv gốc và policy.
+- fetch_submission_dates nhận list mã arXiv và policy.
 
-**Trả ra hai thứ:**
-
-Một là **danh sách công việc cần tải**, dùng trong chương trình:
-
-```python
-[
-    {"arxiv_id": "1810.04805", "versions": [1, 2]},
-    {"arxiv_id": "1907.11692", "versions": [1]}
-]
-```
-
-Danh sách này minh họa riêng mã bài và phiên bản. Khi bàn giao code, dùng PaperRecord đầy đủ có thêm trường metadata theo mục 2.3.
-
-Hai là **metadata.json của mỗi bài**, ví dụ:
-
-```json
-{
-  "arxiv_id": "1810.04805",
-  "title": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
-  "authors": [
-    "Jacob Devlin",
-    "Ming-Wei Chang",
-    "Kenton Lee",
-    "Kristina Toutanova"
-  ],
-  "submission_date": "2018-10-11",
-  "revised_dates": ["2019-05-24"],
-  "venue": null
-}
-```
-
-**Ai làm:** Người 1 lấy dữ liệu; Người 4 điều phối việc lưu metadata.json. Pipeline có thể thêm arxiv_id từ PaperRecord vào file như ví dụ trên.
-
-### Bước 2 — Tải nguồn của tất cả phiên bản
-
-**Nhận vào:** mã bài, số phiên bản và thư mục lưu từ bước 1.
+Ví dụ Scope phát triển:
 
 ```python
-arxiv_id = "1810.04805"
-version = 2
-folder = "data/1810-04805/sources/v2/"
+{"mode": "ids", "ids": ["1810.04805"], "start_id": None, "end_id": None}
 ```
 
-**Làm gì:**
+### Quy trình làm
 
-- Tải nguồn tương ứng với `1810.04805v2`.
-- Nhận diện định dạng gói tải và giải nén nếu cần.
-- Giữ file văn bản nguồn như `.tex`, `.bib`, `.bbl`, `.sty` và các file văn bản liên quan.
-- Bỏ ảnh nhị phân để tiết kiệm dung lượng, **giữ nguyên lệnh LaTeX chèn hình/bảng**.
-- Lặp lại cho mọi phiên bản của mọi bài.
+1. Đọc schema và fixtures.SCOPE, PAPER_BERT, DISCOVERY_RESULT, DATE_RESULT.
+2. Viết fetch_paper trước: requests gọi arXiv API, đọc XML Atom để lấy title, authors, published và venue nếu có.
+3. Xác minh lịch sử phiên bản. Không lấy mỗi latest hoặc một updated rồi coi đã có đủ lịch sử. Có thể bổ sung xác minh lịch sử trên trang abstract nếu API chưa cho đủ thông tin.
+4. Viết discover_papers: mở rộng phạm vi đúng quy ước, chia batch/phân trang, thu PaperRecord và ghi issues của mã thiếu/lỗi.
+5. Viết fetch_submission_dates: trả ngày gửi lần đầu cho mọi ID yêu cầu; thiếu ngày trả None và ghi errors.
+6. Chờ giữa các yêu cầu, retry có giới hạn; không quét ngoài phạm vi.
+7. Chạy thử trong phần Khánh của notebook chung và đối chiếu output thật.
 
-**Làm bằng cách nào:** Python dùng requests hoặc urllib để tải; tarfile, gzip và pathlib để xử lý, lưu file. Cần chờ giữa các yêu cầu, xử lý lỗi và giải nén an toàn.
+### Output bàn giao
 
-**Trả ra:** các thư mục nguồn riêng biệt:
+- DiscoveryResult; danh sách PaperRecord nằm ở result['papers'], không trả list đơn lẻ.
+- Mỗi PaperRecord gồm ID, versions và metadata đầy đủ.
+- DateLookupResult gồm dates và errors, để Nguyên bổ sung ngày tham khảo.
+- Không ghi metadata.json trong discover.py. Danh ghi từ PaperRecord để tránh hai module cùng ghi.
 
-```text
-data/1810-04805/sources/
-├── v1/
-│   └── các file nguồn của phiên bản 1
-└── v2/
-    └── các file nguồn của phiên bản 2
-```
+### Ai dùng và có phải chờ ai không?
 
-Kèm bản ghi trạng thái chứa mã bài, phiên bản, thành công/không có TeX/thất bại, số file giữ lại, dung lượng và thời gian. Trong giao diện hàm, Người 2 trả các trường tại mục 2.4; Người 4 gắn mã bài và phiên bản từ input vào manifest.
+Danh dùng papers để gọi Khang và Nguyên; Nguyên dùng hàm tra ngày. Khánh không cần chờ module khác để làm.
 
-Nếu phiên bản chỉ có PDF, không có nguồn TeX thì **ghi nhận phiên bản không có TeX và giữ bản ghi rỗng**. Nếu lỗi mạng thì ghi lỗi để thử lại, không coi đó là “không có TeX”.
+### Kiểm tra đạt
 
-**Ai làm:** Người 2.
+- [ ] BERT có lịch sử phiên bản đúng khi đối chiếu, không hardcode [1,2].
+- [ ] Metadata có tác giả, ngày, venue=None khi không có; không bịa giá trị.
+- [ ] API lỗi/quét thiếu được phản ánh bằng issues và scope_complete, không âm thầm mất bài.
+- [ ] Hàm tra ngày giữ mọi ID input, thiếu ngày có lý do.
+- [ ] Viết phần phương pháp discovery/metadata bằng tiếng Anh cho báo cáo.
 
-### Bước 3 — Lấy thông tin các tài liệu được tham khảo
+## 4. Khang — Tải và xử lý nguồn từng phiên bản
 
-**Nhận vào:** mã bài chính từ bước 1, ví dụ:
+**File sở hữu:** `src/crawling/download.py`. Thử trong phần Khang của notebook chung.
 
-```python
-"1907.11692"
-```
-
-Nghĩa là đang hỏi: **“RoBERTa tham khảo những bài nào?”** Bước này không cần chờ tải nguồn xong, nên có thể chạy song song với bước 2.
-
-**Làm gì:**
-
-- Hỏi Semantic Scholar lấy danh sách tham khảo.
-- Lấy tên bài, tác giả, mã arXiv và mã Semantic Scholar của từng tài liệu.
-- Giữ các mục có mã arXiv theo cấu trúc đề gợi ý.
-- Bổ sung ngày gửi từ arXiv nếu cần; không nhầm ngày xuất bản với ngày gửi.
-
-**Làm bằng cách nào:** Python dùng requests gọi Semantic Scholar API rồi xử lý phản hồi JSON. Có thể dùng API batch để hỏi nhiều bài trong một yêu cầu; vẫn phải xử lý giới hạn truy cập.
-
-**Trả ra:** **references.json cho mỗi bài chính**, có dạng:
-
-```json
-{
-  "1810-04805": {
-    "title": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
-    "authors": [
-      "J. Devlin",
-      "Ming-Wei Chang",
-      "Kenton Lee",
-      "K. Toutanova"
-    ],
-    "submission_date": "2018-10-11",
-    "semantic_scholar_id": "df2b0e26d0599ce3e70df8a9da02e51594e0e992"
-  }
-}
-```
-
-Đọc ví dụ là: **RoBERTa có tham khảo BERT, và đây là thông tin của BERT.** File đầy đủ chứa nhiều mục, không chỉ một mục này.
-
-Kèm thống kê: tổng tham khảo nhận được, bao nhiêu mục có mã arXiv, bao nhiêu mục thiếu thông tin và lỗi truy vấn. Không cần tải toàn bộ nguồn của các bài được tham khảo nếu chúng không thuộc phạm vi bài chính được giao.
-
-**Ai làm:** Người 3.
-
-### Bước 4 — Ghép, kiểm tra, thống kê và báo cáo
-
-**Nhận vào:** kết quả của ba bước trước:
-
-```text
-Danh sách bài và phiên bản
-+ metadata.json
-+ các thư mục nguồn
-+ references.json
-+ nhật ký và số đo lúc chạy
-```
-
-**Làm gì:**
-
-- Ghép các phần thành chương trình chạy từ đầu đến cuối.
-- Kiểm tra đủ bài, đủ phiên bản, file đọc được và trường dữ liệu đúng.
-- Ghi rõ phần thành công, không có TeX, thiếu dữ liệu hoặc lỗi.
-- Thống kê số bài, tỷ lệ thành công, số tham khảo và dung lượng trước/sau bỏ ảnh trên cùng cơ sở đo.
-- Đo thời gian, RAM, dung lượng đĩa của toàn hệ thống trên **Colab CPU**.
-- Viết báo cáo **tiếng Anh** bằng Jupyter Book, tạo bảng và biểu đồ khi biên dịch sách.
-
-**Làm bằng cách nào:**
-
-- Jupyter Notebook gọi các module của Người 1–3.
-- pandas và matplotlib tổng hợp, vẽ bảng/biểu đồ.
-- Công cụ đo thời gian/RAM ghi số đo **ngay trong lúc chạy**, không đợi chạy xong mới đo.
-- Jupyter Book đưa báo cáo lên GitHub Pages. Báo cáo đọc kết quả đã lưu để sinh bảng/biểu đồ, không phải cào lại toàn bộ mỗi lần build.
-
-**Trả ra:**
-
-- Kho dữ liệu đã thu thập, giữ lại cho Milestone 2–3.
-- Repository code công khai, có requirements.txt và README hướng dẫn chạy.
-- Website báo cáo Jupyter Book ở repository riêng.
-- **Nộp Moodle hai link: code và báo cáo. Milestone 1 chưa nộp corpus.**
-
-**Ai làm:** Người 4 điều phối; Người 1–3 viết phần phương pháp và nhận xét của mình bằng tiếng Anh.
-
-### Sơ đồ 4 bước và cách đọc dữ liệu
-
-```text
-                 1. Tìm bài + metadata
-                         |
-              +----------+----------+
-              |                     |
-              v                     v
-     2. Tải nguồn mọi bản    3. Lấy metadata tham khảo
-              |                     |
-              +----------+----------+
-                         |
-                         v
-            4. Kiểm tra + đo + báo cáo
-```
-
-**Phân biệt quan trọng:** metadata.json nói về **chính bài đang thu thập**; references.json nói về **những bài mà nó tham khảo**; thư mục sources chứa **nội dung nguồn của nó**. Phần phân công chi tiết bên dưới quy định rõ file mỗi người sở hữu, giao diện hàm và cách phát triển song song bằng dữ liệu mẫu.
-
-## 1. Cách chia để làm cùng lúc
-
-Chia theo thành phần của hệ thống, không chia mỗi người một số bài báo. Mỗi người viết một phần dùng được cho toàn bộ phạm vi bài được giao.
-
-| Thành viên | Phụ trách chính | Hiểu đơn giản | Đầu ra chính |
-|---|---|---|---|
-| Người 1 | Tìm bài và metadata | Biết phải tải những bài nào, những phiên bản nào | Danh sách bài, phiên bản và metadata.json |
-| Người 2 | Tải và xử lý nguồn | Lấy văn bản của từng phiên bản về máy | Thư mục nguồn và trạng thái tải |
-| Người 3 | Metadata tài liệu tham khảo | Biết mỗi bài tham khảo những bài nào | references.json và trạng thái truy vấn |
-| Người 4 | Điều phối, thống kê và báo cáo | Ghép các phần, đo kết quả và trình bày | Notebook chính, benchmark, Jupyter Book |
-
-**Mọi người có thể bắt đầu cùng lúc sau khi chốt giao diện ở mục 2.** Người 2 và 3 dùng mã bài mẫu thay vì chờ người 1. Người 4 dùng dữ liệu giả lập để xây pipeline và báo cáo trước. Lần chạy toàn bộ và báo cáo số liệu thật phải chờ các thành phần ghép xong; đây là phụ thuộc tự nhiên, không thể coi mọi việc độc lập hoàn toàn.
-
-Sơ đồ phối hợp:
-
-```mermaid
-flowchart TD
-    A[Chốt cấu trúc dữ liệu và giao diện hàm] --> B[Người 1: tìm bài và metadata]
-    A --> C[Người 2: tải nguồn từng phiên bản]
-    A --> D[Người 3: lấy metadata tham khảo]
-    A --> E[Người 4: pipeline, thống kê và khung báo cáo]
-    B --> F[Ghép và chạy thử vài bài]
-    C --> F
-    D --> F
-    E --> F
-    F --> G[Chạy toàn phạm vi và benchmark Colab CPU]
-    G --> H[Hoàn thiện báo cáo, kiểm tra và nộp link]
-```
-
-## 2. Chốt trước để không phải chờ nhau
-
-Đây là quy ước triển khai nhóm đề xuất, không phải tên hàm bắt buộc trong đề.
-
-### 2.1. Một lần thống nhất ngắn trước khi chia việc
-
-- [ ] Thay Người 1–4 bằng tên thành viên.
-- [ ] Chốt phiên bản Python chung và cách mở notebook từ thư mục gốc repository.
-- [ ] Chốt phạm vi bài chính thức khi nhận được từ trợ giảng; chưa có thì dùng BERT/RoBERTa để phát triển.
-- [ ] Thống nhất schema và giao diện dưới đây; thay đổi sau đó phải báo cả nhóm.
-- [ ] Tạo repository code chung và repository Jupyter Book riêng.
-
-### 2.2. Quy tắc mã và đường dẫn
-
-- Mã arXiv trong dữ liệu luôn giữ nguyên: `1810.04805`, `hep-th/9901001`.
-- Thư mục bài: thay dấu chấm hoặc gạch chéo bằng dấu gạch ngang, ví dụ `1810-04805`, `hep-th-9901001`.
-- Chỉ chấp nhận mã arXiv đã kiểm tra hợp lệ; không dùng chuỗi đầu vào tùy ý làm đường dẫn. Mã phiên bản được lưu riêng dưới dạng số nguyên, ví dụ `1`, `2`.
-- `data_root` là thư mục gốc corpus; `paper_dir` là thư mục một bài; `version_dir` là thư mục một phiên bản.
-- Người 4 tạo đường dẫn và truyền đúng thư mục cho hàm người 2–3, tránh mỗi người tự ghép một kiểu.
-- Giữ cách đặt tên thư mục nhất quán toàn nhóm. Mã tài liệu tham khảo kiểu cũ vẫn giữ nguyên trong khóa JSON theo lưu ý đề, dù tên thư mục được ánh xạ an toàn.
-
-```text
-data/
-├── manifest.json
-└── 1810-04805/
-    ├── metadata.json
-    ├── references.json
-    └── sources/
-        ├── v1/
-        └── v2/
-```
-
-### 2.3. Dữ liệu người 1 bàn giao
-
-Một `PaperRecord` là dictionary có cấu trúc sau. Đây là cấu trúc trao đổi trong code, không nhất thiết phải xuất nguyên vẹn thành metadata.json.
-
-```python
-{
-    "arxiv_id": "1810.04805",
-    "versions": [1, 2],
-    "metadata": {
-        "title": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
-        "authors": ["Jacob Devlin", "Ming-Wei Chang", "Kenton Lee", "Kristina Toutanova"],
-        "submission_date": "2018-10-11",
-        "revised_dates": ["2019-05-24"],
-        "venue": None
-    }
-}
-```
-
-- `versions` phải xác minh từ dữ liệu nguồn, không hardcode theo bài ví dụ.
-- Ngày dùng ISO. Không có venue thì để null; không đoán.
-- Người 1 cung cấp cả hàm lấy ngày gửi của một danh sách mã, để người 3 bổ sung ngày tham khảo mà không viết lại truy vấn arXiv.
-
-### 2.4. Trạng thái chung để người 4 tổng hợp
-
-Kết quả tải nguồn trả về dictionary với các trường thống nhất:
-
-```python
-{
-    "status": "success",  # success | no_tex | failed
-    "source_bytes_before": 0,  # tổng byte các file chưa nén trước lọc; null nếu chưa đo được
-    "source_bytes_after": 0,   # tổng byte văn bản giữ lại, chưa nén
-    "archive_bytes": 0,        # kích thước gói tải nén, đo riêng
-    "file_count": 0,
-    "elapsed_seconds": 0.0,
-    "attempts": 1,
-    "error": None
-}
-```
-
-Các số 0 ở trên minh họa kiểu dữ liệu, không phải kết quả chạy thật. `no_tex` chỉ dùng khi đã xác minh nguồn không có TeX; lỗi mạng là `failed`.
-
-Kết quả lấy tham khảo trả về:
-
-```python
-{
-    "status": "success",  # success | partial | not_found | failed
-    "references": {},     # dictionary sẽ ghi thành references.json
-    "total_references": 0,
-    "kept_references": 0,
-    "missing_submission_dates": 0,
-    "elapsed_seconds": 0.0,
-    "attempts": 1,
-    "error": None
-}
-```
-
-- `partial`: lấy được một phần hoặc còn thiếu trường yêu cầu; phải mô tả phần thiếu trong error/log.
-- `not_found`: dịch vụ chưa tìm thấy bài; không biến thành thành công với danh sách rỗng.
-- Thành công với 0 tham khảo chỉ khi dịch vụ xác nhận danh sách rỗng hợp lệ.
-- Nếu thất bại, số tổng tham khảo chưa biết để null, không ghi 0 làm sai thống kê.
-
-### 2.5. Giao diện hàm mỗi người giữ ổn định
-
-| Người | Hàm bàn giao | Đầu vào | Đầu ra |
-|---|---|---|---|
-| 1 | `discover_papers(scope: dict) -> list[dict]` | Cấu hình phạm vi trợ giảng giao | Danh sách PaperRecord |
-| 1 | `fetch_submission_dates(ids: list[str]) -> dict[str, str \| None]` | Mã arXiv gốc | Mã → ngày ISO hoặc None |
-| 2 | `download_version(arxiv_id: str, version: int, version_dir: Path) -> dict` | Một bài, một phiên bản, đường dẫn lưu | Trạng thái tải theo mục 2.4; ghi nguồn vào version_dir |
-| 3 | `collect_references(arxiv_id: str, paper_dir: Path, date_lookup: Callable) -> dict` | Mã bài, thư mục bài, hàm tra ngày | Kết quả tham khảo theo mục 2.4; ghi references.json khi có dữ liệu |
-| 4 | `run_pipeline(scope: dict, data_root: Path) -> dict` | Phạm vi, thư mục corpus | Manifest cập nhật và tổng kết chạy |
-
-`Path` từ pathlib, `Callable` từ typing. `date_lookup` có giao diện giống `fetch_submission_dates`. Người 3 truyền hàm giả lập trả ngày mẫu trong lúc người 1 chưa xong; khi ghép, người 4 truyền hàm thật. Retry HTTP cục bộ thuộc người sở hữu API; người 4 chỉ quyết định chạy tiếp những tác vụ còn thiếu, tránh retry lồng nhau.
-
-`scope` khi phát triển có thể là `{"mode": "ids", "ids": ["1810.04805", "1907.11692"]}`. Sau khi có phân công chính thức, người 1 và 4 chốt thêm cách biểu diễn phạm vi đúng thông báo, không tự suy luận một khoảng mã còn chưa nhận.
-
-### 2.6. Giải thích input/output theo từng người
-
-**Input** là thứ người đó nhận để bắt đầu xử lý. **Output** gồm hai loại: giá trị hàm trả về cho phần code khác và file được ghi ra đĩa. Hai loại này phải phân biệt, vì trả một dictionary trong bộ nhớ chưa có nghĩa là file JSON đã được lưu.
-
-#### Người 1: nhận phạm vi, trả danh sách bài và metadata
-
-**Input chính:** dictionary `scope` do người 4/notebook chính truyền vào.
-
-```json
-{
-  "mode": "ids",
-  "ids": ["1810.04805", "1907.11692"]
-}
-```
-
-Đây là input phát triển. Khi thầy giao khoảng mã, người 1 bổ sung bộ lọc theo chính phạm vi đó; không tự biến hai mã mẫu thành bài nộp. Input phải chứa mã bài gốc, không phải tên thư mục và không gắn hậu tố phiên bản.
-
-**Output chính:** `discover_papers` trả `list[dict]`, mỗi phần tử là một PaperRecord của mục 2.3:
-
-- `arxiv_id`: dùng để gọi arXiv và Semantic Scholar.
-- `versions`: các phiên bản đã xác minh; người 4 lặp qua danh sách này để gọi người 2.
-- `metadata`: thông tin của chính bài đó, người 4 lưu thành metadata.json.
-
-Ví dụ giản lược luồng dùng output:
-
-```text
-Người 1 trả bài 1810.04805 với versions = [1, 2]
-    → Người 4 ghi metadata của bài
-    → Người 4 gọi Người 2 hai lần: v1 và v2
-    → Người 4 gọi Người 3 cho bài 1810.04805
-```
-
-**Input/output phụ phục vụ người 3:**
-
-```python
-# Input của fetch_submission_dates
-["1706.03762", "1810.04805"]
-
-# Output tương ứng, dùng ngày ISO thống nhất
-{
-    "1706.03762": "2017-06-12",
-    "1810.04805": "2018-10-11"
-}
-```
-
-Mọi mã được yêu cầu đều có khóa trong output. Nếu thiếu ngày thì giá trị None; lỗi dịch vụ được ghi rõ để người 3 đánh dấu partial. Không thay ngày thiếu bằng ngày hiện tại hoặc ngày xuất bản.
-
-**File người 1 bàn giao:** discover.py, notebook discovery và nội dung phương pháp bằng tiếng Anh. `metadata.json` do pipeline người 4 ghi từ output người 1, tránh hai người cùng ghi một file.
-
-**Khi lỗi:** input sai phải báo lỗi cấu hình; discovery bị gián đoạn phải báo lỗi và lưu thông tin cần tiếp tục, không trả danh sách thiếu mà tuyên bố đã quét đủ phạm vi. Danh sách rỗng chỉ được dùng khi đã truy vấn thành công và thực sự không có bài phù hợp. Nếu chưa xác minh được lịch sử phiên bản của một bài, không đoán `[1]`; ghi bài chưa hoàn tất vào log để chạy lại.
-
-#### Người 2: nhận một bài + một phiên bản, trả nguồn và trạng thái
-
-**Input:**
+### Input nhận gì?
 
 ```python
 arxiv_id = "1810.04805"
 version = 2
 version_dir = Path("data/1810-04805/sources/v2")
+# Thêm keyword policy=policy, use_cache=True/False.
 ```
 
-- `arxiv_id`: mã gốc để xây địa chỉ tải.
-- `version`: phiên bản chính xác cần tải; ví dụ trên tải `1810.04805v2`.
-- `version_dir`: nơi lưu nguồn; người 4 truyền vào, người 2 không tự đổi cấu trúc thư mục.
+Khi Khánh chưa xong, dùng fixtures.PAPER_BERT để lấy ID và versions, không phải chờ discovery thật.
 
-**Output file:** nguồn văn bản của phiên bản được lưu trong version_dir, giữ cấu trúc thư mục con khi cần. Tên file phụ thuộc nguồn thật, không mặc định bài nào cũng có main.tex hay refs.bib.
+### Quy trình làm
 
-```text
-data/1810-04805/sources/v2/
-    các file .tex, .bbl, .bib, .sty... nếu nguồn có
-```
+1. Viết prepare_source trước: nhận một gói nguồn local và thư mục đích.
+2. Nhận diện tar/gzip, TeX đơn, PDF/Word-only hoặc dữ liệu hỏng. Không chỉ dựa vào đuôi file.
+3. Giải nén an toàn; giữ văn bản như tex/bib/bbl/sty/cls và cấu trúc thư mục; bỏ ảnh nhị phân nhưng giữ lệnh hình/bảng trong TeX.
+4. Đo byte trước/sau lọc cùng cơ sở chưa nén; archive_bytes đo riêng.
+5. Viết download_version: tải đúng mã có phiên bản rồi gọi phần xử lý nguồn; timeout/retry/pacing và cache đã xác minh.
+6. Ghi output nguyên tử, không làm hỏng nguồn tốt cũ khi lần thử mới lỗi.
+7. Chạy thử trong phần Khang của notebook chung với input mẫu, rồi với PaperRecord thật Khánh bàn giao.
 
-**Output hàm:** dictionary trạng thái ở mục 2.4. Người 4 bổ sung mã bài/phiên bản vào manifest dựa trên chính input lần gọi, không suy ra từ tên file.
+### Output bàn giao
 
-| Trường output | Ý nghĩa và cách dùng |
+- File nguồn trong version_dir, mỗi phiên bản một thư mục.
+- DownloadResult có status success/no_tex/failed và số đo, error.
+- no_tex chỉ khi xác minh không có TeX; giữ bản ghi phiên bản rỗng. Mạng lỗi phải failed, không phải no_tex.
+- Khang không ghi manifest, metadata.json hoặc references.json.
+
+### Ai dùng và có phải chờ ai không?
+
+Danh nhận trạng thái để ghi manifest/thống kê. Milestone 2 đọc file nguồn. Khang làm ngay với fixture, không cần nguồn của Nguyên.
+
+### Kiểm tra đạt
+
+- [ ] Đúng bài và phiên bản, mở được nguồn, không lẫn v1/v2.
+- [ ] File TeX không bị sửa nội dung; bỏ ảnh nhưng giữ lệnh hình/bảng.
+- [ ] Thử nguồn không có TeX, archive hỏng và đường dẫn thoát thư mục.
+- [ ] Không dùng dung lượng gói nén làm byte trước lọc.
+- [ ] Thử lỗi mạng, cache và gọi lại không nhân đôi hoặc mất dữ liệu.
+- [ ] Viết phần tải/giải nén/giới hạn bằng tiếng Anh cho báo cáo.
+
+## 5. Nguyên — Metadata tài liệu tham khảo
+
+**File sở hữu:** `src/crawling/references.py`. Thử trong phần Nguyên của notebook chung.
+
+### Input nhận gì?
+
+- Mã bài chính, ví dụ 1810.04805.
+- paper_dir: Path của bài đó.
+- date_lookup: hàm nhận list ID, trả DateLookupResult.
+- Keyword policy và use_cache.
+
+Không nhận nguồn LaTeX của Khang, vì lấy tham khảo qua mã bài trên Semantic Scholar.
+
+### Quy trình làm
+
+1. Đọc fixtures.REFERENCE_RESULT, REFERENCE_FAILED, DATE_RESULT để biết input/output chuẩn.
+2. Viết collect_references gọi S2, lấy hết danh sách theo cơ chế phân trang endpoint đã chọn.
+3. Lấy title/authors/paperId/externalIds; chỉ giữ mục có mã arXiv theo cách lưu đề gợi ý.
+4. Gọi date_lookup bổ sung ngày gửi. Không dùng ngày xuất bản làm ngày gửi.
+5. Lưu references.json và trả ReferenceResult gồm thống kê/đủ trang/thiếu trường/trạng thái.
+6. Xử lý 429, not_found, thiếu trang/thiếu ngày; không ghi {} đè file tốt khi API lỗi.
+7. Khi Khánh chưa xong, có thể viết hàm giả trong cell kiểm tra, nhận list[str], trả deepcopy(DATE_RESULT). Hàm giả chỉ phù hợp các ID mẫu đã khai báo, không dùng để chạy dữ liệu thật.
+8. Khi Khánh xong, thay bằng partial(fetch_submission_dates, policy=policy); thử lại bằng ngày thật.
+
+### Output bàn giao
+
+- references.json của bài chính: mã tham khảo → tên, tác giả, ngày gửi và mã Semantic Scholar.
+- ReferenceResult có số lượng trước/sau lọc, số thiếu trường, pagination_complete và lỗi.
+- File thành công rỗng khác API lỗi; không tải nguồn toàn bộ các bài được tham khảo ngoài phạm vi được giao.
+
+### Ai dùng và có phải chờ ai không?
+
+Danh thống kê; Milestone 3 dùng tham khảo để matching. Nguyên làm song song với Khang, dùng date_lookup giả để phát triển trước khi Khánh bàn giao.
+
+### Kiểm tra đạt
+
+- [ ] kept_references == len(references), total chưa biết=None.
+- [ ] Xác minh lấy đủ trang; thiếu trang phải partial.
+- [ ] Thiếu ngày/thông tin được ghi rõ, không bịa.
+- [ ] Phân biệt success/partial/not_found/failed, không ghi đè output tốt bởi lỗi.
+- [ ] Không cố định số tham khảo BERT/RoBERTa vì dịch vụ có thể cập nhật.
+- [ ] Viết phần S2, độ phủ và giới hạn bằng tiếng Anh cho báo cáo.
+
+## 6. Danh — Điều phối, số đo và báo cáo
+
+**File sở hữu:** `src/crawling/pipeline.py`, `metrics.py`; điều phối notebook chung, README, requirements và repo Jupyter Book.
+
+### Input nhận gì?
+
+Scope, data_root: Path, HttpPolicy và các hàm thật/fake cùng Protocol. Để làm trước dùng MANIFEST, RESOURCE_SAMPLES, CORPUS_SUMMARY, BENCHMARK và RUN_RESULT trong fixtures.py.
+
+### Quy trình làm trước khi các module khác xong
+
+1. Viết summarize_corpus từ MANIFEST; kiểm tra bằng CORPUS_SUMMARY.
+2. Viết summarize_benchmark từ RESOURCE_SAMPLES; kiểm tra bằng BENCHMARK.
+3. Viết tạo đường dẫn an toàn, khởi tạo/đọc/ghi manifest và save_paper_metadata.
+4. Viết run_pipeline gọi các dependency theo đúng chữ ký; khi cần thử điều phối dùng fake cùng giao diện trong cell kiểm tra, không viết lại nghiệp vụ của các thành viên.
+5. Làm resume: bỏ qua output đã xác minh, tiếp tục phần còn thiếu/lỗi, không dựa duy nhất vào manifest cũ.
+6. Viết bộ lấy mẫu RAM process tree và đĩa trong lúc chạy, dừng/join trong finally.
+7. Tạo khung báo cáo tiếng Anh và bảng/biểu đồ đọc từ kết quả đã lưu.
+
+### Quy trình ghép khi nhận hàm thật
+
+1. Gọi Khánh lấy DiscoveryResult.
+2. Với từng PaperRecord: tạo thư mục, lưu metadata.json.
+3. Với mỗi version: gọi Khang, ghi kết quả vào manifest.
+4. Gọi Nguyên cho bài chính, truyền hàm tra ngày của Khánh đã gắn policy.
+5. Ghi tiến độ sau từng tác vụ; tổng hợp kết quả và lỗi.
+6. Chạy vài bài từ kernel sạch; lỗi module nào giao đúng chủ module sửa.
+7. Có phạm vi chính thức thì chạy corpus và benchmark cuối Colab CPU.
+8. Ghép phần phương pháp/nhận xét do Khánh, Khang, Nguyên viết; build Book từ dữ liệu thật.
+
+### Output bàn giao
+
+- RunResult: status, run_id, manifest_path, metrics_path, summary và benchmark.
+- Corpus theo bài/phiên bản; manifest.json và metrics/run_summary.json dưới data_root.
+- Notebook chung gọi hàm thật, số liệu có mẫu số/cache mode/môi trường rõ ràng.
+- README cài/chạy, requirements đã kiểm chứng, Jupyter Book repo riêng trên GitHub Pages.
+- Nhóm nộp hai link Moodle; chưa nộp corpus ở Milestone 1.
+
+### Kiểm tra đạt
+
+- [ ] Summary và benchmark đúng fixture kỳ vọng, không dùng fixture làm báo cáo thật.
+- [ ] Pipeline nhận đúng hàm thật, không còn fake khi chạy corpus nộp.
+- [ ] Thử gián đoạn/chạy tiếp và manifest hỏng; không mất kết quả tốt.
+- [ ] Không gộp no_tex vào số phiên bản có nguồn TeX thành công.
+- [ ] Đo từ đầu đến cuối, cả chờ/retry và process con; có đỉnh đĩa lúc chạy.
+- [ ] Build Book sinh bảng/biểu đồ, không cào lại toàn bộ mỗi lần build.
+- [ ] Cả nhóm góp báo cáo, không dồn mọi nội dung cho Danh.
+
+## 7. Một notebook chung: sử dụng thế nào?
+
+Notebook có phần Khánh, Khang, Nguyên, Danh và phần tích hợp. Mỗi người chạy cell import/cấu hình rồi phần của mình.
+
+1. Viết code thật vào module .py phụ trách.
+2. Chạy fixture trong phần tương ứng để hiểu hợp đồng, không coi đây là kiểm tra hàm thật.
+3. Sau triển khai, bật cờ RUN của phần mình ở ô setup rồi chạy cell gọi thật. Cờ phần khác giữ False. Nguyên chỉ bật USE_REAL_DATES sau khi Khánh làm xong.
+4. Muốn kiểm từ kernel sạch: sửa dòng cờ của phần mình thành True ngay trong mã ô setup, rồi Restart Kernel → Run All. Phần khác giữ RUN=False. Khi chỉ chạy riêng: chạy setup đã sửa, rồi các ô phần mình; không cần chạy phần khác. Trước commit sửa cờ lại False và clear output.
+5. Kiểm tra nội dung output, schema, file lưu và tình huống lỗi. Không chỉ nhìn cell không báo lỗi.
+6. Khi ghép hoàn chỉnh, Danh bật các call thật cần cho luồng, chạy lại từ kernel sạch và xác minh corpus.
+
+**Không chạy lại toàn bộ cell mạng nhiều lần vô tình.** Đọc cell trước Run All, dùng cache có kiểm tra; benchmark tải mới dùng điều kiện cold riêng và ghi rõ. Không dùng API đồng thời vượt giới hạn chỉ vì nhiều người cùng phát triển.
+
+**Dùng một file chung nhưng tránh xung đột:** mỗi người chỉ sửa cell phần mình, không sửa/xóa cell người khác; không đồng thời lưu cùng bản file. Merge lần lượt, bỏ output cào và execution_count trước commit. Code .py có thể làm song song; chỉnh notebook cần phối hợp. Không tạo notebook thử riêng theo yêu cầu nhóm.
+
+Notebook mặc định chỉ chạy fixture, call thật nằm sau cờ RUN=False, nên chạy sạch hiện tại chỉ xác nhận bộ mẫu hoạt động. Không sửa raise NotImplementedError thành trả fixture trong code thật chỉ để notebook xanh.
+
+## 8. Chạy không lỗi chưa đủ: kiểm tra theo 5 lớp
+
+| Lớp | Phải chứng minh |
 |---|---|
-| status | success: nguồn đã kiểm tra; no_tex: nguồn thực sự không có TeX; failed: chưa xử lý được |
-| source_bytes_before | Tổng dung lượng file chưa nén trước lọc, để tính ảnh hưởng bỏ ảnh |
-| source_bytes_after | Dung lượng văn bản giữ lại chưa nén |
-| archive_bytes | Dung lượng gói tải, tách khỏi hai chỉ số trên |
-| file_count | Số file văn bản giữ lại |
-| elapsed_seconds | Thời gian lần xử lý này, gồm chờ/retry trong hàm |
-| attempts | Số lượt yêu cầu tải đã thử; dùng 0 nếu dùng kết quả hợp lệ sẵn có |
-| error | null nếu thành công; mô tả lỗi hoặc lý do no_tex nếu có |
+| 1. Chạy được | Import và Restart kernel → Run All không phụ thuộc biến cũ |
+| 2. Đúng hợp đồng | Đủ khóa, kiểu đúng, ngày/ID/đơn vị đúng; không đổi chữ ký |
+| 3. Đúng nội dung | Đủ phiên bản, nguồn đúng, metadata đáng tin, tham khảo đủ trang |
+| 4. Chịu lỗi | PDF-only, mạng lỗi, 429, thiếu ngày, mã cũ, resume được ghi nhận đúng |
+| 5. Ghép được | Hàm thật nối với nhau và ghi output đủ để dùng Milestone 2–3 |
 
-**Ví dụ số đo thật đã có:** BERT v2 có gói tải 316748 byte, giữ 24 file văn bản tổng 173865 byte. Chưa có số đo tổng file chưa nén trước lọc và thời gian trong ví dụ cũ thì phải để null cho hai trường đó, không lấy 316748 làm source_bytes_before.
+Mỗi thành viên ghi ngắn các trường hợp đã thử, kết quả và hạn chế trong phần notebook của mình. Chỉ sửa code phần mình; nếu hợp đồng có vấn đề, báo nhóm trước khi đổi.
 
-**Khi lỗi:** không tạo nguồn dở dang trông như hoàn chỉnh. Tải/giải nén vào vùng tạm, xác minh rồi mới đánh dấu hoàn tất. Với no_tex, giữ bản ghi và thư mục phiên bản không có nguồn TeX. Với failed, giữ log để thử lại; không xóa dữ liệu hợp lệ của lần trước.
+## 9. Mốc làm song song và bàn giao
 
-**Ai dùng output:** người 4 tổng hợp trạng thái/số đo; Milestone 2 dùng trực tiếp các file nguồn.
+| Mốc | Khánh | Khang | Nguyên | Danh |
+|---|---|---|---|---|
+| Làm độc lập | API/metadata với Scope mẫu | Nguồn với PaperRecord mẫu | S2 với ID mẫu/date_lookup giả | Manifest/metrics/pipeline bằng fixture |
+| Bàn giao | DiscoveryResult + hàm tra ngày | DownloadResult + nguồn | ReferenceResult + references.json | Notebook tích hợp + danh sách lỗi |
+| Chạy thật | Soát phạm vi/phiên bản | Soát nguồn | Soát tham khảo | Điều phối corpus và benchmark |
+| Báo cáo | Viết phần mình tiếng Anh | Viết phần mình tiếng Anh | Viết phần mình tiếng Anh | Tổng hợp, build, kiểm tra link |
 
-#### Người 3: nhận mã bài và hàm tra ngày, trả danh sách tham khảo
+Bàn giao gồm code đúng chữ ký, cách gọi, output/file thật, tình huống lỗi đã thử và nội dung báo cáo. Dữ liệu mẫu cho phép làm song song, nhưng chạy tích hợp và benchmark thật phải chờ module thật.
 
-**Input:**
+## 10. Checklist cuối nhóm
 
-```python
-arxiv_id = "1907.11692"
-paper_dir = Path("data/1907-11692")
-date_lookup = fetch_submission_dates
-```
+- [ ] Có phạm vi chính thức và deadline từ thầy/Moodle.
+- [ ] Đủ bài/phiên bản được ghi nhận, lỗi không bị giấu.
+- [ ] Nguồn văn bản và metadata đúng, tham khảo có nguồn gốc và thiếu trường rõ ràng.
+- [ ] Notebook chung chạy với hàm thật từ kernel sạch, không còn dữ liệu giả trong kết quả nộp.
+- [ ] Benchmark Colab CPU và thống kê với mẫu số/điều kiện chạy rõ.
+- [ ] Code công khai, README/requirements đầy đủ; không commit corpus, key, log hay output cào hàng loạt.
+- [ ] Jupyter Book tiếng Anh ở repo riêng, bảng/biểu đồ sinh lúc build.
+- [ ] Nộp link code + báo cáo Moodle đúng hạn; giữ corpus cho Milestone 2–3.
 
-- `arxiv_id`: bài đang hỏi danh sách tham khảo, ở đây là RoBERTa.
-- `paper_dir`: nơi lưu references.json của RoBERTa.
-- `date_lookup`: một hàm nhận danh sách mã và trả ngày gửi như mô tả cho người 1. Trước khi ghép, dùng hàm giả lập cùng giao diện để kiểm tra.
+## 11. Cách giao việc cho AI của từng thành viên
 
-**Không cần input là nguồn LaTeX của người 2.** Người 3 lấy thông tin bằng mã bài từ dịch vụ bên ngoài, vì vậy có thể làm song song với người 2.
+**Đọc mục này cùng mục của chính mình; không chỉ đưa tên file cho AI.** AI phải đọc repository thực tế trước khi sửa. Thứ tự đọc:
 
-**Output file:** `data/1907-11692/references.json`, một dictionary có khóa là mã bài được tham khảo. Ví dụ một mục thật được rút gọn để đọc:
+1. `ARXIV_PROJECT_FULL.md`: phần Milestone 1, Requirement, Submission Format và Report Requirements.
+2. File phân công này: mục 1–2, phần người phụ trách, mục 7–8 và 11–17.
+3. `docs/milestone1/HUONG_DAN_PROTOTYPE.md`.
+4. `src/crawling/__init__.py`: toàn bộ kiểu dữ liệu và quy ước.
+5. Module được giao; xem chữ ký các module liền kề để biết cách ghép.
+6. `src/crawling/fixtures.py` và phần mình trong notebook chung.
 
-```json
-{
-  "1810-04805": {
-    "title": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
-    "authors": ["J. Devlin", "Ming-Wei Chang", "Kenton Lee", "K. Toutanova"],
-    "submission_date": "2018-10-11",
-    "semantic_scholar_id": "df2b0e26d0599ce3e70df8a9da02e51594e0e992",
-    "publication_date": null
-  }
-}
-```
+Nếu kế hoạch cũ dùng tên người/chữ ký khác, ưu tiên bản phân công này và schema hiện tại. Đề bài quyết định yêu cầu môn học; schema quyết định giao diện trong nhóm. Phát hiện mâu thuẫn phải ghi rõ, không âm thầm đổi hợp đồng.
 
-Tác giả ở đây giữ cách viết dịch vụ trả về, không tự mở rộng tên viết tắt bằng suy đoán. File thật chứa tất cả mục có mã arXiv lấy được, không chỉ một mục ví dụ. `publication_date` là trường thêm tùy chọn, không thay cho submission_date. Mã kiểu mới dùng khóa dấu gạch ngang; mã kiểu cũ giữ nguyên định danh trong khóa JSON.
-
-**Output hàm:** dictionary ở mục 2.4, trong đó `references` chứa đúng dữ liệu đã ghi thành file; các chỉ số còn lại giúp người 4 thống kê chất lượng truy vấn.
-
-Ví dụ lần truy vấn mẫu RoBERTa thành công:
+### Prompt Khánh — chép gửi AI
 
 ```text
-status = success
-total_references = 68
-kept_references = 40
-missing_submission_dates = 0
+Tôi là Khánh, triển khai discovery của Milestone 1 trong repository này.
+Đọc các tài liệu theo mục 11 của PHAN_CONG_MILESTONE_1_4_NGUOI.md,
+rồi thực hiện phần Khánh và các ca kiểm tra mục 12.
+Được sửa src/crawling/discover.py và các cell Khánh trong notebook chung.
+Triển khai fetch_paper, discover_papers, fetch_submission_dates bằng requests
+và XML Atom arXiv API; xác minh mọi phiên bản, không dùng Kaggle/OAI-PMH.
+Giữ nguyên chữ ký, TypedDict, Protocol và schema output. Có thể thêm helper
+private trong discover.py. Không implement module của thành viên khác.
+Không trả fixture thay dữ liệu thật. Không hardcode phiên bản hay kết quả BERT.
+Thử lỗi bằng fake HTTP ở cell kiểm tra, không spam API để tạo 429 thật.
+Dùng đúng một src/notebooks/milestone1.ipynb; giữ mặc định không gọi mạng.
+Sau cùng báo file đã sửa, cách chạy từng cell, kết quả đã thực sự kiểm tra,
+việc tôi cần mở browser kiểm tra bằng tay, hạn chế và phần chưa kiểm chứng.
 ```
 
-Các số trên là kết quả đã quan sát ở ví dụ, không phải số cố định mà code phải luôn trả.
+### Prompt Khang — chép gửi AI
 
-**Khi lỗi:** nếu API failed/not_found và không lấy được dữ liệu, không ghi `{}` đè lên references.json hợp lệ. Nếu một phần tham khảo thiếu ngày, có thể ghi dữ liệu hiện có nhưng trả partial và số mục thiếu. Không có tham khảo thật là khác với chưa truy vấn được. Nếu có key, đọc từ môi trường, không đưa vào output/log.
-
-**Ai dùng output:** người 4 lập bảng và kiểm tra; Milestone 3 đối chiếu các mục này với BibTeX trích xuất ở Milestone 2.
-
-#### Người 4: nhận ba module, ghép corpus và trả kết quả chung
-
-**Input chạy chính:**
-
-```python
-scope = {"mode": "ids", "ids": ["1810.04805", "1907.11692"]}
-data_root = Path("data")
+```text
+Tôi là Khang, triển khai tải và xử lý nguồn Milestone 1.
+Đọc tài liệu theo mục 11, rồi làm phần Khang và mục 13.
+Được sửa src/crawling/download.py và các cell Khang trong notebook chung.
+Triển khai prepare_source trước, download_version sau. Dùng ID/version từ
+fixture để làm độc lập; không gọi discovery hay đợi Khánh hoàn thành.
+Tải đúng version qua export.arxiv.org/src, giữ text nguyên nội dung/cấu trúc,
+bỏ ảnh nhị phân, không xóa lệnh hình. Xử lý TeX đơn, gzip, tar, PDF-only,
+archive hỏng, giải nén an toàn và giới hạn dung lượng.
+Giữ chữ ký/schema, phân biệt no_tex/failed, byte nén/chưa nén, cache qua
+SourceReceipt đã quy định. Có thể thêm helper private cùng module.
+Không sửa module khác/fixtures/schema để làm test xanh. Dùng một notebook,
+giữ mạng tắt mặc định. Báo kết quả thực đã thử và cách mở file kiểm tra tay.
 ```
 
-Ngoài ra người 4 nhận các hàm đúng giao diện từ người 1–3; cấu hình môi trường; kết quả/log lần chạy trước nếu cần tiếp tục. API key là cấu hình bí mật tùy chọn, không phải dữ liệu bàn giao qua Git.
+### Prompt Nguyên — chép gửi AI
 
-**Cách ghép input/output:**
-
-1. Gọi discover_papers(scope) lấy danh sách PaperRecord.
-2. Với mỗi PaperRecord, tạo paper_dir và ghi metadata.json từ trường metadata.
-3. Lặp versions, gọi download_version cho mỗi phiên bản và lưu kết quả trạng thái vào manifest.
-4. Gọi collect_references một lần cho bài, truyền fetch_submission_dates làm date_lookup.
-5. Từ trạng thái, dữ liệu và số đo, tạo bảng chất lượng dữ liệu/hiệu năng.
-
-**Output hàm run_pipeline:** quy ước trả một dictionary:
-
-```python
-{
-    "run_id": "ma-lan-chay",
-    "manifest_path": "data/manifest.json",
-    "metrics_path": "metrics/run_summary.json",
-    "summary": {
-        "papers_discovered": 2,
-        "versions_expected": 3,
-        "versions_success": 3,
-        "versions_no_tex": 0,
-        "versions_failed": 0,
-        "reference_jobs_success": 2,
-        "reference_jobs_partial": 0,
-        "reference_jobs_failed": 0,
-        "reference_jobs_not_found": 0
-    }
-}
+```text
+Tôi là Nguyên, triển khai metadata tham khảo Milestone 1.
+Đọc tài liệu theo mục 11, rồi làm phần Nguyên và mục 14.
+Được sửa src/crawling/references.py và các cell Nguyên trong notebook chung.
+Triển khai collect_references: Semantic Scholar đủ trang, giữ arXiv IDs,
+gộp API trùng ID, bổ sung ngày gửi qua DateLookup, lưu references.json
+nguyên tử; không parse BibTeX hay tải nguồn các bài tham khảo.
+Giữ chữ ký/schema; tuân ReferenceReceipt, status và bộ đếm thiếu trường.
+Nếu Khánh chưa xong dùng fake DateLookup trong cell kiểm tra: mọi ID yêu cầu
+đều có trong dates; ID không biết=None và có errors. Không bịa ngày.
+Có thể thêm helper private. Không sửa các module khác/fixtures/schema.
+API key chỉ đọc từ môi trường, không lưu notebook/log. Thử 429/timeout bằng
+fake HTTP. Chỉ một notebook, mạng tắt mặc định. Báo cách đối chiếu tay,
+ca đã kiểm chứng, ca chưa thử và giới hạn độ phủ của dịch vụ.
 ```
 
-Đây là ví dụ để thống nhất cấu trúc, không phải tuyên bố pipeline đã xây và chạy. Số bài được giao chưa biết ở lần thử thì ghi trong metadata lần chạy là chưa có phạm vi chính thức; không lấy papers_discovered làm bằng chứng quét đủ.
+### Prompt Danh — chép gửi AI
 
-**Output file và sản phẩm:**
+```text
+Tôi là Danh, triển khai pipeline/metrics và tích hợp Milestone 1.
+Đọc tài liệu theo mục 11, rồi làm phần Danh và mục 15–17.
+Được sửa src/crawling/pipeline.py, metrics.py, phần Danh/tích hợp của
+notebook chung, README và requirements. Không viết lại nghiệp vụ của bạn khác.
+Giữ nguyên chữ ký/schema/Protocol. Trước hết kiểm metrics bằng fixture,
+sau đó manifest JSON round-trip, điều phối qua fake dependency đúng chữ ký
+trong notebook, rồi ghép hàm thật. Dùng deepcopy fixture, không sửa mẫu gốc.
+Resume phải xác minh receipt qua module sở hữu file; thử lỗi và chạy tiếp.
+Đo end-to-end, RAM process tree, đĩa lúc chạy; dừng sampler trong finally.
+Không báo benchmark giả hoặc gộp no_tex thành có TeX; số thiếu là None.
+Một notebook duy nhất, mạng tắt mặc định. Báo bằng chứng kiểm tra đã chạy,
+cách kiểm tra tay, phần chưa thực hiện: corpus được giao, Colab CPU,
+Jupyter Book tiếng Anh repo riêng, xuất bản/nộp link do nhóm thực hiện.
+```
 
-| Đầu ra | Nội dung | Ai dùng? |
-|---|---|---|
-| data/manifest.json | Mã bài, phiên bản, trạng thái từng tác vụ, đường dẫn output, lý do lỗi, thông tin lần chạy | Cả nhóm kiểm tra và chạy tiếp |
-| data/... | Corpus ghép từ metadata, nguồn và tham khảo | Milestone 2–3 |
-| metrics/run_summary.json | Phạm vi thực chạy, thời gian tổng, RAM/đĩa, trạng thái cache và các thống kê tổng hợp | Notebook phân tích và báo cáo |
-| Notebook chính | Cấu hình, điều khiển chạy, xem dữ liệu và thống kê | Cả nhóm phát triển trên Jupyter |
-| Jupyter Book tiếng Anh | Phương pháp, kết quả thật, bảng/biểu đồ sinh khi build và giới hạn | Giảng viên đọc/chấm |
-| README + requirements.txt | Cài đặt và tái lập môi trường/chạy code | Người khác chạy lại |
+**Giới hạn sửa chung:** không tự sửa `__init__.py`, fixtures hay cell người khác. Nếu thiếu hợp đồng, ghi đề xuất cho nhóm cùng duyệt và cập nhật đồng bộ. Có thể thêm thư viện cần thiết nhưng báo Danh cập nhật requirements và thử môi trường sạch. Helper private không được làm thay đổi public signature. Test helper/fake chỉ phục vụ kiểm tra trong notebook; không có fake âm thầm trong crawler thật.
 
-**Khi lỗi hoặc còn thiếu:** báo cáo đúng số tác vụ failed/partial/not_found; trạng thái running của lần bị ngắt phải được kiểm tra lại trước khi chạy tiếp. Output pipeline có thể tồn tại dù còn lỗi, nhưng không được diễn giải thành toàn bộ corpus đã hoàn chỉnh.
+## 12. Khánh: mở và kiểm tra bằng tay thế nào?
 
-### 2.7. Những quy ước bổ sung để ghép không bị lệch
+1. Mở Jupyter, chọn kernel Python của project, **Restart Kernel**. Chạy ô thiết lập chung, ô fixture Khánh; chưa gọi crawler ở bước này.
+2. Sau triển khai bật `RUN_KHANH=True`, chạy ô gọi thật. Ô này dùng danh sách mẫu `1810.04805`, `1907.11692`; không phải phạm vi nộp. Chờ đúng pacing, xem `khanh_live`.
+3. Mở browser tại [BERT](https://arxiv.org/abs/1810.04805) và [RoBERTa](https://arxiv.org/abs/1907.11692). So từng bài: ID, tiêu đề, **toàn bộ** tác giả, Submission history. Đếm phiên bản trên trang; `versions` phải khớp lịch sử thực tế, không mặc định luôn [1,2].
+4. So `submission_date` với ngày v1; `revised_dates` với ngày v2 trở đi theo thứ tự phiên bản. Ngày chuẩn UTC; nhiều phiên bản có thể cùng ngày, không tự loại trùng ngày. Venue không có nguồn thì None, không suy từ tiêu đề.
+5. Gọi tra ngày cho `1706.03762`, so ngày gửi lần đầu trên [trang bài](https://arxiv.org/abs/1706.03762). Thêm ID trùng: output chỉ một khóa mỗi ID. Với list rỗng phải trả hai dict rỗng.
+6. Trong cell test của mình, dùng fake HTTP để trả timeout, 429 rồi success, entry thiếu trường, phản hồi sai version và không tìm thấy. Đối chiếu retries không quá policy, issues không mất ID; không bật mạng để cố gây lỗi. Scope sai mode hoặc range ngược phải ValueError trước gọi mạng.
+7. Thử một mã arXiv cũ lấy từ nguồn đã xác minh: giữ ID `archive/YYMMNNN` trong dữ liệu. Không tự sửa thành mã hiện đại. Ghi rõ nếu chưa thử mã cũ.
 
-- File JSON dùng UTF-8, số liệu là kiểu số thật; không lưu số byte hoặc số giây thành chuỗi có đơn vị.
-- Ngày gửi/ngày sửa dùng `YYYY-MM-DD` sau khi thống nhất quy đổi từ timestamp UTC của arXiv; thời điểm truy vấn/log dùng timestamp có múi giờ. Nếu cần giữ timestamp gốc, lưu trường riêng.
-- Dữ liệu chưa biết dùng null; danh sách rỗng/dictionary rỗng chỉ diễn tả kết quả đã xác minh hoặc tình trạng được ghi rõ trong status. Không đồng nhất null với 0.
-- Tham khảo trùng mã trong một phản hồi được gộp theo mã; không chọn ngẫu nhiên khi metadata mâu thuẫn, ghi nhận xung đột. Đây là gộp bản ghi API trùng, không thay phần dedup BibTeX của Milestone 2.
-- Dùng đường dẫn cấu hình và pathlib, không hardcode ổ đĩa máy cá nhân để Colab dùng lại được.
-- Người 4 sở hữu manifest và file metrics chung; người 1–3 chỉ trả số đo/trạng thái, không cùng ghi chồng lên file chung.
-- File đầu ra quan trọng ghi tạm rồi thay thế sau khi ghi thành công; tác vụ lỗi không làm mất kết quả hợp lệ cũ.
-- Nếu chạy lại dùng cache, manifest phải ghi rõ; không cộng thời gian cache vào benchmark tải mới rồi so sánh như cùng điều kiện.
-- Phát triển ban đầu chạy tuần tự qua notebook; làm việc song song giữa thành viên không có nghĩa được gọi API không giới hạn cùng lúc.
-- Cả ba người 1–3 gửi phần phương pháp và nhận xét bằng tiếng Anh, kèm nguồn/tài liệu đã dùng; người 4 biên tập chung.
+**Đạt:** từng ID yêu cầu thuộc papers hoặc issues; PaperRecord không có metadata/lịch sử chưa xác minh. requested_count đếm ID duy nhất sau mở rộng scope. success chỉ khi scope_complete và issues rỗng; partial nếu có dữ liệu/đã xác minh được một phần nhưng còn issues; failed khi toàn bộ không xác minh được do lỗi vận hành. Trường hợp tất cả ID đã xác minh không tồn tại: partial, scope_complete=True, papers=[], issues not_found. Không gọi là đã crawl thành công.
 
-### 2.8. Các thông tin còn chờ và trách nhiệm cập nhật
+**Bàn giao:** code + cách gọi fetch/discover/dates + bảng đối chiếu 2 bài + các lỗi đã thử + output thật có nguồn/ngày kiểm tra. Danh cần hàm, không chỉ cần ảnh output.
 
-| Thông tin | Hiện trạng | Cách cập nhật |
-|---|---|---|
-| Khoảng mã bài chính thức | Chưa nhận | Khi thầy gửi, người 1 và 4 cập nhật scope; giữ nguyên module tải/tham khảo nếu giao diện không đổi |
-| Deadline | Chưa được cung cấp | Nhóm bổ sung từ Moodle/thông báo; kế hoạch không tự đặt ngày nộp |
-| Repo code và repo Book | Chưa ghi URL trong tài liệu | Người 4 bổ sung sau khi nhóm tạo/chọn repository |
-| API key Semantic Scholar | Chưa yêu cầu phải có; ví dụ batch đã chạy không key | Nếu có thì lưu qua biến môi trường/Secrets; thiếu key vẫn phát triển được với phản hồi mẫu và truy cập công khai khi dịch vụ cho phép |
-| Phiên bản Python/thư viện | Chưa khóa phiên bản đã kiểm tra | Người 4 ghi sau lần chạy mẫu chung trên máy và Colab |
+## 13. Khang: mở và kiểm tra bằng tay thế nào?
 
-Các mục này không ngăn nhóm phát triển độc lập trên mẫu BERT/RoBERTa. Phạm vi chính thức phải có trước khi chạy corpus nộp bài; các thông tin khác được bổ sung khi có, không bịa giá trị để lấp chỗ trống.
+1. Restart Kernel, chạy setup và phần Khang, **không cần chạy phần Khánh**. Fixture cung cấp ID/version độc lập. Dùng `data/manual/khang/` làm vùng thử, không ghi lên corpus chính.
+2. Nhờ AI tạo gói kiểm tra nhỏ trong cell Khang: `main.tex` chứa chữ Việt, `\\input`, lệnh hình/bảng; file con `.tex`, `.bib`, `.sty`, ảnh nhị phân. Gọi prepare_source. Mở thư mục output bằng Explorer/editor: text và cấu trúc thư mục còn nguyên; ảnh bị bỏ; lệnh hình trong TeX còn nguyên. So SHA-256 trước/sau **từng file text**; mở nhìn vài dòng chưa đủ chứng minh không bị sửa.
+3. Tự cộng byte file chưa nén trong gói trước lọc, và byte các file đã giữ. So với source_bytes_before/after; file_count chỉ đếm file giữ, không đếm thư mục/receipt. Gói nén đo ở archive_bytes, không dùng thay số trước lọc.
+4. Thử gói local: TeX đơn, gzip TeX đơn, tar gzip nhiều file, PDF hợp lệ không TeX, archive hỏng. PDF-only -> no_tex; archive hỏng -> failed. File ngẫu nhiên không được coi là PDF-only thành công. Với no_tex, giữ bản ghi phiên bản, không tạo TeX giả.
+5. Tạo tar thử có tên `../escape.tex` và link thoát thư mục, gọi prepare_source ở vùng thử. Phải từ chối; kiểm tra ngoài thư mục đích không có file mới. Gói vượt giới hạn bung nén phải dừng có lỗi, không giải nén hết mới kiểm.
+6. Bật RUN_KHANG, gọi download_version v1. Mở [trang v1](https://arxiv.org/abs/1810.04805v1), kiểm đúng version. Tải nguồn đối chứng từ endpoint export được chỉ trong đề, mở danh sách archive và đối chiếu file text; không dùng PDF làm nguồn TeX đối chứng. Sau đó thử v2 ở **thư mục v2 khác**.
+7. Chạy lại cùng input với use_cache=True: hash nguồn không đổi, attempts=0, used_cache=True. Sửa một file trong vùng thử rồi chạy lại: cache phải bị phát hiện sai và tải lại; không được báo dùng cache tốt. Thử timeout giả khi đang có nguồn tốt: trả failed, file tốt cũ không bị thay bằng dữ liệu lỗi.
 
-## 3. Người 1 — Tìm bài và lấy metadata
+**Bàn giao:** code + hai DownloadResult thật + cây thư mục v1/v2 + bảng byte + bằng chứng hash/text + các ca lỗi/cache. Không cần có Khánh mới bắt đầu được.
 
-**Bạn này trả lời:** “Nhóm phải xử lý những bài nào? Mỗi bài có những phiên bản nào? Thông tin bài là gì?”
+## 14. Nguyên: mở và kiểm tra bằng tay thế nào?
 
-**Sở hữu:** `src/crawling/discover.py`, `src/notebooks/01_discovery.ipynb`, kiểm tra riêng cho discovery.
+1. Restart Kernel, chạy setup và phần Nguyên; không cần chạy Khánh/Khang. Xem fixture trước. Ô gọi thật có `USE_REAL_DATES=False`: fake ngày chỉ biết ID mẫu, trả None + errors cho ID khác; output thật S2 với fake ngày có thể partial là đúng.
+2. Bật RUN_NGUYEN sau khi implement. Nếu API cần key, đặt `S2_API_KEY` ở môi trường trước khi mở Jupyter; không paste key vào cell. Nếu 429 hết retry, ghi rõ bị chặn; đây không phải test thành công hay danh sách thật rỗng.
+3. Mở Semantic Scholar trên browser, tìm BERT bằng mã `1810.04805` và xác nhận đúng tiêu đề. Chọn khoảng 3 tham khảo có arXiv ID từ output thực tế. Với mỗi mục so title/authors/S2 ID qua trang tương ứng hoặc JSON API; mở trang arXiv của bài tham khảo để so ngày v1. Nếu chỉ có 1–2 mục đối chiếu được, ghi đúng số đã kiểm, không bịa đủ 3.
+4. Mở file references.json bằng editor. Top-level là dict; mã mới đổi dấu chấm thành gạch ngang; mã cũ giữ nguyên; không thêm tham khảo không có arXiv ID. So nội dung file đúng result['references']; kept_references == len(references).
+5. Kiểm dấu vết phân trang của AI: endpoint, offset/next, số mục từng trang, lý do kết thúc. Tổng trước lọc khác số sau lọc/gộp. Browser có thể hiện khác phạm vi API; không lấy số trên browser làm bằng chứng duy nhất đã lấy đủ trang. Khi chưa biết total, để None.
+6. Fake HTTP trong cell kiểm tra: trang 1 thành công/trang 2 lỗi -> partial, pagination_complete=False; 404 bài chính -> not_found; timeout hết retry -> failed. Lỗi không ghi {} đè file tốt. Thử danh sách hợp lệ rỗng -> success với kept=0 (phân biệt lỗi).
+7. Fake ngày thiếu -> missing_submission_dates tăng và incomplete_references tăng theo **số mục**, không theo số trường. publication_date=None riêng lẻ không tính thiếu vì không phải trường bắt buộc. Thử mục API trùng arXiv ID: gộp một khóa; xung đột không giải quyết được -> partial.
+8. Khi Khánh hoàn thành, bật USE_REAL_DATES, chạy lại bằng partial(fetch_submission_dates, policy=...). Đối chiếu ngày thật, cache chỉ dùng khi receipt/schema/hash hợp lệ. Sửa file ở vùng thử: phải phát hiện cache sai. Output dùng fake ngày không được dùng nộp.
 
-**Dùng gì:** Python, arXiv API, có thể dùng thư viện arxiv, json. Đối chiếu lịch sử phiên bản trên arXiv. Không phải triển khai cả Kaggle và OAI-PMH.
+**Bàn giao:** code + ReferenceResult/file thật + bảng đối chiếu tham khảo + phân trang/ca lỗi đã kiểm + giới hạn indexing/version của S2. Không tuyên bố S2 liệt kê đúng tham khảo của từng phiên bản nếu dịch vụ không hỗ trợ.
 
-### Task
+## 15. Danh: mở và kiểm tra bằng tay thế nào?
 
-- [ ] Chạy truy vấn với danh sách BERT/RoBERTa mẫu, lấy đúng bài và metadata.
-- [ ] Xây `discover_papers`, xử lý kết quả nhiều trang và lọc đúng phạm vi khi có đầu vào chính thức.
-- [ ] Xác minh và trả mọi phiên bản; phân biệt một bài nhiều phiên bản với nhiều bài khác nhau.
-- [ ] Tạo metadata đủ title, authors, submission_date, revised_dates và venue nếu có.
-- [ ] Xây `fetch_submission_dates` để người 3 gọi lại; thiếu dữ liệu trả None, không đoán ngày.
-- [ ] Đặt nhịp truy vấn phù hợp, retry có giới hạn, ghi lỗi rõ; không để nhiều tác vụ arXiv chạy song song vượt nhịp dịch vụ.
-- [ ] Khi pipeline chạy, lưu metadata.json vào thư mục bài qua cơ chế thống nhất với người 4; phần ghi file này do người 4 điều phối từ PaperRecord.
-- [ ] Viết phần giải thích discovery/metadata cho báo cáo, gửi nội dung cho người 4.
+1. Restart Kernel, chạy setup và phần Danh độc lập. Bật RUN_DANH_METRICS sau khi implement. Hai assert so toàn bộ summary/benchmark phải qua; fixture deepcopy, không sửa giá trị kỳ vọng theo output sai.
+2. Tính lại tay MANIFEST mẫu: 1 bài, 2 phiên bản thành công; byte mỗi version 1000 trước/400 sau -> trung bình version 1000/400, tổng bài 2000/800; tham khảo trước lọc 2, giữ 1 đầy đủ -> trung bình metadata đầy đủ 1.0; thời gian bài 13 giây. RAM mẫu 1000/2000/1500 -> peak 2000, mean 1500; peak disk 1200, cuối 1000. Đây là số giả kiểm công thức.
+3. Tạo các bản deepcopy khác: một version None -> pending; failed/no_tex tách riêng; reference partial không tính success; không có bài -> tỷ lệ None và mẫu số 0. Tự tính trước rồi đối chiếu. Bài thiếu size một version không góp vào trung bình size cả bài.
+4. Dùng vùng `data/manual/danh/` và fake dependency cùng Protocol trong cell test. Fake phải ghi output/receipt tương ứng nếu muốn thử cache file; chỉ trả dict chưa đủ. Thử initialize/save/load manifest: mở JSON đọc tay, khóa downloads là chuỗi, dữ liệu round-trip không đổi. JSON hỏng hoặc schema khác phải báo lỗi, không tự reset.
+5. Chạy fake pipeline với download lỗi có kiểm soát ở v2; mở manifest thấy v1 xong/v2 lỗi. Chạy tiếp khi fake v2 thành công; v1 được xác minh cache, v2 được thử lại. Thử scope khác khi resume: từ chối. Thử references/file nguồn bị thay đổi: module phải kiểm receipt và xử lý lại. Không sửa corpus chính để thử mất dữ liệu.
+6. Khi ghép thật: bật RUN_INTEGRATION, dùng root mới `data/manual/integration/`, scope mẫu. Mở Explorer kiểm metadata.json, sources/v1, v2, references.json, receipt, manifest và metrics; so ID/path/status từng nơi. Chạy lại resume và đọc cache_mode/attempts. Các run dùng root khác nhau để không lẫn kết quả.
+7. Mở sampler khi chạy; xem có mẫu đầu/giữa/cuối, elapsed tăng, RAM gồm process tree, disk gồm file tạm dưới root. Task Manager chỉ hỗ trợ đối chiếu thô, không dùng một ảnh sau chạy làm số RAM đỉnh. Khi lỗi/KeyboardInterrupt, sampler phải dừng; xem resource_errors.json nếu đo lỗi, không giả số 0.
+8. Final: clone/cài môi trường sạch trên Colab, chọn CPU, ghi phiên bản Python/package và cấu hình máy; chạy phạm vi thật với root mới/cache cold. Ghi wall time từ trước discovery, thời gian bài của run hiện tại, đỉnh đo được và chu kỳ mẫu. Không dùng số cache/resume gọi là tải mới.
+9. Build Book ở repository riêng từ JSON/CSV đã thu, không cào lại trong build. Mở bản HTML/GitHub Pages, kiểm bảng/biểu đồ thực sự sinh lúc build, tiếng Anh, các link hoạt động. Cài README trên môi trường sạch trước chốt requirements. Nhóm tự nộp hai link Moodle đúng hạn.
 
-### Làm độc lập bằng cách nào?
+**Bàn giao:** code metrics/pipeline, notebook tích hợp, hướng dẫn chạy sạch, bằng chứng resume, số đo thật và báo cáo. Chạy mẫu 2 bài thành công chỉ chứng minh luồng mẫu; chưa thay chạy toàn phạm vi thầy giao.
 
-Chỉ cần danh sách mã mẫu và arXiv. Không cần nguồn LaTeX của người 2 hoặc tham khảo của người 3.
+## 16. Quy ước bổ sung để các AI không tự chọn khác nhau
 
-### Đạt khi nào?
+### Đường dẫn và người ghi file
 
-- Notebook hiển thị bảng mã bài, tên bài, số phiên bản và ngày.
-- BERT/RoBERTa trả đúng lịch sử ở thời điểm kiểm tra; không hardcode các kết quả đó trong hàm.
-- Mã kiểu cũ được giữ nguyên; lỗi truy vấn không bị coi là bài không tồn tại.
-- Người 2 có thể dùng danh sách phiên bản, người 3 gọi được hàm tra ngày, người 4 gọi discovery mà không sửa code nội bộ.
+```text
+data_root/
+  manifest.json                         # Danh
+  1810-04805/
+    metadata.json                       # Danh
+    references.json                     # Nguyên
+    .references_receipt.json             # Nguyên, ReferenceReceipt
+    sources/
+      v1/...                            # Khang
+      .v1.receipt.json                   # Khang, SourceReceipt
+      v2/...
+      .v2.receipt.json
+  metrics/
+    run_summary.json                     # RunResult, Danh
+    resource_errors.json                 # list[str], Danh; [] nếu không lỗi đo
+```
 
-## 4. Người 2 — Tải nguồn và xử lý file
+Mã cũ: thư mục đổi `/` thành `-` để không tạo thư mục con tùy ý; ID trong record/manifest giữ nguyên. Khóa references.json mã cũ giữ nguyên. Path trong output tương đối với data_root. Thư mục thử manual do notebook quản lý, không trộn với root benchmark. Sidecar receipt là quy ước kỹ thuật của nhóm, không phải yêu cầu file do thầy đặt ra.
 
-**Bạn này trả lời:** “Làm sao tải đủ nguồn từng phiên bản, giữ đúng văn bản và không mất bài?”
+Receipt lưu theo TypedDict trong __init__.py. Thứ tự ghi: chuẩn bị file tạm -> xác minh -> thay file dữ liệu -> ghi receipt nguyên tử -> pipeline cập nhật manifest. Ngắt giữa hai bước khiến cache không đủ bằng chứng thì thử lại. Không tự xoá root để benchmark. resume=False gặp root đã có corpus/manifest thì báo ValueError và chọn root mới.
 
-**Sở hữu:** `src/crawling/download.py`, `src/notebooks/02_download.ipynb`, kiểm tra gói nguồn và đường dẫn.
+`export_report_data` ghi vào output_dir: `summary.json` (CorpusSummary), `benchmark.json` (BenchmarkResult), `papers.csv` (mỗi bài), `versions.csv` (mỗi version), `references.csv` (mỗi bài chính/mã tham khảo). CSV có run_id, arxiv_id; versions thêm version; references thêm reference_arxiv_id. Trường thiếu trống; JSON thiếu None là null. papers.csv gồm trạng thái nguồn/tham khảo, thời gian và các số đếm; versions.csv chứa DownloadResult; references.csv chứa ReferenceMetadata. Lưu `run_id.txt` cho hai JSON không có run_id trong schema. Không thay kiểu của metrics/run_summary.json. Book đọc bộ này từ nơi nhóm giữ dữ liệu báo cáo; không commit corpus vào repo code.
 
-**Dùng gì:** Python, requests/urllib, pathlib, tarfile, gzip.
+### Phạm vi, retry, thời gian và thống kê
 
-### Task
+- Phạm vi hiện hỗ trợ IDs cụ thể hoặc range hiện đại cùng YYMM và độ dài hậu tố. Phạm vi thầy khác định dạng phải thống nhất cách mở rộng trước khi chạy; không tự suy ra keyword/category thay thế. Range có khoảng trống phải ghi issues not_found, không giấu mẫu số.
+- Pipeline tuần tự. Mỗi module HTTP chờ service delay **trước mọi request**, kể cả request đầu và retry; dùng timeout, max_attempts gồm lần đầu, backoff hữu hạn và Retry-After. Đây là lựa chọn đơn giản để không gọi dồn khi chuyển module. Kiểm tài liệu API chính thức hiện hành lúc triển khai, đặc biệt giới hạn S2; không hardcode một con số từ ví dụ rồi bỏ xử lý 429.
+- status success của pipeline nghĩa là xử lý xong phạm vi và không lỗi/pending/partial. no_tex là tình trạng đã xác minh, báo riêng; success không có nghĩa mọi bài đều có TeX. failed khi không có tác vụ dữ liệu nào thành công và lỗi vận hành ngăn xử lý; các kết quả dở dang còn lại partial.
+- Kích thước nguồn: tổng byte file chưa nén, cặp trước/sau cùng tập dữ liệu. Receipt/manifest không thuộc size nguồn, nhưng thuộc disk toàn hệ thống. Không suy byte trước lọc từ output đã bỏ ảnh; cache lấy số gốc từ receipt có xác minh.
+- Hai tỷ lệ tham khảo khác nhau: reference_success_rate = số job success / số bài; average_reference_completeness_rate = trung bình tỷ lệ mục giữ lại có đủ metadata bắt buộc trên từng bài đủ trang và kept>0. Báo cả mẫu số, không gọi đây là độ chính xác matching của ML. Không có mục đủ điều kiện -> None.
+- Mỗi lần run có run_id mới; thời gian hiện tại không cộng run cũ. Byte gốc cache vẫn dùng thống kê corpus, nhưng thời gian/attempts/cache phải phản ánh lần gọi hiện tại. PaperState.elapsed_seconds đo từ trước lưu metadata đến sau nguồn/tham khảo của bài, không bao discovery toàn cục; discovery.elapsed_seconds và wall toàn run báo riêng.
+- RAM mean là trung bình mẫu, peak là peak quan sát, không hứa bắt được mọi đột biến. Lỗi lấy mẫu lưu riêng và phải nêu giới hạn trong báo cáo. Thời gian wall dùng monotonic/perf_counter; timestamp truy nguồn dùng UTC.
 
-- [ ] Xây `download_version` với đầu vào mã bài và số phiên bản.
-- [ ] Tải theo mã có hậu tố phiên bản; lưu riêng từng phiên bản.
-- [ ] Nhận diện tar/gzip, nguồn TeX đơn và trường hợp chỉ có PDF/Word; không chỉ dựa vào đuôi file.
-- [ ] Giải nén an toàn: chặn đường dẫn thoát thư mục, đường dẫn tuyệt đối và liên kết nguy hiểm.
-- [ ] Giữ file văn bản nguồn, kể cả thư mục con; bỏ ảnh nhị phân nhưng không sửa các lệnh hình/bảng trong LaTeX.
-- [ ] Xác minh xong mới đánh dấu success; giữ trạng thái no_tex cho trường hợp thực sự không có TeX.
-- [ ] Xử lý timeout/429/5xx bằng retry có giới hạn, tuân thủ nhịp dịch vụ; ghi số lần thử và lỗi.
-- [ ] Đo thời gian, số file và dung lượng trước/sau lọc trên cùng cơ sở chưa nén; gói nén có số đo riêng.
-- [ ] Dọn file tạm hoặc ghi rõ việc giữ gói gốc, tránh vượt đĩa Colab.
-- [ ] Viết giải thích download, lựa chọn giữ/bỏ file và các trường hợp đặc biệt cho báo cáo.
+## 17. Ghi bằng chứng và xác định đã hoàn thành
 
-### Làm độc lập bằng cách nào?
+Trong cell Markdown cuối **phần mình của notebook chung**, điền bảng này sau chạy; không ghi “pass” cho ca chưa thử:
 
-Dùng ba đầu vào cố định đã xác minh để thử: BERT v1, BERT v2 và RoBERTa v1. Không cần chờ discovery. Có thể đọc nguồn thật đã tải trong `milestone1_demo`, nhưng cần thử hàm tải mới ít nhất một lần để kiểm tra đường mạng.
+| Ngày/môi trường | Hàm/case | Input + nguồn đối chiếu | Mong đợi | Thực tế/file | Kết luận + giới hạn |
+|---|---|---|---|---|---|
+| Điền sau khi chạy | Ví dụ cache file hỏng | Root thử + version | Phát hiện sai hash | Ghi kết quả thật | Pass/Fail/Chưa thử |
 
-### Đạt khi nào?
+Ghi tóm tắt không có key/corpus hàng loạt. Clear output trước commit; giữ bảng mô tả ca và hướng dẫn tái hiện. Mỗi người đọc lại diff, kiểm chỉ sửa module/cell được giao và không làm thay đổi interface của người khác.
 
-- Nhận đầu vào là tải được nguồn vào đúng version_dir, trả đúng trạng thái thống nhất.
-- Nội dung văn bản không bị thay đổi; không nhầm v1/v2.
-- Kiểm tra gói giả lập có ảnh, TeX đơn, PDF-only và đường dẫn nguy hiểm; hành vi đúng, không cần dùng API thật cho các kiểm tra này.
-- Gọi lại không tạo dữ liệu trùng hoặc coi gói lỗi là nguồn hợp lệ.
-
-## 5. Người 3 — Lấy metadata tài liệu tham khảo
-
-**Bạn này trả lời:** “Mỗi bài trích dẫn những bài nào, thông tin của chúng là gì?”
-
-**Sở hữu:** `src/crawling/references.py`, `src/notebooks/03_references.ipynb`, kiểm tra chuyển đổi phản hồi API.
-
-**Dùng gì:** Python, requests, json, Semantic Scholar Academic Graph API; hàm tra ngày arXiv của người 1.
-
-### Task
-
-- [ ] Xây `collect_references`, tra bài theo mã arXiv và lấy danh sách tham khảo đầy đủ.
-- [ ] Chọn endpoint phù hợp; xử lý phân trang nếu có. Có thể dùng batch chính thức, nhưng không coi batch là luôn tránh được giới hạn truy cập.
-- [ ] Lấy tên bài, tác giả, externalIds, mã Semantic Scholar và các trường ngày cần thiết.
-- [ ] Giữ mục có mã arXiv trong references.json; giữ mã kiểu cũ đúng nguyên dạng.
-- [ ] Bổ sung submission_date bằng date_lookup. Ngày xuất bản là trường riêng, không dùng thay ngày gửi.
-- [ ] Lưu JSON đúng kiểu; dữ liệu thiếu phải thể hiện bằng null và trạng thái partial, không bịa giá trị.
-- [ ] Phân biệt 0 tham khảo thật, không có mã arXiv, dịch vụ không tìm thấy bài và lỗi truy vấn.
-- [ ] Ghi tổng tham khảo, số giữ lại, số thiếu ngày, thời gian và lỗi để người 4 thống kê.
-- [ ] Đọc API key từ môi trường nếu nhóm có; không commit key. Với 429, tuân thủ Retry-After/backoff và giới hạn retry.
-- [ ] Viết giải thích quá trình, độ phủ dịch vụ và giới hạn tham khảo không phân biệt phiên bản cho báo cáo.
-
-### Làm độc lập bằng cách nào?
-
-Dùng mã BERT/RoBERTa và các phản hồi thật đã lưu trong `milestone1_demo`. Trước khi người 1 xong, dùng date_lookup giả lập để thử xử lý. Chỉ kết quả gọi bằng hàm thật mới dùng làm dữ liệu báo cáo chính thức.
-
-### Đạt khi nào?
-
-- Tạo được references.json theo schema và đọc lại thành công.
-- Kiểm tra trường hợp tham khảo không có externalIds, tác giả rỗng, thiếu ngày, danh sách rỗng và 429 bằng phản hồi giả lập.
-- Báo rõ trường thiếu; không nhận thành công nếu thực tế chỉ có một trang của danh sách tham khảo.
-- Ví dụ cũ có BERT 35 và RoBERTa 40 mục có mã arXiv là số đối chiếu của lần truy vấn trước; không hardcode thành kết quả bắt buộc vì dịch vụ có thể cập nhật.
-
-## 6. Người 4 — Pipeline, thống kê, benchmark và Jupyter Book
-
-**Bạn này trả lời:** “Làm sao chạy chung các phần, biết kết quả tốt đến đâu và báo cáo được?”
-
-**Sở hữu:** `src/crawling/pipeline.py`, `src/crawling/metrics.py`, `src/notebooks/milestone1.ipynb`; cấu hình repository, README, requirements tổng và repository Jupyter Book.
-
-**Dùng gì:** Python, Jupyter Notebook, pandas, matplotlib, psutil, logging, Jupyter Book, GitHub Pages, Google Colab CPU.
-
-### Task làm ngay, không cần chờ ba người còn lại
-
-- [ ] Tạo khung package, notebook chính, cấu hình đường dẫn và manifest theo mục 2.
-- [ ] Viết ba hàm thay thế cho discovery/download/references, trả dữ liệu mẫu đúng schema; ghi rõ đây là giả lập.
-- [ ] Xây pipeline gọi các hàm thay thế để kiểm tra thứ tự xử lý, ghi metadata.json và manifest.
-- [ ] Làm chức năng bỏ qua phần đã xác minh, tiếp tục phần lỗi, không tải lại tất cả vô điều kiện.
-- [ ] Tạo bảng thống kê theo trạng thái bài và phiên bản, định nghĩa rõ mẫu số của từng tỷ lệ.
-- [ ] Xây bộ đo thời gian, RAM và đĩa; ghi cấu hình môi trường và điều kiện cache.
-- [ ] Tạo khung Jupyter Book: mục tiêu, phương pháp, chất lượng dữ liệu, hiệu năng, giới hạn và tài liệu tham khảo.
-- [ ] Dùng kết quả giả lập chỉ để kiểm tra build, gắn nhãn rõ; không trình bày như số liệu đã thu thập.
-- [ ] Tạo README chạy code và quy tắc không commit corpus/key/log/output cào hàng loạt.
-
-### Task sau khi các phần bàn giao
-
-- [ ] Thay hàm giả lập bằng hàm thật, chạy thử vài bài từ kernel sạch.
-- [ ] Ghép lỗi giao diện với chủ phần tương ứng; không tự viết lại các module người khác phụ trách.
-- [ ] Chạy toàn phạm vi được giao, xác minh các trường hợp thiếu.
-- [ ] Điều phối benchmark Colab CPU của toàn hệ thống: thời gian từ đầu đến cuối, RAM toàn tiến trình liên quan, đỉnh đĩa và dung lượng cuối.
-- [ ] Thay số liệu giả lập bằng kết quả thật; sinh bảng/biểu đồ khi build sách.
-- [ ] Ghép nội dung phương pháp do người 1–3 viết và hoàn thiện báo cáo chung.
-- [ ] Kiểm tra hai link công khai và chuẩn bị nộp Moodle.
-
-### Đạt khi nào?
-
-- Notebook chính chạy đủ luồng, xử lý tác vụ lỗi/running chưa hoàn tất khi chạy lại.
-- Không có số liệu giả lập lẫn trong báo cáo cuối.
-- Jupyter Book build được từ kết quả đã lưu mà không cào toàn bộ mỗi lần build.
-- Một thành viên khác làm theo README chạy được.
-
-**Để cân bằng khối lượng:** người 4 sở hữu cấu hình, tích hợp và biên tập sách; người 1–3 phải tự viết nội dung phương pháp, kiểm tra số liệu phần mình và cùng chạy benchmark. Không dồn toàn bộ việc viết báo cáo cho người 4.
-
-## 7. Kế hoạch chạy song song theo mốc
-
-Không ấn định số ngày vì còn tùy thời gian nhóm và quy mô bài được giao. Dùng các mốc có kết quả kiểm tra rõ ràng:
-
-| Mốc | Người 1 | Người 2 | Người 3 | Người 4 |
-|---|---|---|---|---|
-| A: chốt quy ước | Cùng chốt schema, phạm vi và giao diện hàm | Cùng chốt | Cùng chốt | Tạo khung chung |
-| B: làm độc lập | Discovery và metadata mẫu | Tải nguồn mẫu | Tham khảo mẫu, date_lookup giả | Pipeline giả lập, bảng và khung sách |
-| C: bàn giao | Hàm thật + giải thích sử dụng | Hàm thật + giải thích sử dụng | Hàm thật + giải thích sử dụng | Notebook ghép thử + danh sách lỗi |
-| D: chạy thật | Kiểm tra phạm vi/metadata | Kiểm tra nguồn/phiên bản | Kiểm tra tham khảo/thiếu trường | Điều phối chạy và lưu số đo |
-| E: báo cáo/nộp | Viết, rà soát phần mình | Viết, rà soát phần mình | Viết, rà soát phần mình | Tổng hợp, build, kiểm tra link |
-
-Khi phát triển song song, các thành viên có thể chạy code cùng lúc nhưng các lời gọi đến cùng dịch vụ vẫn phải được phối hợp nhịp truy cập. Tránh cả người 1 và 3 cùng bắn truy vấn arXiv dồn dập, hoặc mọi người cùng chạy toàn corpus. Lần chạy tích hợp nên có một người điều phối.
-
-## 8. Cách bàn giao và ghép code
-
-- Mỗi người làm trên nhánh riêng; không sửa file do người khác sở hữu nếu chưa thống nhất.
-- Người 4 khởi tạo `__init__.py`, README, requirements tổng và notebook chính. Người 1–3 gửi danh sách thư viện cần thêm để tránh sửa cùng file.
-- Mỗi người có notebook riêng để thử, tránh cùng sửa một notebook gây xung đột.
-- Khi bàn giao phải có: hàm đúng giao diện, cách gọi, đầu vào mẫu, đầu ra thực tế, trạng thái lỗi đã kiểm tra và nội dung giải thích cho báo cáo.
-- Nếu cần đổi schema/hàm, thông báo rõ trước khi đổi; cập nhật cả dữ liệu giả lập của người 4.
-- Người 4 ghép từng module rồi chạy thử; chủ module chịu trách nhiệm sửa lỗi phần mình.
-- Các phản hồi API mẫu dùng trong kiểm tra nên nhỏ, có nguồn và chỉ giữ dữ liệu tối thiểu; không đưa toàn bộ corpus vào repository code.
-- Với dữ liệu mẫu thật đã có trong milestone1_demo, dùng cục bộ để hiểu và đối chiếu. Không tự động đẩy cả thư mục đó lên repo nộp.
-
-## 9. Checklist hoàn thành của cả nhóm
-
-- [ ] Đúng phạm vi bài do trợ giảng giao, đủ mọi phiên bản được ghi nhận.
-- [ ] Nguồn TeX/văn bản được lưu đúng; không có TeX và lỗi mạng được phân biệt.
-- [ ] Metadata bài và tham khảo đúng kiểu, có thông tin nguồn thiếu rõ ràng.
-- [ ] Có kiểm tra chạy lại/gián đoạn, không trùng hoặc mất dữ liệu.
-- [ ] Có thống kê chất lượng dữ liệu và benchmark Colab CPU toàn pipeline.
-- [ ] Các thành viên cùng đóng góp phần phương pháp và nhận xét kết quả vào báo cáo.
-- [ ] Code công khai với README và requirements; lịch sử commit phản ánh tiến độ.
-- [ ] Jupyter Book ở repository riêng, GitHub Pages truy cập được, bảng/biểu đồ sinh khi build.
-- [ ] Nộp Moodle link code và link báo cáo đúng hạn; giữ corpus cho Milestone 2–3.
-
-**Cách nhớ phân công:** người 1 tìm bài và ghi phiếu bài; người 2 tải nội dung; người 3 lấy phiếu các bài được tham khảo; người 4 ghép, đo và trình bày. Ba người đầu cùng chịu trách nhiệm nội dung báo cáo của phần mình.
+**Trình tự nghiệm thu:** fixture/schema -> hàm thật độc lập -> đối chiếu tay và ca lỗi -> tích hợp thật -> đúng phạm vi được giao -> benchmark Colab CPU -> Book/README/requirements -> nộp link. Các hàm hoàn thành và ghép chạy được chưa tự động đồng nghĩa hoàn thành Milestone 1. Hiện khung vẫn prototype; chưa có phạm vi thầy giao, chưa có benchmark cuối và báo cáo nộp.

@@ -2,6 +2,8 @@
 
 Ngày lập: 11/10/2026. Tổng hợp từ đề bài và cuộc trao đổi về cách làm bằng Jupyter Notebook.
 
+> Đây là kế hoạch tổng quan. Khi triển khai, đọc [phân công cập nhật](./PHAN_CONG_MILESTONE_1_4_NGUOI.md), nhất là mục 11–17, và schema/prototype hiện tại trong src/crawling. Nhóm đã chốt requests + XML Atom cho discovery, một notebook chung và bốn người Khánh/Khang/Nguyên/Danh; các ví dụ hoặc lựa chọn cũ dưới đây không thay giao diện đã chốt.
+
 **Mục tiêu:** viết chương trình Python tự động thu thập các bài arXiv được giao, đủ mọi phiên bản, kèm thông tin bài và tài liệu tham khảo; tổ chức thành kho dữ liệu và báo cáo kết quả.
 
 **Cách triển khai đề xuất:** dùng Jupyter Notebook để điều khiển, xem kết quả và phân tích; đưa các hàm tái sử dụng vào file Python. Báo cáo Milestone 1 và 2 dùng chung một Jupyter Book ở repository riêng.

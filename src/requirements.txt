@@ -1,0 +1,11 @@
+# Bộ khung chỉ import thư viện chuẩn; chưa cần cài để import prototype.
+# Đây là phụ thuộc dự kiến, CHƯA là lockfile đã kiểm chứng.
+# Sau triển khai, nhóm ghi phiên bản chạy được cả local Jupyter và Colab.
+# Không bắt buộc arxiv SDK: requests + Atom/XML stdlib cũng triển khai được.
+jupyterlab
+ipykernel
+requests
+pandas
+matplotlib
+psutil
+# Jupyter Book ở repository báo cáo riêng: chọn/khóa phiên bản tại repo đó.
