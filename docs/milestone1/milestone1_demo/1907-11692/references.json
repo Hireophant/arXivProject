@@ -1,0 +1,520 @@
+{
+  "1907-10529": {
+    "title": "SpanBERT: Improving Pre-training by Representing and Predicting Spans",
+    "authors": [
+      "Mandar Joshi",
+      "Danqi Chen",
+      "Yinhan Liu",
+      "Daniel S. Weld",
+      "Luke Zettlemoyer",
+      "Omer Levy"
+    ],
+    "submission_date": "2019-07-24T15:43:40Z",
+    "semantic_scholar_id": "81f5810fbbab9b7203b9556f4ce3c741875407bc",
+    "publication_date": "2019-07-24"
+  },
+  "1906-08237": {
+    "title": "XLNet: Generalized Autoregressive Pretraining for Language Understanding",
+    "authors": [
+      "Zhi-Lin Yang",
+      "Zi-Hang Dai",
+      "Yiming Yang",
+      "J. Carbonell",
+      "R. Salakhutdinov",
+      "Quoc V. Le"
+    ],
+    "submission_date": "2019-06-19T17:35:48Z",
+    "semantic_scholar_id": "e0c6abdbdecf04ffac65c440da77fb9d66bb474c",
+    "publication_date": "2019-06-19"
+  },
+  "1906-01604": {
+    "title": "KERMIT: Generative Insertion-Based Modeling for Sequences",
+    "authors": [
+      "William Chan",
+      "Nikita Kitaev",
+      "Kelvin Guu",
+      "Mitchell Stern",
+      "J. Uszkoreit"
+    ],
+    "submission_date": "2019-06-04T17:35:35Z",
+    "semantic_scholar_id": "130277ff64c7171c90d98d7e73f4bda8a0b0c1f9",
+    "publication_date": "2019-06-04"
+  },
+  "1905-12616": {
+    "title": "Defending Against Neural Fake News",
+    "authors": [
+      "Rowan Zellers",
+      "Ari Holtzman",
+      "Hannah Rashkin",
+      "Yonatan Bisk",
+      "Ali Farhadi",
+      "Franziska Roesner",
+      "Yejin Choi"
+    ],
+    "submission_date": "2019-05-29T17:58:52Z",
+    "semantic_scholar_id": "ad7129af0644dbcafa9aa2f111cb76526ea444a1",
+    "publication_date": "2019-05-29"
+  },
+  "1905-06290": {
+    "title": "A Surprisingly Robust Trick for the Winograd Schema Challenge",
+    "authors": [
+      "Vid Kocijan",
+      "Ana-Maria Cretu",
+      "Oana-Maria Camburu",
+      "Yordan Yordanov",
+      "Thomas Lukasiewicz"
+    ],
+    "submission_date": "2019-05-15T16:47:11Z",
+    "semantic_scholar_id": "c57298fe3faf87f9f24414821b0df7ebb7634320",
+    "publication_date": "2019-05-15"
+  },
+  "1905-03197": {
+    "title": "Unified Language Model Pre-training for Natural Language Understanding and Generation",
+    "authors": [
+      "Li Dong",
+      "Nan Yang",
+      "Wen-Hui Wang",
+      "Furu Wei",
+      "Xiaodong Liu",
+      "Yu Wang",
+      "Jianfeng Gao",
+      "M. Zhou",
+      "H. Hon"
+    ],
+    "submission_date": "2019-05-08T16:33:51Z",
+    "semantic_scholar_id": "1c71771c701aadfd72c5866170a9f5d71464bb88",
+    "publication_date": "2019-05-08"
+  },
+  "1905-02450": {
+    "title": "MASS: Masked Sequence to Sequence Pre-training for Language Generation",
+    "authors": [
+      "Kai-Tao Song",
+      "Xu Tan",
+      "Tao Qin",
+      "Jianfeng Lu",
+      "Tie-Yan Liu"
+    ],
+    "submission_date": "2019-05-07T10:13:04Z",
+    "semantic_scholar_id": "145b8b5d99a2beba6029418ca043585b90138d12",
+    "publication_date": "2019-05-07"
+  },
+  "1905-00537": {
+    "title": "SuperGLUE: A Stickier Benchmark for General-Purpose Language Understanding Systems",
+    "authors": [
+      "Alex Wang",
+      "Yada Pruksachatkun",
+      "Nikita Nangia",
+      "Amanpreet Singh",
+      "Julian Michael",
+      "F. Hill",
+      "Omer Levy",
+      "Samuel R. Bowman"
+    ],
+    "submission_date": "2019-05-02T00:41:50Z",
+    "semantic_scholar_id": "d9f6ada77448664b71128bb19df15765336974a6",
+    "publication_date": "2019-05-02"
+  },
+  "1905-10044": {
+    "title": "BoolQ: Exploring the Surprising Difficulty of Natural Yes/No Questions",
+    "authors": [
+      "Christopher Clark",
+      "Kenton Lee",
+      "Ming-Wei Chang",
+      "T. Kwiatkowski",
+      "Michael Collins",
+      "K. Toutanova"
+    ],
+    "submission_date": "2019-05-24T05:48:49Z",
+    "semantic_scholar_id": "9770fff7379a7ab9006b48939462354dda9a2053",
+    "publication_date": "2019-05-01"
+  },
+  "1904-09482": {
+    "title": "Improving Multi-Task Deep Neural Networks via Knowledge Distillation for Natural Language Understanding",
+    "authors": [
+      "Xiaodong Liu",
+      "Pengcheng He",
+      "Wei-Zhu Chen",
+      "Jianfeng Gao"
+    ],
+    "submission_date": "2019-04-20T19:11:00Z",
+    "semantic_scholar_id": "7ebed46b7f3ec913e508e6468304fcaea832eda1",
+    "publication_date": "2019-04-20"
+  },
+  "1904-09223": {
+    "title": "ERNIE: Enhanced Representation through Knowledge Integration",
+    "authors": [
+      "Yu Sun",
+      "Shuo-Huan Wang",
+      "Yukun Li",
+      "Shi-Kun Feng",
+      "Xu-Yi Chen",
+      "Han Zhang",
+      "Xin Tian",
+      "Danxiang Zhu",
+      "Hao Tian",
+      "Hua Wu"
+    ],
+    "submission_date": "2019-04-19T15:10:56Z",
+    "semantic_scholar_id": "031e4e43aaffd7a479738dcea69a2d5be7957aa3",
+    "publication_date": "2019-04-19"
+  },
+  "1904-01038": {
+    "title": "fairseq: A Fast, Extensible Toolkit for Sequence Modeling",
+    "authors": [
+      "Myle Ott",
+      "Sergey Edunov",
+      "Alexei Baevski",
+      "Angela Fan",
+      "Sam Gross",
+      "Nathan Ng",
+      "D. Grangier",
+      "M. Auli"
+    ],
+    "submission_date": "2019-04-01T18:05:02Z",
+    "semantic_scholar_id": "faadd7d081c8d67e8c2567e8a5579e46cd6b2280",
+    "publication_date": "2019-04-01"
+  },
+  "1903-07785": {
+    "title": "Cloze-driven Pretraining of Self-attention Networks",
+    "authors": [
+      "Alexei Baevski",
+      "Sergey Edunov",
+      "Yinhan Liu",
+      "Luke Zettlemoyer",
+      "M. Auli"
+    ],
+    "submission_date": "2019-03-19T01:19:06Z",
+    "semantic_scholar_id": "9f1c5777a193b2c3bb2b25e248a156348e5ba56d",
+    "publication_date": "2019-03-19"
+  },
+  "1901-11504": {
+    "title": "Multi-Task Deep Neural Networks for Natural Language Understanding",
+    "authors": [
+      "Xiaodong Liu",
+      "Pengcheng He",
+      "Wei-Zhu Chen",
+      "Jianfeng Gao"
+    ],
+    "submission_date": "2019-01-31T18:07:25Z",
+    "semantic_scholar_id": "658721bc13b0fa97366d38c05a96bf0a9f4bb0ac",
+    "publication_date": "2019-01-31"
+  },
+  "1901-07291": {
+    "title": "Cross-lingual Language Model Pretraining",
+    "authors": [
+      "Alexis Conneau",
+      "Guillaume Lample"
+    ],
+    "submission_date": "2019-01-22T13:22:34Z",
+    "semantic_scholar_id": "ec4eba83f6b3266d9ae7cabb2b2cb1518f727edc",
+    "publication_date": "2019-01-22"
+  },
+  "1811-01088": {
+    "title": "Sentence Encoders on STILTs: Supplementary Training on Intermediate Labeled-data Tasks",
+    "authors": [
+      "Jason Phang",
+      "Thibault Févry",
+      "Samuel R. Bowman"
+    ],
+    "submission_date": "2018-11-02T21:04:24Z",
+    "semantic_scholar_id": "b47381e04739ea3f392ba6c8faaf64105493c196",
+    "publication_date": "2018-11-02"
+  },
+  "1810-12885": {
+    "title": "ReCoRD: Bridging the Gap between Human and Machine Commonsense Reading Comprehension",
+    "authors": [
+      "Sheng Zhang",
+      "Xiao-Dong Liu",
+      "Jing-Jing Liu",
+      "Jianfeng Gao",
+      "Kevin Duh",
+      "Benjamin Van Durme"
+    ],
+    "submission_date": "2018-10-30T17:32:16Z",
+    "semantic_scholar_id": "a5b66ee341cb990f7f70a124b5fab3316d3b7e27",
+    "publication_date": "2018-10-30"
+  },
+  "1809-05053": {
+    "title": "XNLI: Evaluating Cross-lingual Sentence Representations",
+    "authors": [
+      "Alexis Conneau",
+      "Ruty Rinott",
+      "Guillaume Lample",
+      "Adina Williams",
+      "Samuel R. Bowman",
+      "Holger Schwenk",
+      "Veselin Stoyanov"
+    ],
+    "submission_date": "2018-09-13T16:39:53Z",
+    "semantic_scholar_id": "1c3112ef8a346b9817382ed34a8c146c53d5bcf5",
+    "publication_date": "2018-09-13"
+  },
+  "1808-09121": {
+    "title": "WiC: the Word-in-Context Dataset for Evaluating Context-Sensitive Meaning Representations",
+    "authors": [
+      "Mohammad Taher Pilehvar",
+      "J. Camacho-Collados"
+    ],
+    "submission_date": "2018-08-28T05:16:35Z",
+    "semantic_scholar_id": "a925f818f787e142c5f6bcb7bbd7ede2deb34860",
+    "publication_date": "2018-08-28"
+  },
+  "1806-03822": {
+    "title": "Know What You Don’t Know: Unanswerable Questions for SQuAD",
+    "authors": [
+      "Pranav Rajpurkar",
+      "Robin Jia",
+      "Percy Liang"
+    ],
+    "submission_date": "2018-06-11T06:10:11Z",
+    "semantic_scholar_id": "4d1c856275744c0284312a3a50efb6ca9dc4cd4c",
+    "publication_date": "2018-06-11"
+  },
+  "1806-02847": {
+    "title": "A Simple Method for Commonsense Reasoning",
+    "authors": [
+      "Trieu H. Trinh",
+      "Quoc V. Le"
+    ],
+    "submission_date": "2018-06-07T18:13:08Z",
+    "semantic_scholar_id": "d7b6753a2d4a2b286c396854063bde3a91b75535",
+    "publication_date": "2018-06-07"
+  },
+  "1806-00187": {
+    "title": "Scaling Neural Machine Translation",
+    "authors": [
+      "Myle Ott",
+      "Sergey Edunov",
+      "D. Grangier",
+      "M. Auli"
+    ],
+    "submission_date": "2018-06-01T04:33:16Z",
+    "semantic_scholar_id": "bf8fe437f779f2098f9af82b534aa51dc9edb06f",
+    "publication_date": "2018-06-01"
+  },
+  "1805-12471": {
+    "title": "Neural Network Acceptability Judgments",
+    "authors": [
+      "Alex Warstadt",
+      "Amanpreet Singh",
+      "Samuel R. Bowman"
+    ],
+    "submission_date": "2018-05-31T13:52:06Z",
+    "semantic_scholar_id": "cb0f3ee1e98faf92429d601cdcd76c69c1e484eb",
+    "publication_date": "2018-05-31"
+  },
+  "1804-09301": {
+    "title": "Gender Bias in Coreference Resolution",
+    "authors": [
+      "Rachel Rudinger",
+      "Jason Naradowsky",
+      "Brian Leonard",
+      "Benjamin Van Durme"
+    ],
+    "submission_date": "2018-04-25T00:46:14Z",
+    "semantic_scholar_id": "9967cb4fd949039c6f04dd9f2f4c3331dbebe6f7",
+    "publication_date": "2018-04-25"
+  },
+  "1804-07461": {
+    "title": "GLUE: A Multi-Task Benchmark and Analysis Platform for Natural Language Understanding",
+    "authors": [
+      "Alex Wang",
+      "Amanpreet Singh",
+      "Julian Michael",
+      "F. Hill",
+      "Omer Levy",
+      "Samuel R. Bowman"
+    ],
+    "submission_date": "2018-04-20T06:35:04Z",
+    "semantic_scholar_id": "451d4a16e425ecbf38c4b1cca0dcf5d9bec8255c",
+    "publication_date": "2018-04-20"
+  },
+  "1802-05365": {
+    "title": "Deep Contextualized Word Representations",
+    "authors": [
+      "Matthew E. Peters",
+      "Mark Neumann",
+      "M. Iyyer",
+      "Matt Gardner",
+      "Christopher Clark",
+      "Kenton Lee",
+      "Luke Zettlemoyer"
+    ],
+    "submission_date": "2018-02-15T00:05:11Z",
+    "semantic_scholar_id": "3febb2bed8865945e7fddc99efd791887bb7e14f",
+    "publication_date": "2018-02-15"
+  },
+  "1801-06146": {
+    "title": "Fine-tuned Language Models for Text Classification",
+    "authors": [
+      "Jeremy Howard",
+      "Sebastian Ruder"
+    ],
+    "submission_date": "2018-01-18T17:54:52Z",
+    "semantic_scholar_id": "ad76c236fe641aa52d1d6c28bf362ae9ffac91e7",
+    "publication_date": "2018-01-18"
+  },
+  "1710-03740": {
+    "title": "Mixed Precision Training",
+    "authors": [
+      "P. Micikevicius",
+      "Sharan Narang",
+      "Jonah Alben",
+      "G. Diamos",
+      "Erich Elsen",
+      "David García",
+      "Boris Ginsburg",
+      "Michael Houston",
+      "Oleksii Kuchaiev",
+      "Ganesh Venkatesh",
+      "Hao Wu"
+    ],
+    "submission_date": "2017-10-10T17:42:04Z",
+    "semantic_scholar_id": "e7fd6848cb29ca221a7e17d823e06fb566f1f135",
+    "publication_date": "2017-10-10"
+  },
+  "1708-00107": {
+    "title": "Learned in Translation: Contextualized Word Vectors",
+    "authors": [
+      "Bryan McCann",
+      "James Bradbury",
+      "Caiming Xiong",
+      "R. Socher"
+    ],
+    "submission_date": "2017-08-01T00:05:34Z",
+    "semantic_scholar_id": "bc8fa64625d9189f5801837e7b133e7fe3c581f7",
+    "publication_date": "2017-08-01"
+  },
+  "1706-03762": {
+    "title": "Attention is All you Need",
+    "authors": [
+      "Ashish Vaswani",
+      "Noam Shazeer",
+      "N. Parmar",
+      "J. Uszkoreit",
+      "Llion Jones",
+      "Aidan N. Gomez",
+      "Lukasz Kaiser",
+      "I. Polosukhin"
+    ],
+    "submission_date": "2017-06-12T17:57:34Z",
+    "semantic_scholar_id": "204e3073870fae3d05bcbc2f6a8e263d9b72e776",
+    "publication_date": "2017-06-12"
+  },
+  "1704-05426": {
+    "title": "A Broad-Coverage Challenge Corpus for Sentence Understanding through Inference",
+    "authors": [
+      "Adina Williams",
+      "Nikita Nangia",
+      "Samuel R. Bowman"
+    ],
+    "submission_date": "2017-04-18T17:10:13Z",
+    "semantic_scholar_id": "5ded2b8c64491b4a67f6d39ce473d4b9347a672e",
+    "publication_date": "2017-04-18"
+  },
+  "1704-04683": {
+    "title": "RACE: Large-scale ReAding Comprehension Dataset From Examinations",
+    "authors": [
+      "Guo-Kun Lai",
+      "Qizhe Xie",
+      "Hanxiao Liu",
+      "Yiming Yang",
+      "E. Hovy"
+    ],
+    "submission_date": "2017-04-15T19:31:41Z",
+    "semantic_scholar_id": "636a79420d838eabe4af7fb25d6437de45ab64e8",
+    "publication_date": "2017-04-15"
+  },
+  "1606-08415": {
+    "title": "Gaussian Error Linear Units (GELUs)",
+    "authors": [
+      "Dan Hendrycks",
+      "Kevin Gimpel"
+    ],
+    "submission_date": "2016-06-27T19:20:40Z",
+    "semantic_scholar_id": "de5e7320729f5d3cbb6709eb6329ec41ace8c95d",
+    "publication_date": "2016-06-27"
+  },
+  "1606-05250": {
+    "title": "SQuAD: 100,000+ Questions for Machine Comprehension of Text",
+    "authors": [
+      "Pranav Rajpurkar",
+      "Jian Zhang",
+      "Konstantin Lopyrev",
+      "Percy Liang"
+    ],
+    "submission_date": "2016-06-16T16:36:00Z",
+    "semantic_scholar_id": "05dd7254b632376973f3a1b4d39485da17814df5",
+    "publication_date": "2016-06-16"
+  },
+  "1511-01432": {
+    "title": "Semi-supervised Sequence Learning",
+    "authors": [
+      "Andrew M. Dai",
+      "Quoc V. Le"
+    ],
+    "submission_date": "2015-11-04T18:48:36Z",
+    "semantic_scholar_id": "4aa9f5150b46320f534de4747a2dd0cd7f3fe292",
+    "publication_date": "2015-11-04"
+  },
+  "1508-07909": {
+    "title": "Neural Machine Translation of Rare Words with Subword Units",
+    "authors": [
+      "Rico Sennrich",
+      "B. Haddow",
+      "Alexandra Birch"
+    ],
+    "submission_date": "2015-08-31T16:37:31Z",
+    "semantic_scholar_id": "1518039b5001f1836565215eb047526b3ac7f462",
+    "publication_date": "2015-08-31"
+  },
+  "1508-05326": {
+    "title": "A large annotated corpus for learning natural language inference",
+    "authors": [
+      "Samuel R. Bowman",
+      "Gabor Angeli",
+      "Christopher Potts",
+      "Christopher D. Manning"
+    ],
+    "submission_date": "2015-08-21T16:17:01Z",
+    "semantic_scholar_id": "f04df4e20a18358ea2f689b4c129781628ef7fc1",
+    "publication_date": "2015-08-21"
+  },
+  "1506-06724": {
+    "title": "Aligning Books and Movies: Towards Story-Like Visual Explanations by Watching Movies and Reading Books",
+    "authors": [
+      "Yu-Kun Zhu",
+      "R. Kiros",
+      "R. Zemel",
+      "R. Salakhutdinov",
+      "R. Urtasun",
+      "A. Torralba",
+      "S. Fidler"
+    ],
+    "submission_date": "2015-06-22T19:26:56Z",
+    "semantic_scholar_id": "0e6824e137847be0599bb0032e37042ed2ef5045",
+    "publication_date": "2015-06-22"
+  },
+  "1412-6980": {
+    "title": "Adam: A Method for Stochastic Optimization",
+    "authors": [
+      "Diederik P. Kingma",
+      "Jimmy Ba"
+    ],
+    "submission_date": "2014-12-22T13:54:29Z",
+    "semantic_scholar_id": "a6cb366736791bcccc5c8639de5a8f9636bf87e8",
+    "publication_date": "2014-12-22"
+  },
+  "1810-04805": {
+    "title": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
+    "authors": [
+      "J. Devlin",
+      "Ming-Wei Chang",
+      "Kenton Lee",
+      "K. Toutanova"
+    ],
+    "submission_date": "2018-10-11T00:50:01Z",
+    "semantic_scholar_id": "df2b0e26d0599ce3e70df8a9da02e51594e0e992",
+    "publication_date": null
+  }
+}

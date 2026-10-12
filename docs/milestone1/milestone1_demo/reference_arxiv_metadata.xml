@@ -1,0 +1,1813 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/irh8uMvict5usKDVefKrrWln0xA</id>
+  <title>arXiv Query: search_query=&amp;id_list=1811.11934,1810.06638,1809.08370,1808.08949,1808.05326,1808.04444,1805.12471,1804.07461,1802.05365,1803.02893,1804.09541,1801.07736,1710.10723,1708.00107,1708.00055,1706.03762,1705.02364,1705.03551,1705.00557,1704.05426,1705.00108,1611.01603,1609.08144,1606.05250,1606.01933,1602.03483,1511.01432,1508.05326,1506.06726,1506.06724,1411.1792,1405.4053,1312.3005,1310.4546,cs/0306050,1907.10529,1906.08237,1906.01604,1905.12616,1905.06290,1905.03197,1905.02450,1905.00537,1905.10044,1904.09482,1904.09223,1904.01038,1903.07785,1901.11504,1901.07291,1811.01088,1810.12885,1809.05053,1808.09121,1806.03822,1806.02847,1806.00187,1804.09301,1801.06146,1710.03740,1704.04683,1606.08415,1508.07909,1412.6980,1810.04805&amp;start=0&amp;max_results=200</title>
+  <updated>2026-10-11T07:16:22Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=&amp;start=0&amp;max_results=200&amp;id_list=1811.11934,1810.06638,1809.08370,1808.08949,1808.05326,1808.04444,1805.12471,1804.07461,1802.05365,1803.02893,1804.09541,1801.07736,1710.10723,1708.00107,1708.00055,1706.03762,1705.02364,1705.03551,1705.00557,1704.05426,1705.00108,1611.01603,1609.08144,1606.05250,1606.01933,1602.03483,1511.01432,1508.05326,1506.06726,1506.06724,1411.1792,1405.4053,1312.3005,1310.4546,cs/0306050,1907.10529,1906.08237,1906.01604,1905.12616,1905.06290,1905.03197,1905.02450,1905.00537,1905.10044,1904.09482,1904.09223,1904.01038,1903.07785,1901.11504,1901.07291,1811.01088,1810.12885,1809.05053,1808.09121,1806.03822,1806.02847,1806.00187,1804.09301,1801.06146,1710.03740,1704.04683,1606.08415,1508.07909,1412.6980,1810.04805" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>200</opensearch:itemsPerPage>
+  <opensearch:totalResults>65</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/1808.04444v2</id>
+    <title>Character-Level Language Modeling with Deeper Self-Attention</title>
+    <updated>2018-12-10T17:08:57Z</updated>
+    <link href="https://arxiv.org/abs/1808.04444v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1808.04444v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>LSTMs and other RNN variants have shown strong performance on character-level language modeling. These models are typically trained using truncated backpropagation through time, and it is common to assume that their success stems from their ability to remember long-term contexts. In this paper, we show that a deep (64-layer) transformer model with fixed context outperforms RNN variants by a large margin, achieving state of the art on two popular benchmarks: 1.13 bits per character on text8 and 1.06 on enwik8. To get good results at this depth, we show that it is important to add auxiliary losses, both at intermediate network layers and intermediate sequence positions.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="stat.ML" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-08-09T18:44:38Z</published>
+    <arxiv:comment>8 pages, 7 figures</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Rami Al-Rfou</name>
+    </author>
+    <author>
+      <name>Dokook Choe</name>
+    </author>
+    <author>
+      <name>Noah Constant</name>
+    </author>
+    <author>
+      <name>Mandy Guo</name>
+    </author>
+    <author>
+      <name>Llion Jones</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1808.09121v3</id>
+    <title>WiC: the Word-in-Context Dataset for Evaluating Context-Sensitive Meaning Representations</title>
+    <updated>2019-04-27T09:31:59Z</updated>
+    <link href="https://arxiv.org/abs/1808.09121v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1808.09121v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>By design, word embeddings are unable to model the dynamic nature of words' semantics, i.e., the property of words to correspond to potentially different meanings. To address this limitation, dozens of specialized meaning representation techniques such as sense or contextualized embeddings have been proposed. However, despite the popularity of research on this topic, very few evaluation benchmarks exist that specifically focus on the dynamic semantics of words. In this paper we show that existing models have surpassed the performance ceiling of the standard evaluation dataset for the purpose, i.e., Stanford Contextual Word Similarity, and highlight its shortcomings. To address the lack of a suitable benchmark, we put forward a large-scale Word in Context dataset, called WiC, based on annotations curated by experts, for generic evaluation of context-sensitive representations. WiC is released in https://pilehvar.github.io/wic/.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-08-28T05:16:35Z</published>
+    <arxiv:comment>NAACL 2019</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Mohammad Taher Pilehvar</name>
+    </author>
+    <author>
+      <name>Jose Camacho-Collados</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1809.08370v1</id>
+    <title>Semi-Supervised Sequence Modeling with Cross-View Training</title>
+    <updated>2018-09-22T02:39:32Z</updated>
+    <link href="https://arxiv.org/abs/1809.08370v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1809.08370v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Unsupervised representation learning algorithms such as word2vec and ELMo improve the accuracy of many supervised NLP models, mainly because they can take advantage of large amounts of unlabeled text. However, the supervised models only learn from task-specific labeled data during the main training phase. We therefore propose Cross-View Training (CVT), a semi-supervised learning algorithm that improves the representations of a Bi-LSTM sentence encoder using a mix of labeled and unlabeled data. On labeled examples, standard supervised learning is used. On unlabeled examples, CVT teaches auxiliary prediction modules that see restricted views of the input (e.g., only part of a sentence) to match the predictions of the full model seeing the whole input. Since the auxiliary modules and the full model share intermediate representations, this in turn improves the full model. Moreover, we show that CVT is particularly effective when combined with multi-task learning. We evaluate CVT on five sequence tagging tasks, machine translation, and dependency parsing, achieving state-of-the-art results.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-09-22T02:39:32Z</published>
+    <arxiv:comment>EMNLP 2018</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Kevin Clark</name>
+    </author>
+    <author>
+      <name>Minh-Thang Luong</name>
+    </author>
+    <author>
+      <name>Christopher D. Manning</name>
+    </author>
+    <author>
+      <name>Quoc V. Le</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1903.07785v1</id>
+    <title>Cloze-driven Pretraining of Self-attention Networks</title>
+    <updated>2019-03-19T01:19:06Z</updated>
+    <link href="https://arxiv.org/abs/1903.07785v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1903.07785v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We present a new approach for pretraining a bi-directional transformer model that provides significant performance gains across a variety of language understanding problems. Our model solves a cloze-style word reconstruction task, where each word is ablated and must be predicted given the rest of the text. Experiments demonstrate large performance gains on GLUE and new state of the art results on NER as well as constituency parsing benchmarks, consistent with the concurrently introduced BERT model. We also present a detailed analysis of a number of factors that contribute to effective pretraining, including data domain and size, model capacity, and variations on the cloze objective.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2019-03-19T01:19:06Z</published>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Alexei Baevski</name>
+    </author>
+    <author>
+      <name>Sergey Edunov</name>
+    </author>
+    <author>
+      <name>Yinhan Liu</name>
+    </author>
+    <author>
+      <name>Luke Zettlemoyer</name>
+    </author>
+    <author>
+      <name>Michael Auli</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1905.10044v1</id>
+    <title>BoolQ: Exploring the Surprising Difficulty of Natural Yes/No Questions</title>
+    <updated>2019-05-24T05:48:49Z</updated>
+    <link href="https://arxiv.org/abs/1905.10044v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1905.10044v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>In this paper we study yes/no questions that are naturally occurring --- meaning that they are generated in unprompted and unconstrained settings. We build a reading comprehension dataset, BoolQ, of such questions, and show that they are unexpectedly challenging. They often query for complex, non-factoid information, and require difficult entailment-like inference to solve. We also explore the effectiveness of a range of transfer learning baselines. We find that transferring from entailment data is more effective than transferring from paraphrase or extractive QA data, and that it, surprisingly, continues to be very beneficial even when starting from massive pre-trained language models such as BERT. Our best method trains BERT on MultiNLI and then re-trains it on our train set. It achieves 80.4% accuracy compared to 90% accuracy of human annotators (and 62% majority-baseline), leaving a significant gap for future work.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2019-05-24T05:48:49Z</published>
+    <arxiv:comment>In NAACL 2019</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Christopher Clark</name>
+    </author>
+    <author>
+      <name>Kenton Lee</name>
+    </author>
+    <author>
+      <name>Ming-Wei Chang</name>
+    </author>
+    <author>
+      <name>Tom Kwiatkowski</name>
+    </author>
+    <author>
+      <name>Michael Collins</name>
+    </author>
+    <author>
+      <name>Kristina Toutanova</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1904.01038v1</id>
+    <title>fairseq: A Fast, Extensible Toolkit for Sequence Modeling</title>
+    <updated>2019-04-01T18:05:02Z</updated>
+    <link href="https://arxiv.org/abs/1904.01038v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1904.01038v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>fairseq is an open-source sequence modeling toolkit that allows researchers and developers to train custom models for translation, summarization, language modeling, and other text generation tasks. The toolkit is based on PyTorch and supports distributed training across multiple GPUs and machines. We also support fast mixed-precision training and inference on modern GPUs. A demo video can be found at https://www.youtube.com/watch?v=OtgDdWtHvto</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2019-04-01T18:05:02Z</published>
+    <arxiv:comment>NAACL 2019 Demo paper</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Myle Ott</name>
+    </author>
+    <author>
+      <name>Sergey Edunov</name>
+    </author>
+    <author>
+      <name>Alexei Baevski</name>
+    </author>
+    <author>
+      <name>Angela Fan</name>
+    </author>
+    <author>
+      <name>Sam Gross</name>
+    </author>
+    <author>
+      <name>Nathan Ng</name>
+    </author>
+    <author>
+      <name>David Grangier</name>
+    </author>
+    <author>
+      <name>Michael Auli</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1906.08237v2</id>
+    <title>XLNet: Generalized Autoregressive Pretraining for Language Understanding</title>
+    <updated>2020-01-02T12:48:08Z</updated>
+    <link href="https://arxiv.org/abs/1906.08237v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1906.08237v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>With the capability of modeling bidirectional contexts, denoising autoencoding based pretraining like BERT achieves better performance than pretraining approaches based on autoregressive language modeling. However, relying on corrupting the input with masks, BERT neglects dependency between the masked positions and suffers from a pretrain-finetune discrepancy. In light of these pros and cons, we propose XLNet, a generalized autoregressive pretraining method that (1) enables learning bidirectional contexts by maximizing the expected likelihood over all permutations of the factorization order and (2) overcomes the limitations of BERT thanks to its autoregressive formulation. Furthermore, XLNet integrates ideas from Transformer-XL, the state-of-the-art autoregressive model, into pretraining. Empirically, under comparable experiment settings, XLNet outperforms BERT on 20 tasks, often by a large margin, including question answering, natural language inference, sentiment analysis, and document ranking.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2019-06-19T17:35:48Z</published>
+    <arxiv:comment>Pretrained models and code are available at https://github.com/zihangdai/xlnet</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Zhilin Yang</name>
+    </author>
+    <author>
+      <name>Zihang Dai</name>
+    </author>
+    <author>
+      <name>Yiming Yang</name>
+    </author>
+    <author>
+      <name>Jaime Carbonell</name>
+    </author>
+    <author>
+      <name>Ruslan Salakhutdinov</name>
+    </author>
+    <author>
+      <name>Quoc V. Le</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1411.1792v1</id>
+    <title>How transferable are features in deep neural networks?</title>
+    <updated>2014-11-06T23:09:37Z</updated>
+    <link href="https://arxiv.org/abs/1411.1792v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1411.1792v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Many deep neural networks trained on natural images exhibit a curious phenomenon in common: on the first layer they learn features similar to Gabor filters and color blobs. Such first-layer features appear not to be specific to a particular dataset or task, but general in that they are applicable to many datasets and tasks. Features must eventually transition from general to specific by the last layer of the network, but this transition has not been studied extensively. In this paper we experimentally quantify the generality versus specificity of neurons in each layer of a deep convolutional neural network and report a few surprising results. Transferability is negatively affected by two distinct issues: (1) the specialization of higher layer neurons to their original task at the expense of performance on the target task, which was expected, and (2) optimization difficulties related to splitting networks between co-adapted neurons, which was not expected. In an example network trained on ImageNet, we demonstrate that either of these two issues may dominate, depending on whether features are transferred from the bottom, middle, or top of the network. We also document that the transferability of features decreases as the distance between the base task and target task increases, but that transferring features even from distant tasks can be better than using random features. A final surprising result is that initializing a network with transferred features from almost any number of layers can produce a boost to generalization that lingers even after fine-tuning to the target dataset.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.NE" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2014-11-06T23:09:37Z</published>
+    <arxiv:comment>To appear in Advances in Neural Information Processing Systems 27 (NIPS 2014)</arxiv:comment>
+    <arxiv:primary_category term="cs.LG"/>
+    <arxiv:journal_ref>Advances in Neural Information Processing Systems 27, pages 3320-3328. Dec. 2014</arxiv:journal_ref>
+    <author>
+      <name>Jason Yosinski</name>
+    </author>
+    <author>
+      <name>Jeff Clune</name>
+    </author>
+    <author>
+      <name>Yoshua Bengio</name>
+    </author>
+    <author>
+      <name>Hod Lipson</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1706.03762v7</id>
+    <title>Attention Is All You Need</title>
+    <updated>2023-08-02T00:41:18Z</updated>
+    <link href="https://arxiv.org/abs/1706.03762v7" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1706.03762v7" rel="related" type="application/pdf" title="pdf"/>
+    <summary>The dominant sequence transduction models are based on complex recurrent or convolutional neural networks in an encoder-decoder configuration. The best performing models also connect the encoder and decoder through an attention mechanism. We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely. Experiments on two machine translation tasks show these models to be superior in quality while being more parallelizable and requiring significantly less time to train. Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best results, including ensembles by over 2 BLEU. On the WMT 2014 English-to-French translation task, our model establishes a new single-model state-of-the-art BLEU score of 41.8 after training for 3.5 days on eight GPUs, a small fraction of the training costs of the best models from the literature. We show that the Transformer generalizes well to other tasks by applying it successfully to English constituency parsing both with large and limited training data.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2017-06-12T17:57:34Z</published>
+    <arxiv:comment>15 pages, 5 figures</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Ashish Vaswani</name>
+    </author>
+    <author>
+      <name>Noam Shazeer</name>
+    </author>
+    <author>
+      <name>Niki Parmar</name>
+    </author>
+    <author>
+      <name>Jakob Uszkoreit</name>
+    </author>
+    <author>
+      <name>Llion Jones</name>
+    </author>
+    <author>
+      <name>Aidan N. Gomez</name>
+    </author>
+    <author>
+      <name>Lukasz Kaiser</name>
+    </author>
+    <author>
+      <name>Illia Polosukhin</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1907.10529v3</id>
+    <title>SpanBERT: Improving Pre-training by Representing and Predicting Spans</title>
+    <updated>2020-01-18T03:53:04Z</updated>
+    <link href="https://arxiv.org/abs/1907.10529v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1907.10529v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We present SpanBERT, a pre-training method that is designed to better represent and predict spans of text. Our approach extends BERT by (1) masking contiguous random spans, rather than random tokens, and (2) training the span boundary representations to predict the entire content of the masked span, without relying on the individual token representations within it. SpanBERT consistently outperforms BERT and our better-tuned baselines, with substantial gains on span selection tasks such as question answering and coreference resolution. In particular, with the same training data and model size as BERT-large, our single model obtains 94.6% and 88.7% F1 on SQuAD 1.1 and 2.0, respectively. We also achieve a new state of the art on the OntoNotes coreference resolution task (79.6\% F1), strong performance on the TACRED relation extraction benchmark, and even show gains on GLUE.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2019-07-24T15:43:40Z</published>
+    <arxiv:comment>Accepted at TACL</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Mandar Joshi</name>
+    </author>
+    <author>
+      <name>Danqi Chen</name>
+    </author>
+    <author>
+      <name>Yinhan Liu</name>
+    </author>
+    <author>
+      <name>Daniel S. Weld</name>
+    </author>
+    <author>
+      <name>Luke Zettlemoyer</name>
+    </author>
+    <author>
+      <name>Omer Levy</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1810.06638v1</id>
+    <title>U-Net: Machine Reading Comprehension with Unanswerable Questions</title>
+    <updated>2018-10-12T12:48:34Z</updated>
+    <link href="https://arxiv.org/abs/1810.06638v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1810.06638v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Machine reading comprehension with unanswerable questions is a new challenging task for natural language processing. A key subtask is to reliably predict whether the question is unanswerable. In this paper, we propose a unified model, called U-Net, with three important components: answer pointer, no-answer pointer, and answer verifier. We introduce a universal node and thus process the question and its context passage as a single contiguous sequence of tokens. The universal node encodes the fused information from both the question and passage, and plays an important role to predict whether the question is answerable and also greatly improves the conciseness of the U-Net. Different from the state-of-art pipeline models, U-Net can be learned in an end-to-end fashion. The experimental results on the SQuAD 2.0 dataset show that U-Net can effectively predict the unanswerability of questions and achieves an F1 score of 71.7 on SQuAD 2.0.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-10-12T12:48:34Z</published>
+    <arxiv:comment>9 pages</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Fu Sun</name>
+    </author>
+    <author>
+      <name>Linyang Li</name>
+    </author>
+    <author>
+      <name>Xipeng Qiu</name>
+    </author>
+    <author>
+      <name>Yang Liu</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1810.04805v2</id>
+    <title>BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding</title>
+    <updated>2019-05-24T20:37:26Z</updated>
+    <link href="https://arxiv.org/abs/1810.04805v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1810.04805v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We introduce a new language representation model called BERT, which stands for Bidirectional Encoder Representations from Transformers. Unlike recent language representation models, BERT is designed to pre-train deep bidirectional representations from unlabeled text by jointly conditioning on both left and right context in all layers. As a result, the pre-trained BERT model can be fine-tuned with just one additional output layer to create state-of-the-art models for a wide range of tasks, such as question answering and language inference, without substantial task-specific architecture modifications.
+  BERT is conceptually simple and empirically powerful. It obtains new state-of-the-art results on eleven natural language processing tasks, including pushing the GLUE score to 80.5% (7.7% point absolute improvement), MultiNLI accuracy to 86.7% (4.6% absolute improvement), SQuAD v1.1 question answering Test F1 to 93.2 (1.5 point absolute improvement) and SQuAD v2.0 Test F1 to 83.1 (5.1 point absolute improvement).</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-10-11T00:50:01Z</published>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Jacob Devlin</name>
+    </author>
+    <author>
+      <name>Ming-Wei Chang</name>
+    </author>
+    <author>
+      <name>Kenton Lee</name>
+    </author>
+    <author>
+      <name>Kristina Toutanova</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1811.11934v1</id>
+    <title>Multi-granularity hierarchical attention fusion networks for reading comprehension and question answering</title>
+    <updated>2018-11-29T02:44:07Z</updated>
+    <link href="https://arxiv.org/abs/1811.11934v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1811.11934v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>This paper describes a novel hierarchical attention network for reading comprehension style question answering, which aims to answer questions for a given narrative paragraph. In the proposed method, attention and fusion are conducted horizontally and vertically across layers at different levels of granularity between question and paragraph. Specifically, it first encode the question and paragraph with fine-grained language embeddings, to better capture the respective representations at semantic level. Then it proposes a multi-granularity fusion approach to fully fuse information from both global and attended representations. Finally, it introduces a hierarchical attention network to focuses on the answer span progressively with multi-level softalignment. Extensive experiments on the large-scale SQuAD and TriviaQA datasets validate the effectiveness of the proposed method. At the time of writing the paper (Jan. 12th 2018), our model achieves the first position on the SQuAD leaderboard for both single and ensemble models. We also achieves state-of-the-art results on TriviaQA, AddSent and AddOne-Sent datasets.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-11-29T02:44:07Z</published>
+    <arxiv:comment>Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) 1705-1714</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Wei Wang</name>
+    </author>
+    <author>
+      <name>Ming Yan</name>
+    </author>
+    <author>
+      <name>Chen Wu</name>
+    </author>
+    <arxiv:doi>10.18653/v1/P18-1158</arxiv:doi>
+    <link rel="related" href="https://doi.org/10.18653/v1/P18-1158" title="doi"/>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1809.05053v1</id>
+    <title>XNLI: Evaluating Cross-lingual Sentence Representations</title>
+    <updated>2018-09-13T16:39:53Z</updated>
+    <link href="https://arxiv.org/abs/1809.05053v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1809.05053v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>State-of-the-art natural language processing systems rely on supervision in the form of annotated data to learn competent models. These models are generally trained on data in a single language (usually English), and cannot be directly used beyond that language. Since collecting data in every language is not realistic, there has been a growing interest in cross-lingual language understanding (XLU) and low-resource cross-language transfer. In this work, we construct an evaluation set for XLU by extending the development and test sets of the Multi-Genre Natural Language Inference Corpus (MultiNLI) to 15 languages, including low-resource languages such as Swahili and Urdu. We hope that our dataset, dubbed XNLI, will catalyze research in cross-lingual sentence understanding by providing an informative standard evaluation task. In addition, we provide several baselines for multilingual sentence understanding, including two based on machine translation systems, and two that use parallel data to train aligned multilingual bag-of-words and LSTM encoders. We find that XNLI represents a practical and challenging evaluation suite, and that directly translating the test data yields the best performance among available baselines.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-09-13T16:39:53Z</published>
+    <arxiv:comment>EMNLP 2018</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Alexis Conneau</name>
+    </author>
+    <author>
+      <name>Guillaume Lample</name>
+    </author>
+    <author>
+      <name>Ruty Rinott</name>
+    </author>
+    <author>
+      <name>Adina Williams</name>
+    </author>
+    <author>
+      <name>Samuel R. Bowman</name>
+    </author>
+    <author>
+      <name>Holger Schwenk</name>
+    </author>
+    <author>
+      <name>Veselin Stoyanov</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1805.12471v3</id>
+    <title>Neural Network Acceptability Judgments</title>
+    <updated>2019-10-01T18:41:05Z</updated>
+    <link href="https://arxiv.org/abs/1805.12471v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1805.12471v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>This paper investigates the ability of artificial neural networks to judge the grammatical acceptability of a sentence, with the goal of testing their linguistic competence. We introduce the Corpus of Linguistic Acceptability (CoLA), a set of 10,657 English sentences labeled as grammatical or ungrammatical from published linguistics literature. As baselines, we train several recurrent neural network models on acceptability classification, and find that our models outperform unsupervised models by Lau et al (2016) on CoLA. Error-analysis on specific grammatical phenomena reveals that both Lau et al.'s models and ours learn systematic generalizations like subject-verb-object order. However, all models we test perform far below human level on a wide range of grammatical constructions.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-05-31T13:52:06Z</published>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Alex Warstadt</name>
+    </author>
+    <author>
+      <name>Amanpreet Singh</name>
+    </author>
+    <author>
+      <name>Samuel R. Bowman</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1806.02847v2</id>
+    <title>A Simple Method for Commonsense Reasoning</title>
+    <updated>2019-09-26T22:33:06Z</updated>
+    <link href="https://arxiv.org/abs/1806.02847v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1806.02847v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Commonsense reasoning is a long-standing challenge for deep learning. For example, it is difficult to use neural networks to tackle the Winograd Schema dataset (Levesque et al., 2011). In this paper, we present a simple method for commonsense reasoning with neural networks, using unsupervised learning. Key to our method is the use of language models, trained on a massive amount of unlabled data, to score multiple choice questions posed by commonsense reasoning tests. On both Pronoun Disambiguation and Winograd Schema challenges, our models outperform previous state-of-the-art methods by a large margin, without using expensive annotated knowledge bases or hand-engineered features. We train an array of large RNN language models that operate at word or character level on LM-1-Billion, CommonCrawl, SQuAD, Gutenberg Books, and a customized corpus for this task and show that diversity of training data plays an important role in test performance. Further analysis also shows that our system successfully discovers important features of the context that decide the correct answer, indicating a good grasp of commonsense knowledge.</summary>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-06-07T18:13:08Z</published>
+    <arxiv:primary_category term="cs.AI"/>
+    <author>
+      <name>Trieu H. Trinh</name>
+    </author>
+    <author>
+      <name>Quoc V. Le</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1906.01604v1</id>
+    <title>KERMIT: Generative Insertion-Based Modeling for Sequences</title>
+    <updated>2019-06-04T17:35:35Z</updated>
+    <link href="https://arxiv.org/abs/1906.01604v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1906.01604v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We present KERMIT, a simple insertion-based approach to generative modeling for sequences and sequence pairs. KERMIT models the joint distribution and its decompositions (i.e., marginals and conditionals) using a single neural network and, unlike much prior work, does not rely on a prespecified factorization of the data distribution. During training, one can feed KERMIT paired data $(x, y)$ to learn the joint distribution $p(x, y)$, and optionally mix in unpaired data $x$ or $y$ to refine the marginals $p(x)$ or $p(y)$. During inference, we have access to the conditionals $p(x \mid y)$ and $p(y \mid x)$ in both directions. We can also sample from the joint distribution or the marginals. The model supports both serial fully autoregressive decoding and parallel partially autoregressive decoding, with the latter exhibiting an empirically logarithmic runtime. We demonstrate through experiments in machine translation, representation learning, and zero-shot cloze question answering that our unified approach is capable of matching or exceeding the performance of dedicated state-of-the-art systems across a wide range of tasks without the need for problem-specific architectural adaptation.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="stat.ML" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2019-06-04T17:35:35Z</published>
+    <arxiv:comment>William Chan, Nikita Kitaev, Kelvin Guu, and Mitchell Stern contributed equally</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>William Chan</name>
+    </author>
+    <author>
+      <name>Nikita Kitaev</name>
+    </author>
+    <author>
+      <name>Kelvin Guu</name>
+    </author>
+    <author>
+      <name>Mitchell Stern</name>
+    </author>
+    <author>
+      <name>Jakob Uszkoreit</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1802.05365v2</id>
+    <title>Deep contextualized word representations</title>
+    <updated>2018-03-22T21:59:40Z</updated>
+    <link href="https://arxiv.org/abs/1802.05365v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1802.05365v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We introduce a new type of deep contextualized word representation that models both (1) complex characteristics of word use (e.g., syntax and semantics), and (2) how these uses vary across linguistic contexts (i.e., to model polysemy). Our word vectors are learned functions of the internal states of a deep bidirectional language model (biLM), which is pre-trained on a large text corpus. We show that these representations can be easily added to existing models and significantly improve the state of the art across six challenging NLP problems, including question answering, textual entailment and sentiment analysis. We also present an analysis showing that exposing the deep internals of the pre-trained network is crucial, allowing downstream models to mix different types of semi-supervision signals.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-02-15T00:05:11Z</published>
+    <arxiv:comment>NAACL 2018. Originally posted to openreview 27 Oct 2017. v2 updated for NAACL camera ready</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Matthew E. Peters</name>
+    </author>
+    <author>
+      <name>Mark Neumann</name>
+    </author>
+    <author>
+      <name>Mohit Iyyer</name>
+    </author>
+    <author>
+      <name>Matt Gardner</name>
+    </author>
+    <author>
+      <name>Christopher Clark</name>
+    </author>
+    <author>
+      <name>Kenton Lee</name>
+    </author>
+    <author>
+      <name>Luke Zettlemoyer</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1705.02364v5</id>
+    <title>Supervised Learning of Universal Sentence Representations from Natural Language Inference Data</title>
+    <updated>2018-07-08T21:22:11Z</updated>
+    <link href="https://arxiv.org/abs/1705.02364v5" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1705.02364v5" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Many modern NLP systems rely on word embeddings, previously trained in an unsupervised manner on large corpora, as base features. Efforts to obtain embeddings for larger chunks of text, such as sentences, have however not been so successful. Several attempts at learning unsupervised representations of sentences have not reached satisfactory enough performance to be widely adopted. In this paper, we show how universal sentence representations trained using the supervised data of the Stanford Natural Language Inference datasets can consistently outperform unsupervised methods like SkipThought vectors on a wide range of transfer tasks. Much like how computer vision uses ImageNet to obtain features, which can then be transferred to other tasks, our work tends to indicate the suitability of natural language inference for transfer learning to other NLP tasks. Our encoder is publicly available.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2017-05-05T18:54:39Z</published>
+    <arxiv:comment>EMNLP 2017</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Alexis Conneau</name>
+    </author>
+    <author>
+      <name>Douwe Kiela</name>
+    </author>
+    <author>
+      <name>Holger Schwenk</name>
+    </author>
+    <author>
+      <name>Loic Barrault</name>
+    </author>
+    <author>
+      <name>Antoine Bordes</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1606.05250v3</id>
+    <title>SQuAD: 100,000+ Questions for Machine Comprehension of Text</title>
+    <updated>2016-10-11T02:42:36Z</updated>
+    <link href="https://arxiv.org/abs/1606.05250v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1606.05250v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We present the Stanford Question Answering Dataset (SQuAD), a new reading comprehension dataset consisting of 100,000+ questions posed by crowdworkers on a set of Wikipedia articles, where the answer to each question is a segment of text from the corresponding reading passage. We analyze the dataset to understand the types of reasoning required to answer the questions, leaning heavily on dependency and constituency trees. We build a strong logistic regression model, which achieves an F1 score of 51.0%, a significant improvement over a simple baseline (20%). However, human performance (86.8%) is much higher, indicating that the dataset presents a good challenge problem for future research.
+  The dataset is freely available at https://stanford-qa.com</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2016-06-16T16:36:00Z</published>
+    <arxiv:comment>To appear in Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing (EMNLP)</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Pranav Rajpurkar</name>
+    </author>
+    <author>
+      <name>Jian Zhang</name>
+    </author>
+    <author>
+      <name>Konstantin Lopyrev</name>
+    </author>
+    <author>
+      <name>Percy Liang</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1508.05326v1</id>
+    <title>A large annotated corpus for learning natural language inference</title>
+    <updated>2015-08-21T16:17:01Z</updated>
+    <link href="https://arxiv.org/abs/1508.05326v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1508.05326v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Understanding entailment and contradiction is fundamental to understanding natural language, and inference about entailment and contradiction is a valuable testing ground for the development of semantic representations. However, machine learning research in this area has been dramatically limited by the lack of large-scale resources. To address this, we introduce the Stanford Natural Language Inference corpus, a new, freely available collection of labeled sentence pairs, written by humans doing a novel grounded task based on image captioning. At 570K pairs, it is two orders of magnitude larger than all other resources of its type. This increase in scale allows lexicalized classifiers to outperform some sophisticated existing entailment models, and it allows a neural network-based model to perform competitively on natural language inference benchmarks for the first time.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2015-08-21T16:17:01Z</published>
+    <arxiv:comment>To appear at EMNLP 2015. The data will be posted shortly before the conference (the week of 14 Sep) at http://nlp.stanford.edu/projects/snli/</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Samuel R. Bowman</name>
+    </author>
+    <author>
+      <name>Gabor Angeli</name>
+    </author>
+    <author>
+      <name>Christopher Potts</name>
+    </author>
+    <author>
+      <name>Christopher D. Manning</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1508.07909v5</id>
+    <title>Neural Machine Translation of Rare Words with Subword Units</title>
+    <updated>2016-06-10T14:45:08Z</updated>
+    <link href="https://arxiv.org/abs/1508.07909v5" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1508.07909v5" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Neural machine translation (NMT) models typically operate with a fixed vocabulary, but translation is an open-vocabulary problem. Previous work addresses the translation of out-of-vocabulary words by backing off to a dictionary. In this paper, we introduce a simpler and more effective approach, making the NMT model capable of open-vocabulary translation by encoding rare and unknown words as sequences of subword units. This is based on the intuition that various word classes are translatable via smaller units than words, for instance names (via character copying or transliteration), compounds (via compositional translation), and cognates and loanwords (via phonological and morphological transformations). We discuss the suitability of different word segmentation techniques, including simple character n-gram models and a segmentation based on the byte pair encoding compression algorithm, and empirically show that subword models improve over a back-off dictionary baseline for the WMT 15 translation tasks English-German and English-Russian by 1.1 and 1.3 BLEU, respectively.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2015-08-31T16:37:31Z</published>
+    <arxiv:comment>accepted at ACL 2016; new in this version: figure 3</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Rico Sennrich</name>
+    </author>
+    <author>
+      <name>Barry Haddow</name>
+    </author>
+    <author>
+      <name>Alexandra Birch</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1611.01603v6</id>
+    <title>Bidirectional Attention Flow for Machine Comprehension</title>
+    <updated>2018-06-21T10:53:20Z</updated>
+    <link href="https://arxiv.org/abs/1611.01603v6" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1611.01603v6" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Machine comprehension (MC), answering a query about a given context paragraph, requires modeling complex interactions between the context and the query. Recently, attention mechanisms have been successfully extended to MC. Typically these methods use attention to focus on a small portion of the context and summarize it with a fixed-size vector, couple attentions temporally, and/or often form a uni-directional attention. In this paper we introduce the Bi-Directional Attention Flow (BIDAF) network, a multi-stage hierarchical process that represents the context at different levels of granularity and uses bi-directional attention flow mechanism to obtain a query-aware context representation without early summarization. Our experimental evaluations show that our model achieves the state-of-the-art results in Stanford Question Answering Dataset (SQuAD) and CNN/DailyMail cloze test.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2016-11-05T04:49:00Z</published>
+    <arxiv:comment>Published as a conference paper at ICLR 2017</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Minjoon Seo</name>
+    </author>
+    <author>
+      <name>Aniruddha Kembhavi</name>
+    </author>
+    <author>
+      <name>Ali Farhadi</name>
+    </author>
+    <author>
+      <name>Hannaneh Hajishirzi</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1708.00055v1</id>
+    <title>SemEval-2017 Task 1: Semantic Textual Similarity - Multilingual and Cross-lingual Focused Evaluation</title>
+    <updated>2017-07-31T20:12:06Z</updated>
+    <link href="https://arxiv.org/abs/1708.00055v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1708.00055v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Semantic Textual Similarity (STS) measures the meaning similarity of sentences. Applications include machine translation (MT), summarization, generation, question answering (QA), short answer grading, semantic search, dialog and conversational systems. The STS shared task is a venue for assessing the current state-of-the-art. The 2017 task focuses on multilingual and cross-lingual pairs with one sub-track exploring MT quality estimation (MTQE) data. The task obtained strong participation from 31 teams, with 17 participating in all language tracks. We summarize performance and review a selection of well performing methods. Analysis highlights common errors, providing insight into the limitations of existing models. To support ongoing work on semantic representations, the STS Benchmark is introduced as a new shared training and evaluation set carefully selected from the corpus of English STS shared task data (2012-2017).</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2017-07-31T20:12:06Z</published>
+    <arxiv:comment>To appear in proceedings of the SemEval workshop at ACL 2017; 14 pages, 14 Tables, 1 Figure</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Daniel Cer</name>
+    </author>
+    <author>
+      <name>Mona Diab</name>
+    </author>
+    <author>
+      <name>Eneko Agirre</name>
+    </author>
+    <author>
+      <name>Iñigo Lopez-Gazpio</name>
+    </author>
+    <author>
+      <name>Lucia Specia</name>
+    </author>
+    <arxiv:doi>10.18653/v1/S17-2001</arxiv:doi>
+    <link rel="related" href="https://doi.org/10.18653/v1/S17-2001" title="doi"/>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1708.00107v2</id>
+    <title>Learned in Translation: Contextualized Word Vectors</title>
+    <updated>2018-06-20T13:15:06Z</updated>
+    <link href="https://arxiv.org/abs/1708.00107v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1708.00107v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Computer vision has benefited from initializing multiple deep layers with weights pretrained on large supervised training sets like ImageNet. Natural language processing (NLP) typically sees initialization of only the lowest layer of deep models with pretrained word vectors. In this paper, we use a deep LSTM encoder from an attentional sequence-to-sequence model trained for machine translation (MT) to contextualize word vectors. We show that adding these context vectors (CoVe) improves performance over using only unsupervised word and character vectors on a wide variety of common NLP tasks: sentiment analysis (SST, IMDb), question classification (TREC), entailment (SNLI), and question answering (SQuAD). For fine-grained sentiment analysis and entailment, CoVe improves performance of our baseline models to the state of the art.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2017-08-01T00:05:34Z</published>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Bryan McCann</name>
+    </author>
+    <author>
+      <name>James Bradbury</name>
+    </author>
+    <author>
+      <name>Caiming Xiong</name>
+    </author>
+    <author>
+      <name>Richard Socher</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1804.07461v3</id>
+    <title>GLUE: A Multi-Task Benchmark and Analysis Platform for Natural Language Understanding</title>
+    <updated>2019-02-22T23:53:34Z</updated>
+    <link href="https://arxiv.org/abs/1804.07461v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1804.07461v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>For natural language understanding (NLU) technology to be maximally useful, both practically and as a scientific object of study, it must be general: it must be able to process language in a way that is not exclusively tailored to any one specific task or dataset. In pursuit of this objective, we introduce the General Language Understanding Evaluation benchmark (GLUE), a tool for evaluating and analyzing the performance of models across a diverse range of existing NLU tasks. GLUE is model-agnostic, but it incentivizes sharing knowledge across tasks because certain tasks have very limited training data. We further provide a hand-crafted diagnostic test suite that enables detailed linguistic analysis of NLU models. We evaluate baselines based on current methods for multi-task and transfer learning and find that they do not immediately give substantial improvements over the aggregate performance of training a separate model per task, indicating room for improvement in developing general and robust NLU systems.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-04-20T06:35:04Z</published>
+    <arxiv:comment>ICLR 2019; https://gluebenchmark.com/</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Alex Wang</name>
+    </author>
+    <author>
+      <name>Amanpreet Singh</name>
+    </author>
+    <author>
+      <name>Julian Michael</name>
+    </author>
+    <author>
+      <name>Felix Hill</name>
+    </author>
+    <author>
+      <name>Omer Levy</name>
+    </author>
+    <author>
+      <name>Samuel R. Bowman</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1803.02893v1</id>
+    <title>An efficient framework for learning sentence representations</title>
+    <updated>2018-03-07T22:02:10Z</updated>
+    <link href="https://arxiv.org/abs/1803.02893v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1803.02893v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>In this work we propose a simple and efficient framework for learning sentence representations from unlabelled data. Drawing inspiration from the distributional hypothesis and recent work on learning sentence representations, we reformulate the problem of predicting the context in which a sentence appears as a classification problem. Given a sentence and its context, a classifier distinguishes context sentences from other contrastive sentences based on their vector representations. This allows us to efficiently learn different types of encoding functions, and we show that the model learns high-quality sentence representations. We demonstrate that our sentence representations outperform state-of-the-art unsupervised and supervised representation learning methods on several downstream NLP tasks that involve understanding sentence semantics while achieving an order of magnitude speedup in training time.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-03-07T22:02:10Z</published>
+    <arxiv:comment>ICLR 2018</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Lajanugen Logeswaran</name>
+    </author>
+    <author>
+      <name>Honglak Lee</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1905.06290v2</id>
+    <title>A Surprisingly Robust Trick for Winograd Schema Challenge</title>
+    <updated>2019-08-04T09:06:11Z</updated>
+    <link href="https://arxiv.org/abs/1905.06290v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1905.06290v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>The Winograd Schema Challenge (WSC) dataset WSC273 and its inference counterpart WNLI are popular benchmarks for natural language understanding and commonsense reasoning. In this paper, we show that the performance of three language models on WSC273 strongly improves when fine-tuned on a similar pronoun disambiguation problem dataset (denoted WSCR). We additionally generate a large unsupervised WSC-like dataset. By fine-tuning the BERT language model both on the introduced and on the WSCR dataset, we achieve overall accuracies of 72.5% and 74.7% on WSC273 and WNLI, improving the previous state-of-the-art solutions by 8.8% and 9.6%, respectively. Furthermore, our fine-tuned models are also consistently more robust on the "complex" subsets of WSC273, introduced by Trichelair et al. (2018).</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2019-05-15T16:47:11Z</published>
+    <arxiv:comment>Appeared as part of the ACL 2019 conference</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Vid Kocijan</name>
+    </author>
+    <author>
+      <name>Ana-Maria Cretu</name>
+    </author>
+    <author>
+      <name>Oana-Maria Camburu</name>
+    </author>
+    <author>
+      <name>Yordan Yordanov</name>
+    </author>
+    <author>
+      <name>Thomas Lukasiewicz</name>
+    </author>
+    <arxiv:doi>10.18653/v1/P19-1478</arxiv:doi>
+    <link rel="related" href="https://doi.org/10.18653/v1/P19-1478" title="doi"/>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1806.00187v3</id>
+    <title>Scaling Neural Machine Translation</title>
+    <updated>2018-09-04T23:19:27Z</updated>
+    <link href="https://arxiv.org/abs/1806.00187v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1806.00187v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Sequence to sequence learning models still require several days to reach state of the art performance on large benchmark datasets using a single machine. This paper shows that reduced precision and large batch training can speedup training by nearly 5x on a single 8-GPU machine with careful tuning and implementation. On WMT'14 English-German translation, we match the accuracy of Vaswani et al. (2017) in under 5 hours when training on 8 GPUs and we obtain a new state of the art of 29.3 BLEU after training for 85 minutes on 128 GPUs. We further improve these results to 29.8 BLEU by training on the much larger Paracrawl dataset. On the WMT'14 English-French task, we obtain a state-of-the-art BLEU of 43.2 in 8.5 hours on 128 GPUs.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-06-01T04:33:16Z</published>
+    <arxiv:comment>WMT 2018</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Myle Ott</name>
+    </author>
+    <author>
+      <name>Sergey Edunov</name>
+    </author>
+    <author>
+      <name>David Grangier</name>
+    </author>
+    <author>
+      <name>Michael Auli</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1312.3005v3</id>
+    <title>One Billion Word Benchmark for Measuring Progress in Statistical Language Modeling</title>
+    <updated>2014-03-04T18:30:26Z</updated>
+    <link href="https://arxiv.org/abs/1312.3005v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1312.3005v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We propose a new benchmark corpus to be used for measuring progress in statistical language modeling. With almost one billion words of training data, we hope this benchmark will be useful to quickly evaluate novel language modeling techniques, and to compare their contribution when combined with other advanced techniques. We show performance of several well-known types of language models, with the best results achieved with a recurrent neural network based language model. The baseline unpruned Kneser-Ney 5-gram model achieves perplexity 67.6; a combination of techniques leads to 35% reduction in perplexity, or 10% reduction in cross-entropy (bits), over that baseline.
+  The benchmark is available as a code.google.com project; besides the scripts needed to rebuild the training/held-out data, it also makes available log-probability values for each word in each of ten held-out data sets, for each of the baseline n-gram models.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2013-12-11T00:25:57Z</published>
+    <arxiv:comment>Accompanied by a code.google.com project allowing anyone to generate the benchmark data, and use it to compare their language model against the ones described in the paper</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Ciprian Chelba</name>
+    </author>
+    <author>
+      <name>Tomas Mikolov</name>
+    </author>
+    <author>
+      <name>Mike Schuster</name>
+    </author>
+    <author>
+      <name>Qi Ge</name>
+    </author>
+    <author>
+      <name>Thorsten Brants</name>
+    </author>
+    <author>
+      <name>Phillipp Koehn</name>
+    </author>
+    <author>
+      <name>Tony Robinson</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1704.04683v5</id>
+    <title>RACE: Large-scale ReAding Comprehension Dataset From Examinations</title>
+    <updated>2017-12-05T19:36:03Z</updated>
+    <link href="https://arxiv.org/abs/1704.04683v5" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1704.04683v5" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We present RACE, a new dataset for benchmark evaluation of methods in the reading comprehension task. Collected from the English exams for middle and high school Chinese students in the age range between 12 to 18, RACE consists of near 28,000 passages and near 100,000 questions generated by human experts (English instructors), and covers a variety of topics which are carefully designed for evaluating the students' ability in understanding and reasoning. In particular, the proportion of questions that requires reasoning is much larger in RACE than that in other benchmark datasets for reading comprehension, and there is a significant gap between the performance of the state-of-the-art models (43%) and the ceiling human performance (95%). We hope this new dataset can serve as a valuable resource for research and evaluation in machine comprehension. The dataset is freely available at http://www.cs.cmu.edu/~glai1/data/race/ and the code is available at https://github.com/qizhex/RACE_AR_baselines.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2017-04-15T19:31:41Z</published>
+    <arxiv:comment>EMNLP 2017</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Guokun Lai</name>
+    </author>
+    <author>
+      <name>Qizhe Xie</name>
+    </author>
+    <author>
+      <name>Hanxiao Liu</name>
+    </author>
+    <author>
+      <name>Yiming Yang</name>
+    </author>
+    <author>
+      <name>Eduard Hovy</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1511.01432v1</id>
+    <title>Semi-supervised Sequence Learning</title>
+    <updated>2015-11-04T18:48:36Z</updated>
+    <link href="https://arxiv.org/abs/1511.01432v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1511.01432v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We present two approaches that use unlabeled data to improve sequence learning with recurrent networks. The first approach is to predict what comes next in a sequence, which is a conventional language model in natural language processing. The second approach is to use a sequence autoencoder, which reads the input sequence into a vector and predicts the input sequence again. These two algorithms can be used as a "pretraining" step for a later supervised sequence learning algorithm. In other words, the parameters obtained from the unsupervised step can be used as a starting point for other supervised training models. In our experiments, we find that long short term memory recurrent networks after being pretrained with the two approaches are more stable and generalize better. With pretraining, we are able to train long short term memory recurrent networks up to a few hundred timesteps, thereby achieving strong performance in many text classification tasks, such as IMDB, DBpedia and 20 Newsgroups.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2015-11-04T18:48:36Z</published>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Andrew M. Dai</name>
+    </author>
+    <author>
+      <name>Quoc V. Le</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1704.05426v4</id>
+    <title>A Broad-Coverage Challenge Corpus for Sentence Understanding through Inference</title>
+    <updated>2018-02-19T19:19:51Z</updated>
+    <link href="https://arxiv.org/abs/1704.05426v4" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1704.05426v4" rel="related" type="application/pdf" title="pdf"/>
+    <summary>This paper introduces the Multi-Genre Natural Language Inference (MultiNLI) corpus, a dataset designed for use in the development and evaluation of machine learning models for sentence understanding. In addition to being one of the largest corpora available for the task of NLI, at 433k examples, this corpus improves upon available resources in its coverage: it offers data from ten distinct genres of written and spoken English--making it possible to evaluate systems on nearly the full complexity of the language--and it offers an explicit setting for the evaluation of cross-genre domain adaptation.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2017-04-18T17:10:13Z</published>
+    <arxiv:comment>10 pages, 1 figures, 5 tables. v2 corrects a misreported accuracy number for the CBOW model in the 'matched' setting. v3 adds a discussion of the difficulty of the corpus to the analysis section. v4 is the version that was accepted to NAACL2018</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Adina Williams</name>
+    </author>
+    <author>
+      <name>Nikita Nangia</name>
+    </author>
+    <author>
+      <name>Samuel R. Bowman</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/cs/0306050v1</id>
+    <title>Introduction to the CoNLL-2003 Shared Task: Language-Independent Named Entity Recognition</title>
+    <updated>2003-06-12T12:35:00Z</updated>
+    <link href="https://arxiv.org/abs/cs/0306050v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/cs/0306050v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>  We describe the CoNLL-2003 shared task: language-independent named entity recognition. We give background information on the data sets (English and German) and the evaluation method, present a general overview of the systems that have taken part in the task and discuss their performance.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2003-06-12T12:35:00Z</published>
+    <arxiv:primary_category term="cs.CL"/>
+    <arxiv:journal_ref>Proceedings of CoNLL-2003, Edmonton, Canada, 2003, pp. 142-147</arxiv:journal_ref>
+    <author>
+      <name>Erik F. Tjong Kim Sang</name>
+    </author>
+    <author>
+      <name>Fien De Meulder</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1804.09301v1</id>
+    <title>Gender Bias in Coreference Resolution</title>
+    <updated>2018-04-25T00:46:14Z</updated>
+    <link href="https://arxiv.org/abs/1804.09301v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1804.09301v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We present an empirical study of gender bias in coreference resolution systems. We first introduce a novel, Winograd schema-style set of minimal pair sentences that differ only by pronoun gender. With these "Winogender schemas," we evaluate and confirm systematic gender bias in three publicly-available coreference resolution systems, and correlate this bias with real-world and textual gender statistics.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-04-25T00:46:14Z</published>
+    <arxiv:comment>Accepted to NAACL-HLT 2018</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Rachel Rudinger</name>
+    </author>
+    <author>
+      <name>Jason Naradowsky</name>
+    </author>
+    <author>
+      <name>Brian Leonard</name>
+    </author>
+    <author>
+      <name>Benjamin Van Durme</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1801.06146v5</id>
+    <title>Universal Language Model Fine-tuning for Text Classification</title>
+    <updated>2018-05-23T09:23:47Z</updated>
+    <link href="https://arxiv.org/abs/1801.06146v5" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1801.06146v5" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Inductive transfer learning has greatly impacted computer vision, but existing approaches in NLP still require task-specific modifications and training from scratch. We propose Universal Language Model Fine-tuning (ULMFiT), an effective transfer learning method that can be applied to any task in NLP, and introduce techniques that are key for fine-tuning a language model. Our method significantly outperforms the state-of-the-art on six text classification tasks, reducing the error by 18-24% on the majority of datasets. Furthermore, with only 100 labeled examples, it matches the performance of training from scratch on 100x more data. We open-source our pretrained models and code.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="stat.ML" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-01-18T17:54:52Z</published>
+    <arxiv:comment>ACL 2018, fixed denominator in Equation 3, line 3</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Jeremy Howard</name>
+    </author>
+    <author>
+      <name>Sebastian Ruder</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1801.07736v3</id>
+    <title>MaskGAN: Better Text Generation via Filling in the______</title>
+    <updated>2018-03-01T15:30:09Z</updated>
+    <link href="https://arxiv.org/abs/1801.07736v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1801.07736v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Neural text generation models are often autoregressive language models or seq2seq models. These models generate text by sampling words sequentially, with each word conditioned on the previous word, and are state-of-the-art for several machine translation and summarization benchmarks. These benchmarks are often defined by validation perplexity even though this is not a direct measure of the quality of the generated text. Additionally, these models are typically trained via maxi- mum likelihood and teacher forcing. These methods are well-suited to optimizing perplexity but can result in poor sample quality since generating text requires conditioning on sequences of words that may have never been observed at training time. We propose to improve sample quality using Generative Adversarial Networks (GANs), which explicitly train the generator to produce high quality samples and have shown a lot of success in image generation. GANs were originally designed to output differentiable values, so discrete language generation is challenging for them. We claim that validation perplexity alone is not indicative of the quality of text generated by a model. We introduce an actor-critic conditional GAN that fills in missing text conditioned on the surrounding context. We show qualitatively and quantitatively, evidence that this produces more realistic conditional and unconditional text samples compared to a maximum likelihood trained model.</summary>
+    <category term="stat.ML" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-01-23T19:22:21Z</published>
+    <arxiv:comment>16 pages, ICLR 2018</arxiv:comment>
+    <arxiv:primary_category term="stat.ML"/>
+    <author>
+      <name>William Fedus</name>
+    </author>
+    <author>
+      <name>Ian Goodfellow</name>
+    </author>
+    <author>
+      <name>Andrew M. Dai</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1710.03740v3</id>
+    <title>Mixed Precision Training</title>
+    <updated>2018-02-15T20:04:02Z</updated>
+    <link href="https://arxiv.org/abs/1710.03740v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1710.03740v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Deep neural networks have enabled progress in a wide variety of applications. Growing the size of the neural network typically results in improved accuracy. As model sizes grow, the memory and compute requirements for training these models also increases. We introduce a technique to train deep neural networks using half precision floating point numbers. In our technique, weights, activations and gradients are stored in IEEE half-precision format. Half-precision floating numbers have limited numerical range compared to single-precision numbers. We propose two techniques to handle this loss of information. Firstly, we recommend maintaining a single-precision copy of the weights that accumulates the gradients after each optimizer step. This single-precision copy is rounded to half-precision format during training. Secondly, we propose scaling the loss appropriately to handle the loss of information with half-precision gradients. We demonstrate that this approach works for a wide variety of models including convolution neural networks, recurrent neural networks and generative adversarial networks. This technique works for large scale models with more than 100 million parameters trained on large datasets. Using this approach, we can reduce the memory consumption of deep learning models by nearly 2x. In future processors, we can also expect a significant computation speedup using half-precision hardware units.</summary>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="stat.ML" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2017-10-10T17:42:04Z</published>
+    <arxiv:comment>Published as a conference paper at ICLR 2018</arxiv:comment>
+    <arxiv:primary_category term="cs.AI"/>
+    <author>
+      <name>Paulius Micikevicius</name>
+    </author>
+    <author>
+      <name>Sharan Narang</name>
+    </author>
+    <author>
+      <name>Jonah Alben</name>
+    </author>
+    <author>
+      <name>Gregory Diamos</name>
+    </author>
+    <author>
+      <name>Erich Elsen</name>
+    </author>
+    <author>
+      <name>David Garcia</name>
+    </author>
+    <author>
+      <name>Boris Ginsburg</name>
+    </author>
+    <author>
+      <name>Michael Houston</name>
+    </author>
+    <author>
+      <name>Oleksii Kuchaiev</name>
+    </author>
+    <author>
+      <name>Ganesh Venkatesh</name>
+    </author>
+    <author>
+      <name>Hao Wu</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1405.4053v2</id>
+    <title>Distributed Representations of Sentences and Documents</title>
+    <updated>2014-05-22T23:23:19Z</updated>
+    <link href="https://arxiv.org/abs/1405.4053v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1405.4053v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Many machine learning algorithms require the input to be represented as a fixed-length feature vector. When it comes to texts, one of the most common fixed-length features is bag-of-words. Despite their popularity, bag-of-words features have two major weaknesses: they lose the ordering of the words and they also ignore semantics of the words. For example, "powerful," "strong" and "Paris" are equally distant. In this paper, we propose Paragraph Vector, an unsupervised algorithm that learns fixed-length feature representations from variable-length pieces of texts, such as sentences, paragraphs, and documents. Our algorithm represents each document by a dense vector which is trained to predict words in the document. Its construction gives our algorithm the potential to overcome the weaknesses of bag-of-words models. Empirical results show that Paragraph Vectors outperform bag-of-words models as well as other techniques for text representations. Finally, we achieve new state-of-the-art results on several text classification and sentiment analysis tasks.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2014-05-16T07:12:16Z</published>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Quoc V. Le</name>
+    </author>
+    <author>
+      <name>Tomas Mikolov</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1811.01088v2</id>
+    <title>Sentence Encoders on STILTs: Supplementary Training on Intermediate Labeled-data Tasks</title>
+    <updated>2019-02-27T19:07:16Z</updated>
+    <link href="https://arxiv.org/abs/1811.01088v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1811.01088v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Pretraining sentence encoders with language modeling and related unsupervised tasks has recently been shown to be very effective for language understanding tasks. By supplementing language model-style pretraining with further training on data-rich supervised tasks, such as natural language inference, we obtain additional performance improvements on the GLUE benchmark. Applying supplementary training on BERT (Devlin et al., 2018), we attain a GLUE score of 81.8---the state of the art (as of 02/24/2019) and a 1.4 point improvement over BERT. We also observe reduced variance across random restarts in this setting. Our approach yields similar improvements when applied to ELMo (Peters et al., 2018a) and Radford et al. (2018)'s model. In addition, the benefits of supplementary training are particularly pronounced in data-constrained regimes, as we show in experiments with artificially limited training data.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-11-02T21:04:24Z</published>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Jason Phang</name>
+    </author>
+    <author>
+      <name>Thibault Févry</name>
+    </author>
+    <author>
+      <name>Samuel R. Bowman</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1905.03197v3</id>
+    <title>Unified Language Model Pre-training for Natural Language Understanding and Generation</title>
+    <updated>2019-10-15T11:25:06Z</updated>
+    <link href="https://arxiv.org/abs/1905.03197v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1905.03197v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>This paper presents a new Unified pre-trained Language Model (UniLM) that can be fine-tuned for both natural language understanding and generation tasks. The model is pre-trained using three types of language modeling tasks: unidirectional, bidirectional, and sequence-to-sequence prediction. The unified modeling is achieved by employing a shared Transformer network and utilizing specific self-attention masks to control what context the prediction conditions on. UniLM compares favorably with BERT on the GLUE benchmark, and the SQuAD 2.0 and CoQA question answering tasks. Moreover, UniLM achieves new state-of-the-art results on five natural language generation datasets, including improving the CNN/DailyMail abstractive summarization ROUGE-L to 40.51 (2.04 absolute improvement), the Gigaword abstractive summarization ROUGE-L to 35.75 (0.86 absolute improvement), the CoQA generative question answering F1 score to 82.5 (37.1 absolute improvement), the SQuAD question generation BLEU-4 to 22.12 (3.75 absolute improvement), and the DSTC7 document-grounded dialog response generation NIST-4 to 2.67 (human performance is 2.65). The code and pre-trained models are available at https://github.com/microsoft/unilm.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2019-05-08T16:33:51Z</published>
+    <arxiv:comment>Accepted by NeurIPS-19. Code and pre-trained models: https://github.com/microsoft/unilm</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Li Dong</name>
+    </author>
+    <author>
+      <name>Nan Yang</name>
+    </author>
+    <author>
+      <name>Wenhui Wang</name>
+    </author>
+    <author>
+      <name>Furu Wei</name>
+    </author>
+    <author>
+      <name>Xiaodong Liu</name>
+    </author>
+    <author>
+      <name>Yu Wang</name>
+    </author>
+    <author>
+      <name>Jianfeng Gao</name>
+    </author>
+    <author>
+      <name>Ming Zhou</name>
+    </author>
+    <author>
+      <name>Hsiao-Wuen Hon</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1904.09223v1</id>
+    <title>ERNIE: Enhanced Representation through Knowledge Integration</title>
+    <updated>2019-04-19T15:10:56Z</updated>
+    <link href="https://arxiv.org/abs/1904.09223v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1904.09223v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We present a novel language representation model enhanced by knowledge called ERNIE (Enhanced Representation through kNowledge IntEgration). Inspired by the masking strategy of BERT, ERNIE is designed to learn language representation enhanced by knowledge masking strategies, which includes entity-level masking and phrase-level masking. Entity-level strategy masks entities which are usually composed of multiple words.Phrase-level strategy masks the whole phrase which is composed of several words standing together as a conceptual unit.Experimental results show that ERNIE outperforms other baseline methods, achieving new state-of-the-art results on five Chinese natural language processing tasks including natural language inference, semantic similarity, named entity recognition, sentiment analysis and question answering. We also demonstrate that ERNIE has more powerful knowledge inference capacity on a cloze test.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2019-04-19T15:10:56Z</published>
+    <arxiv:comment>8 pages</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Yu Sun</name>
+    </author>
+    <author>
+      <name>Shuohuan Wang</name>
+    </author>
+    <author>
+      <name>Yukun Li</name>
+    </author>
+    <author>
+      <name>Shikun Feng</name>
+    </author>
+    <author>
+      <name>Xuyi Chen</name>
+    </author>
+    <author>
+      <name>Han Zhang</name>
+    </author>
+    <author>
+      <name>Xin Tian</name>
+    </author>
+    <author>
+      <name>Danxiang Zhu</name>
+    </author>
+    <author>
+      <name>Hao Tian</name>
+    </author>
+    <author>
+      <name>Hua Wu</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1901.11504v2</id>
+    <title>Multi-Task Deep Neural Networks for Natural Language Understanding</title>
+    <updated>2019-05-30T00:01:20Z</updated>
+    <link href="https://arxiv.org/abs/1901.11504v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1901.11504v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>In this paper, we present a Multi-Task Deep Neural Network (MT-DNN) for learning representations across multiple natural language understanding (NLU) tasks. MT-DNN not only leverages large amounts of cross-task data, but also benefits from a regularization effect that leads to more general representations in order to adapt to new tasks and domains. MT-DNN extends the model proposed in Liu et al. (2015) by incorporating a pre-trained bidirectional transformer language model, known as BERT (Devlin et al., 2018). MT-DNN obtains new state-of-the-art results on ten NLU tasks, including SNLI, SciTail, and eight out of nine GLUE tasks, pushing the GLUE benchmark to 82.7% (2.2% absolute improvement). We also demonstrate using the SNLI and SciTail datasets that the representations learned by MT-DNN allow domain adaptation with substantially fewer in-domain labels than the pre-trained BERT representations. The code and pre-trained models are publicly available at https://github.com/namisan/mt-dnn.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2019-01-31T18:07:25Z</published>
+    <arxiv:comment>10 pages, 2 figures and 5 tables; Accepted by ACL 2019</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Xiaodong Liu</name>
+    </author>
+    <author>
+      <name>Pengcheng He</name>
+    </author>
+    <author>
+      <name>Weizhu Chen</name>
+    </author>
+    <author>
+      <name>Jianfeng Gao</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1905.00537v3</id>
+    <title>SuperGLUE: A Stickier Benchmark for General-Purpose Language Understanding Systems</title>
+    <updated>2020-02-13T00:28:00Z</updated>
+    <link href="https://arxiv.org/abs/1905.00537v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1905.00537v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>In the last year, new models and methods for pretraining and transfer learning have driven striking performance improvements across a range of language understanding tasks. The GLUE benchmark, introduced a little over one year ago, offers a single-number metric that summarizes progress on a diverse set of such tasks, but performance on the benchmark has recently surpassed the level of non-expert humans, suggesting limited headroom for further research. In this paper we present SuperGLUE, a new benchmark styled after GLUE with a new set of more difficult language understanding tasks, a software toolkit, and a public leaderboard. SuperGLUE is available at super.gluebenchmark.com.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2019-05-02T00:41:50Z</published>
+    <arxiv:comment>NeurIPS 2019, super.gluebenchmark.com updating acknowledegments</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Alex Wang</name>
+    </author>
+    <author>
+      <name>Yada Pruksachatkun</name>
+    </author>
+    <author>
+      <name>Nikita Nangia</name>
+    </author>
+    <author>
+      <name>Amanpreet Singh</name>
+    </author>
+    <author>
+      <name>Julian Michael</name>
+    </author>
+    <author>
+      <name>Felix Hill</name>
+    </author>
+    <author>
+      <name>Omer Levy</name>
+    </author>
+    <author>
+      <name>Samuel R. Bowman</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1705.03551v2</id>
+    <title>TriviaQA: A Large Scale Distantly Supervised Challenge Dataset for Reading Comprehension</title>
+    <updated>2017-05-13T21:12:37Z</updated>
+    <link href="https://arxiv.org/abs/1705.03551v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1705.03551v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We present TriviaQA, a challenging reading comprehension dataset containing over 650K question-answer-evidence triples. TriviaQA includes 95K question-answer pairs authored by trivia enthusiasts and independently gathered evidence documents, six per question on average, that provide high quality distant supervision for answering the questions. We show that, in comparison to other recently introduced large-scale datasets, TriviaQA (1) has relatively complex, compositional questions, (2) has considerable syntactic and lexical variability between questions and corresponding answer-evidence sentences, and (3) requires more cross sentence reasoning to find answers. We also present two baseline algorithms: a feature-based classifier and a state-of-the-art neural network, that performs well on SQuAD reading comprehension. Neither approach comes close to human performance (23% and 40% vs. 80%), suggesting that TriviaQA is a challenging testbed that is worth significant future study. Data and code available at -- http://nlp.cs.washington.edu/triviaqa/</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2017-05-09T21:35:07Z</published>
+    <arxiv:comment>Added references, fixed typos, minor baseline update</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Mandar Joshi</name>
+    </author>
+    <author>
+      <name>Eunsol Choi</name>
+    </author>
+    <author>
+      <name>Daniel S. Weld</name>
+    </author>
+    <author>
+      <name>Luke Zettlemoyer</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1705.00108v1</id>
+    <title>Semi-supervised sequence tagging with bidirectional language models</title>
+    <updated>2017-04-29T01:13:04Z</updated>
+    <link href="https://arxiv.org/abs/1705.00108v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1705.00108v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Pre-trained word embeddings learned from unlabeled text have become a standard component of neural network architectures for NLP tasks. However, in most cases, the recurrent network that operates on word-level representations to produce context sensitive representations is trained on relatively little labeled data. In this paper, we demonstrate a general semi-supervised approach for adding pre- trained context embeddings from bidirectional language models to NLP systems and apply it to sequence labeling tasks. We evaluate our model on two standard datasets for named entity recognition (NER) and chunking, and in both cases achieve state of the art results, surpassing previous systems that use other forms of transfer or joint learning with additional labeled data and task specific gazetteers.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2017-04-29T01:13:04Z</published>
+    <arxiv:comment>To appear in ACL 2017</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Matthew E. Peters</name>
+    </author>
+    <author>
+      <name>Waleed Ammar</name>
+    </author>
+    <author>
+      <name>Chandra Bhagavatula</name>
+    </author>
+    <author>
+      <name>Russell Power</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1705.00557v1</id>
+    <title>Discourse-Based Objectives for Fast Unsupervised Sentence Representation Learning</title>
+    <updated>2017-04-23T09:15:35Z</updated>
+    <link href="https://arxiv.org/abs/1705.00557v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1705.00557v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>This work presents a novel objective function for the unsupervised training of neural network sentence encoders. It exploits signals from paragraph-level discourse coherence to train these models to understand text. Our objective is purely discriminative, allowing us to train models many times faster than was possible under prior methods, and it yields models which perform well in extrinsic evaluations.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.NE" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="stat.ML" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2017-04-23T09:15:35Z</published>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Yacine Jernite</name>
+    </author>
+    <author>
+      <name>Samuel R. Bowman</name>
+    </author>
+    <author>
+      <name>David Sontag</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1606.08415v5</id>
+    <title>Gaussian Error Linear Units (GELUs)</title>
+    <updated>2023-06-06T01:53:32Z</updated>
+    <link href="https://arxiv.org/abs/1606.08415v5" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1606.08415v5" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We propose the Gaussian Error Linear Unit (GELU), a high-performing neural network activation function. The GELU activation function is $xΦ(x)$, where $Φ(x)$ the standard Gaussian cumulative distribution function. The GELU nonlinearity weights inputs by their value, rather than gates inputs by their sign as in ReLUs ($x\mathbf{1}_{x&gt;0}$). We perform an empirical evaluation of the GELU nonlinearity against the ReLU and ELU activations and find performance improvements across all considered computer vision, natural language processing, and speech tasks.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2016-06-27T19:20:40Z</published>
+    <arxiv:comment>Trimmed version of 2016 draft</arxiv:comment>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Dan Hendrycks</name>
+    </author>
+    <author>
+      <name>Kevin Gimpel</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1606.01933v2</id>
+    <title>A Decomposable Attention Model for Natural Language Inference</title>
+    <updated>2016-09-25T23:52:45Z</updated>
+    <link href="https://arxiv.org/abs/1606.01933v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1606.01933v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We propose a simple neural architecture for natural language inference. Our approach uses attention to decompose the problem into subproblems that can be solved separately, thus making it trivially parallelizable. On the Stanford Natural Language Inference (SNLI) dataset, we obtain state-of-the-art results with almost an order of magnitude fewer parameters than previous work and without relying on any word-order information. Adding intra-sentence attention that takes a minimum amount of order into account yields further improvements.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2016-06-06T20:30:57Z</published>
+    <arxiv:comment>7 pages, 1 figure, Proceeedings of EMNLP 2016</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Ankur P. Parikh</name>
+    </author>
+    <author>
+      <name>Oscar Täckström</name>
+    </author>
+    <author>
+      <name>Dipanjan Das</name>
+    </author>
+    <author>
+      <name>Jakob Uszkoreit</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1609.08144v2</id>
+    <title>Google's Neural Machine Translation System: Bridging the Gap between Human and Machine Translation</title>
+    <updated>2016-10-08T19:10:41Z</updated>
+    <link href="https://arxiv.org/abs/1609.08144v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1609.08144v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Neural Machine Translation (NMT) is an end-to-end learning approach for automated translation, with the potential to overcome many of the weaknesses of conventional phrase-based translation systems. Unfortunately, NMT systems are known to be computationally expensive both in training and in translation inference. Also, most NMT systems have difficulty with rare words. These issues have hindered NMT's use in practical deployments and services, where both accuracy and speed are essential. In this work, we present GNMT, Google's Neural Machine Translation system, which attempts to address many of these issues. Our model consists of a deep LSTM network with 8 encoder and 8 decoder layers using attention and residual connections. To improve parallelism and therefore decrease training time, our attention mechanism connects the bottom layer of the decoder to the top layer of the encoder. To accelerate the final translation speed, we employ low-precision arithmetic during inference computations. To improve handling of rare words, we divide words into a limited set of common sub-word units ("wordpieces") for both input and output. This method provides a good balance between the flexibility of "character"-delimited models and the efficiency of "word"-delimited models, naturally handles translation of rare words, and ultimately improves the overall accuracy of the system. Our beam search technique employs a length-normalization procedure and uses a coverage penalty, which encourages generation of an output sentence that is most likely to cover all the words in the source sentence. On the WMT'14 English-to-French and English-to-German benchmarks, GNMT achieves competitive results to state-of-the-art. Using a human side-by-side evaluation on a set of isolated simple sentences, it reduces translation errors by an average of 60% compared to Google's phrase-based production system.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2016-09-26T19:59:55Z</published>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Yonghui Wu</name>
+    </author>
+    <author>
+      <name>Mike Schuster</name>
+    </author>
+    <author>
+      <name>Zhifeng Chen</name>
+    </author>
+    <author>
+      <name>Quoc V. Le</name>
+    </author>
+    <author>
+      <name>Mohammad Norouzi</name>
+    </author>
+    <author>
+      <name>Wolfgang Macherey</name>
+    </author>
+    <author>
+      <name>Maxim Krikun</name>
+    </author>
+    <author>
+      <name>Yuan Cao</name>
+    </author>
+    <author>
+      <name>Qin Gao</name>
+    </author>
+    <author>
+      <name>Klaus Macherey</name>
+    </author>
+    <author>
+      <name>Jeff Klingner</name>
+    </author>
+    <author>
+      <name>Apurva Shah</name>
+    </author>
+    <author>
+      <name>Melvin Johnson</name>
+    </author>
+    <author>
+      <name>Xiaobing Liu</name>
+    </author>
+    <author>
+      <name>Łukasz Kaiser</name>
+    </author>
+    <author>
+      <name>Stephan Gouws</name>
+    </author>
+    <author>
+      <name>Yoshikiyo Kato</name>
+    </author>
+    <author>
+      <name>Taku Kudo</name>
+    </author>
+    <author>
+      <name>Hideto Kazawa</name>
+    </author>
+    <author>
+      <name>Keith Stevens</name>
+    </author>
+    <author>
+      <name>George Kurian</name>
+    </author>
+    <author>
+      <name>Nishant Patil</name>
+    </author>
+    <author>
+      <name>Wei Wang</name>
+    </author>
+    <author>
+      <name>Cliff Young</name>
+    </author>
+    <author>
+      <name>Jason Smith</name>
+    </author>
+    <author>
+      <name>Jason Riesa</name>
+    </author>
+    <author>
+      <name>Alex Rudnick</name>
+    </author>
+    <author>
+      <name>Oriol Vinyals</name>
+    </author>
+    <author>
+      <name>Greg Corrado</name>
+    </author>
+    <author>
+      <name>Macduff Hughes</name>
+    </author>
+    <author>
+      <name>Jeffrey Dean</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1412.6980v9</id>
+    <title>Adam: A Method for Stochastic Optimization</title>
+    <updated>2017-01-30T01:27:54Z</updated>
+    <link href="https://arxiv.org/abs/1412.6980v9" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1412.6980v9" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We introduce Adam, an algorithm for first-order gradient-based optimization of stochastic objective functions, based on adaptive estimates of lower-order moments. The method is straightforward to implement, is computationally efficient, has little memory requirements, is invariant to diagonal rescaling of the gradients, and is well suited for problems that are large in terms of data and/or parameters. The method is also appropriate for non-stationary objectives and problems with very noisy and/or sparse gradients. The hyper-parameters have intuitive interpretations and typically require little tuning. Some connections to related algorithms, on which Adam was inspired, are discussed. We also analyze the theoretical convergence properties of the algorithm and provide a regret bound on the convergence rate that is comparable to the best known results under the online convex optimization framework. Empirical results demonstrate that Adam works well in practice and compares favorably to other stochastic optimization methods. Finally, we discuss AdaMax, a variant of Adam based on the infinity norm.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2014-12-22T13:54:29Z</published>
+    <arxiv:comment>Published as a conference paper at the 3rd International Conference for Learning Representations, San Diego, 2015</arxiv:comment>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Diederik P. Kingma</name>
+    </author>
+    <author>
+      <name>Jimmy Ba</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1310.4546v1</id>
+    <title>Distributed Representations of Words and Phrases and their Compositionality</title>
+    <updated>2013-10-16T23:28:53Z</updated>
+    <link href="https://arxiv.org/abs/1310.4546v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1310.4546v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>The recently introduced continuous Skip-gram model is an efficient method for learning high-quality distributed vector representations that capture a large number of precise syntactic and semantic word relationships. In this paper we present several extensions that improve both the quality of the vectors and the training speed. By subsampling of the frequent words we obtain significant speedup and also learn more regular word representations. We also describe a simple alternative to the hierarchical softmax called negative sampling. An inherent limitation of word representations is their indifference to word order and their inability to represent idiomatic phrases. For example, the meanings of "Canada" and "Air" cannot be easily combined to obtain "Air Canada". Motivated by this example, we present a simple method for finding phrases in text, and show that learning good vector representations for millions of phrases is possible.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="stat.ML" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2013-10-16T23:28:53Z</published>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Tomas Mikolov</name>
+    </author>
+    <author>
+      <name>Ilya Sutskever</name>
+    </author>
+    <author>
+      <name>Kai Chen</name>
+    </author>
+    <author>
+      <name>Greg Corrado</name>
+    </author>
+    <author>
+      <name>Jeffrey Dean</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1804.09541v1</id>
+    <title>QANet: Combining Local Convolution with Global Self-Attention for Reading Comprehension</title>
+    <updated>2018-04-23T11:33:43Z</updated>
+    <link href="https://arxiv.org/abs/1804.09541v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1804.09541v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Current end-to-end machine reading and question answering (Q\&amp;A) models are primarily based on recurrent neural networks (RNNs) with attention. Despite their success, these models are often slow for both training and inference due to the sequential nature of RNNs. We propose a new Q\&amp;A architecture called QANet, which does not require recurrent networks: Its encoder consists exclusively of convolution and self-attention, where convolution models local interactions and self-attention models global interactions. On the SQuAD dataset, our model is 3x to 13x faster in training and 4x to 9x faster in inference, while achieving equivalent accuracy to recurrent models. The speed-up gain allows us to train the model with much more data. We hence combine our model with data generated by backtranslation from a neural machine translation model. On the SQuAD dataset, our single model, trained with augmented data, achieves 84.6 F1 score on the test set, which is significantly better than the best published F1 score of 81.8.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-04-23T11:33:43Z</published>
+    <arxiv:comment>Published as full paper in ICLR 2018</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Adams Wei Yu</name>
+    </author>
+    <author>
+      <name>David Dohan</name>
+    </author>
+    <author>
+      <name>Minh-Thang Luong</name>
+    </author>
+    <author>
+      <name>Rui Zhao</name>
+    </author>
+    <author>
+      <name>Kai Chen</name>
+    </author>
+    <author>
+      <name>Mohammad Norouzi</name>
+    </author>
+    <author>
+      <name>Quoc V. Le</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1904.09482v1</id>
+    <title>Improving Multi-Task Deep Neural Networks via Knowledge Distillation for Natural Language Understanding</title>
+    <updated>2019-04-20T19:11:00Z</updated>
+    <link href="https://arxiv.org/abs/1904.09482v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1904.09482v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>This paper explores the use of knowledge distillation to improve a Multi-Task Deep Neural Network (MT-DNN) (Liu et al., 2019) for learning text representations across multiple natural language understanding tasks. Although ensemble learning can improve model performance, serving an ensemble of large DNNs such as MT-DNN can be prohibitively expensive. Here we apply the knowledge distillation method (Hinton et al., 2015) in the multi-task learning setting. For each task, we train an ensemble of different MT-DNNs (teacher) that outperforms any single model, and then train a single MT-DNN (student) via multi-task learning to \emph{distill} knowledge from these ensemble teachers. We show that the distilled MT-DNN significantly outperforms the original MT-DNN on 7 out of 9 GLUE tasks, pushing the GLUE benchmark (single model) to 83.7\% (1.5\% absolute improvement\footnote{ Based on the GLUE leaderboard at https://gluebenchmark.com/leaderboard as of April 1, 2019.}). The code and pre-trained models will be made publicly available at https://github.com/namisan/mt-dnn.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2019-04-20T19:11:00Z</published>
+    <arxiv:comment>8 pages, 2 figures and 3 tables</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Xiaodong Liu</name>
+    </author>
+    <author>
+      <name>Pengcheng He</name>
+    </author>
+    <author>
+      <name>Weizhu Chen</name>
+    </author>
+    <author>
+      <name>Jianfeng Gao</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1808.08949v2</id>
+    <title>Dissecting Contextual Word Embeddings: Architecture and Representation</title>
+    <updated>2018-09-27T23:36:12Z</updated>
+    <link href="https://arxiv.org/abs/1808.08949v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1808.08949v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Contextual word representations derived from pre-trained bidirectional language models (biLMs) have recently been shown to provide significant improvements to the state of the art for a wide range of NLP tasks. However, many questions remain as to how and why these models are so effective. In this paper, we present a detailed empirical study of how the choice of neural architecture (e.g. LSTM, CNN, or self attention) influences both end task accuracy and qualitative properties of the representations that are learned. We show there is a tradeoff between speed and accuracy, but all architectures learn high quality contextual representations that outperform word embeddings for four challenging NLP tasks. Additionally, all architectures learn representations that vary with network depth, from exclusively morphological based at the word embedding layer through local syntax based in the lower contextual layers to longer range semantics such coreference at the upper layers. Together, these results suggest that unsupervised biLMs, independent of architecture, are learning much more about the structure of language than previously appreciated.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-08-27T17:54:29Z</published>
+    <arxiv:comment>EMNLP 2018</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Matthew E. Peters</name>
+    </author>
+    <author>
+      <name>Mark Neumann</name>
+    </author>
+    <author>
+      <name>Luke Zettlemoyer</name>
+    </author>
+    <author>
+      <name>Wen-tau Yih</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1905.02450v5</id>
+    <title>MASS: Masked Sequence to Sequence Pre-training for Language Generation</title>
+    <updated>2019-06-21T04:36:52Z</updated>
+    <link href="https://arxiv.org/abs/1905.02450v5" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1905.02450v5" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Pre-training and fine-tuning, e.g., BERT, have achieved great success in language understanding by transferring knowledge from rich-resource pre-training task to the low/zero-resource downstream tasks. Inspired by the success of BERT, we propose MAsked Sequence to Sequence pre-training (MASS) for the encoder-decoder based language generation tasks. MASS adopts the encoder-decoder framework to reconstruct a sentence fragment given the remaining part of the sentence: its encoder takes a sentence with randomly masked fragment (several consecutive tokens) as input, and its decoder tries to predict this masked fragment. In this way, MASS can jointly train the encoder and decoder to develop the capability of representation extraction and language modeling. By further fine-tuning on a variety of zero/low-resource language generation tasks, including neural machine translation, text summarization and conversational response generation (3 tasks and totally 8 datasets), MASS achieves significant improvements over the baselines without pre-training or with other pre-training methods. Specially, we achieve the state-of-the-art accuracy (37.5 in terms of BLEU score) on the unsupervised English-French translation, even beating the early attention-based supervised model.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2019-05-07T10:13:04Z</published>
+    <arxiv:comment>Accepted by ICML 2019</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Kaitao Song</name>
+    </author>
+    <author>
+      <name>Xu Tan</name>
+    </author>
+    <author>
+      <name>Tao Qin</name>
+    </author>
+    <author>
+      <name>Jianfeng Lu</name>
+    </author>
+    <author>
+      <name>Tie-Yan Liu</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1806.03822v1</id>
+    <title>Know What You Don't Know: Unanswerable Questions for SQuAD</title>
+    <updated>2018-06-11T06:10:11Z</updated>
+    <link href="https://arxiv.org/abs/1806.03822v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1806.03822v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Extractive reading comprehension systems can often locate the correct answer to a question in a context document, but they also tend to make unreliable guesses on questions for which the correct answer is not stated in the context. Existing datasets either focus exclusively on answerable questions, or use automatically generated unanswerable questions that are easy to identify. To address these weaknesses, we present SQuAD 2.0, the latest version of the Stanford Question Answering Dataset (SQuAD). SQuAD 2.0 combines existing SQuAD data with over 50,000 unanswerable questions written adversarially by crowdworkers to look similar to answerable ones. To do well on SQuAD 2.0, systems must not only answer questions when possible, but also determine when no answer is supported by the paragraph and abstain from answering. SQuAD 2.0 is a challenging natural language understanding task for existing models: a strong neural system that gets 86% F1 on SQuAD 1.1 achieves only 66% F1 on SQuAD 2.0.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-06-11T06:10:11Z</published>
+    <arxiv:comment>ACL 2018</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Pranav Rajpurkar</name>
+    </author>
+    <author>
+      <name>Robin Jia</name>
+    </author>
+    <author>
+      <name>Percy Liang</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1901.07291v1</id>
+    <title>Cross-lingual Language Model Pretraining</title>
+    <updated>2019-01-22T13:22:34Z</updated>
+    <link href="https://arxiv.org/abs/1901.07291v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1901.07291v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Recent studies have demonstrated the efficiency of generative pretraining for English natural language understanding. In this work, we extend this approach to multiple languages and show the effectiveness of cross-lingual pretraining. We propose two methods to learn cross-lingual language models (XLMs): one unsupervised that only relies on monolingual data, and one supervised that leverages parallel data with a new cross-lingual language model objective. We obtain state-of-the-art results on cross-lingual classification, unsupervised and supervised machine translation. On XNLI, our approach pushes the state of the art by an absolute gain of 4.9% accuracy. On unsupervised machine translation, we obtain 34.3 BLEU on WMT'16 German-English, improving the previous state of the art by more than 9 BLEU. On supervised machine translation, we obtain a new state of the art of 38.5 BLEU on WMT'16 Romanian-English, outperforming the previous best approach by more than 4 BLEU. Our code and pretrained models will be made publicly available.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2019-01-22T13:22:34Z</published>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Guillaume Lample</name>
+    </author>
+    <author>
+      <name>Alexis Conneau</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1810.12885v1</id>
+    <title>ReCoRD: Bridging the Gap between Human and Machine Commonsense Reading Comprehension</title>
+    <updated>2018-10-30T17:32:16Z</updated>
+    <link href="https://arxiv.org/abs/1810.12885v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1810.12885v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We present a large-scale dataset, ReCoRD, for machine reading comprehension requiring commonsense reasoning. Experiments on this dataset demonstrate that the performance of state-of-the-art MRC systems fall far behind human performance. ReCoRD represents a challenge for future research to bridge the gap between human and machine commonsense reading comprehension. ReCoRD is available at http://nlp.jhu.edu/record.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-10-30T17:32:16Z</published>
+    <arxiv:comment>14 pages</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Sheng Zhang</name>
+    </author>
+    <author>
+      <name>Xiaodong Liu</name>
+    </author>
+    <author>
+      <name>Jingjing Liu</name>
+    </author>
+    <author>
+      <name>Jianfeng Gao</name>
+    </author>
+    <author>
+      <name>Kevin Duh</name>
+    </author>
+    <author>
+      <name>Benjamin Van Durme</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1710.10723v2</id>
+    <title>Simple and Effective Multi-Paragraph Reading Comprehension</title>
+    <updated>2017-11-07T18:55:35Z</updated>
+    <link href="https://arxiv.org/abs/1710.10723v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1710.10723v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We consider the problem of adapting neural paragraph-level question answering models to the case where entire documents are given as input. Our proposed solution trains models to produce well calibrated confidence scores for their results on individual paragraphs. We sample multiple paragraphs from the documents during training, and use a shared-normalization training objective that encourages the model to produce globally correct output. We combine this method with a state-of-the-art pipeline for training models on document QA data. Experiments demonstrate strong performance on several document QA datasets. Overall, we are able to achieve a score of 71.3 F1 on the web portion of TriviaQA, a large improvement from the 56.7 F1 of the previous best system.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2017-10-29T23:47:49Z</published>
+    <arxiv:comment>11 pages, updated a reference</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Christopher Clark</name>
+    </author>
+    <author>
+      <name>Matt Gardner</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1506.06724v1</id>
+    <title>Aligning Books and Movies: Towards Story-like Visual Explanations by Watching Movies and Reading Books</title>
+    <updated>2015-06-22T19:26:56Z</updated>
+    <link href="https://arxiv.org/abs/1506.06724v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1506.06724v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Books are a rich source of both fine-grained information, how a character, an object or a scene looks like, as well as high-level semantics, what someone is thinking, feeling and how these states evolve through a story. This paper aims to align books to their movie releases in order to provide rich descriptive explanations for visual content that go semantically far beyond the captions available in current datasets. To align movies and books we exploit a neural sentence embedding that is trained in an unsupervised way from a large corpus of books, as well as a video-text neural embedding for computing similarities between movie clips and sentences in the book. We propose a context-aware CNN to combine information from multiple sources. We demonstrate good quantitative performance for movie/book alignment and show several qualitative examples that showcase the diversity of tasks our model can be used for.</summary>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2015-06-22T19:26:56Z</published>
+    <arxiv:primary_category term="cs.CV"/>
+    <author>
+      <name>Yukun Zhu</name>
+    </author>
+    <author>
+      <name>Ryan Kiros</name>
+    </author>
+    <author>
+      <name>Richard Zemel</name>
+    </author>
+    <author>
+      <name>Ruslan Salakhutdinov</name>
+    </author>
+    <author>
+      <name>Raquel Urtasun</name>
+    </author>
+    <author>
+      <name>Antonio Torralba</name>
+    </author>
+    <author>
+      <name>Sanja Fidler</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1506.06726v1</id>
+    <title>Skip-Thought Vectors</title>
+    <updated>2015-06-22T19:33:40Z</updated>
+    <link href="https://arxiv.org/abs/1506.06726v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1506.06726v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We describe an approach for unsupervised learning of a generic, distributed sentence encoder. Using the continuity of text from books, we train an encoder-decoder model that tries to reconstruct the surrounding sentences of an encoded passage. Sentences that share semantic and syntactic properties are thus mapped to similar vector representations. We next introduce a simple vocabulary expansion method to encode words that were not seen as part of training, allowing us to expand our vocabulary to a million words. After training our model, we extract and evaluate our vectors with linear models on 8 tasks: semantic relatedness, paraphrase detection, image-sentence ranking, question-type classification and 4 benchmark sentiment and subjectivity datasets. The end result is an off-the-shelf encoder that can produce highly generic sentence representations that are robust and perform well in practice. We will make our encoder publicly available.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2015-06-22T19:33:40Z</published>
+    <arxiv:comment>11 pages</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Ryan Kiros</name>
+    </author>
+    <author>
+      <name>Yukun Zhu</name>
+    </author>
+    <author>
+      <name>Ruslan Salakhutdinov</name>
+    </author>
+    <author>
+      <name>Richard S. Zemel</name>
+    </author>
+    <author>
+      <name>Antonio Torralba</name>
+    </author>
+    <author>
+      <name>Raquel Urtasun</name>
+    </author>
+    <author>
+      <name>Sanja Fidler</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1602.03483v1</id>
+    <title>Learning Distributed Representations of Sentences from Unlabelled Data</title>
+    <updated>2016-02-10T18:49:58Z</updated>
+    <link href="https://arxiv.org/abs/1602.03483v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1602.03483v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Unsupervised methods for learning distributed representations of words are ubiquitous in today's NLP research, but far less is known about the best ways to learn distributed phrase or sentence representations from unlabelled data. This paper is a systematic comparison of models that learn such representations. We find that the optimal approach depends critically on the intended application. Deeper, more complex models are preferable for representations to be used in supervised systems, but shallow log-linear models work best for building representation spaces that can be decoded with simple spatial distance metrics. We also propose two new unsupervised representation-learning objectives designed to optimise the trade-off between training time, domain portability and performance.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2016-02-10T18:49:58Z</published>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Felix Hill</name>
+    </author>
+    <author>
+      <name>Kyunghyun Cho</name>
+    </author>
+    <author>
+      <name>Anna Korhonen</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1905.12616v3</id>
+    <title>Defending Against Neural Fake News</title>
+    <updated>2020-12-11T16:17:17Z</updated>
+    <link href="https://arxiv.org/abs/1905.12616v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1905.12616v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Recent progress in natural language generation has raised dual-use concerns. While applications like summarization and translation are positive, the underlying technology also might enable adversaries to generate neural fake news: targeted propaganda that closely mimics the style of real news.
+  Modern computer security relies on careful threat modeling: identifying potential threats and vulnerabilities from an adversary's point of view, and exploring potential mitigations to these threats. Likewise, developing robust defenses against neural fake news requires us first to carefully investigate and characterize the risks of these models. We thus present a model for controllable text generation called Grover. Given a headline like `Link Found Between Vaccines and Autism,' Grover can generate the rest of the article; humans find these generations to be more trustworthy than human-written disinformation.
+  Developing robust verification techniques against generators like Grover is critical. We find that best current discriminators can classify neural fake news from real, human-written, news with 73% accuracy, assuming access to a moderate level of training data. Counterintuitively, the best defense against Grover turns out to be Grover itself, with 92% accuracy, demonstrating the importance of public release of strong generators. We investigate these results further, showing that exposure bias -- and sampling strategies that alleviate its effects -- both leave artifacts that similar discriminators can pick up on. We conclude by discussing ethical issues regarding the technology, and plan to release Grover publicly, helping pave the way for better detection of neural fake news.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.CY" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2019-05-29T17:58:52Z</published>
+    <arxiv:comment>NeurIPS 2019 camera ready version. Project page/code/demo at https://rowanzellers.com/grover</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Rowan Zellers</name>
+    </author>
+    <author>
+      <name>Ari Holtzman</name>
+    </author>
+    <author>
+      <name>Hannah Rashkin</name>
+    </author>
+    <author>
+      <name>Yonatan Bisk</name>
+    </author>
+    <author>
+      <name>Ali Farhadi</name>
+    </author>
+    <author>
+      <name>Franziska Roesner</name>
+    </author>
+    <author>
+      <name>Yejin Choi</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1808.05326v1</id>
+    <title>SWAG: A Large-Scale Adversarial Dataset for Grounded Commonsense Inference</title>
+    <updated>2018-08-16T02:21:01Z</updated>
+    <link href="https://arxiv.org/abs/1808.05326v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1808.05326v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Given a partial description like "she opened the hood of the car," humans can reason about the situation and anticipate what might come next ("then, she examined the engine"). In this paper, we introduce the task of grounded commonsense inference, unifying natural language inference and commonsense reasoning.
+  We present SWAG, a new dataset with 113k multiple choice questions about a rich spectrum of grounded situations. To address the recurring challenges of the annotation artifacts and human biases found in many existing datasets, we propose Adversarial Filtering (AF), a novel procedure that constructs a de-biased dataset by iteratively training an ensemble of stylistic classifiers, and using them to filter the data. To account for the aggressive adversarial filtering, we use state-of-the-art language models to massively oversample a diverse set of potential counterfactuals. Empirical results demonstrate that while humans can solve the resulting inference problems with high accuracy (88%), various competitive models struggle on our task. We provide comprehensive analysis that indicates significant opportunities for future research.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2018-08-16T02:21:01Z</published>
+    <arxiv:comment>EMNLP 2018</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Rowan Zellers</name>
+    </author>
+    <author>
+      <name>Yonatan Bisk</name>
+    </author>
+    <author>
+      <name>Roy Schwartz</name>
+    </author>
+    <author>
+      <name>Yejin Choi</name>
+    </author>
+  </entry>
+</feed>
+
