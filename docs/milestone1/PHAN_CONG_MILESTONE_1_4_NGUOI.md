@@ -2,7 +2,7 @@
 
 Bản cập nhật ngày 12/10/2026, thay thế toàn bộ bản phân công cũ.
 
-Căn cứ: [đề bài](../../ARXIV_PROJECT_FULL.md), [kế hoạch](./KE_HOACH_MILESTONE_1.md) và [hướng dẫn prototype](./HUONG_DAN_PROTOTYPE.md).
+Căn cứ: [đề bài](../../ARXIV_PROJECT_FULL.md), [kế hoạch](./KE_HOACH_MILESTONE_1.md) và [hướng dẫn thành viên](./HUONG_DAN_THANH_VIEN_MILESTONE_1.md).
 
 ## 1. Quyết định chung
 
@@ -275,7 +275,7 @@ Bàn giao gồm code đúng chữ ký, cách gọi, output/file thật, tình hu
 
 1. `ARXIV_PROJECT_FULL.md`: phần Milestone 1, Requirement, Submission Format và Report Requirements.
 2. File phân công này: mục 1–2, phần người phụ trách, mục 7–8 và 11–17.
-3. `docs/milestone1/HUONG_DAN_PROTOTYPE.md`.
+3. `docs/milestone1/HUONG_DAN_THANH_VIEN_MILESTONE_1.md`.
 4. `src/crawling/__init__.py`: toàn bộ kiểu dữ liệu và quy ước.
 5. Module được giao; xem chữ ký các module liền kề để biết cách ghép.
 6. `src/crawling/fixtures.py` và phần mình trong notebook chung.

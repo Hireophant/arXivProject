@@ -48,5 +48,5 @@ on GitHub Pages. Tables and figures must be generated during book compilation fr
 saved real results. Final submission for Milestone 1 consists of the public code
 repository link and report link through Moodle, not an intermediate data upload.
 
-Implementation guidance in Vietnamese: [prototype guide](docs/milestone1/HUONG_DAN_PROTOTYPE.md).
+Implementation guidance in Vietnamese: [member onboarding and handoff guide](docs/milestone1/HUONG_DAN_THANH_VIEN_MILESTONE_1.md).
 Full specification: [ARXIV_PROJECT_FULL.md](ARXIV_PROJECT_FULL.md).
