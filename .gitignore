@@ -1,12 +1,57 @@
+# Python virtual environments and bytecode
 .venv/
+venv/
+env/
 __pycache__/
 *.py[cod]
+
+# Jupyter and development caches
 .ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Python build artifacts
+build/
+dist/
+*.egg-info/
+
+# Local credentials; keep a sanitized example available for the team
 .env
 .env.*
 !.env.example
+
+# Crawled corpus, manual runs, logs and exported benchmark/report data
+# Directory rules apply at any depth (including src/notebooks/data/).
+# Put custom run roots under data/ so their outputs stay out of Git.
 data/
+downloads/
 logs/
 metrics/
 milestone1_demo/
+outputs/
+report_data/
+*.log
+
+# Incomplete downloads and temporary files
 *.download
+*.part
+*.tmp
+*.swp
+*.swo
+*~
+
+# Operating system files
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+
+# Keep source, notebooks, docs and requirements tracked.
+# Do not ignore all JSON/CSV/TeX/BibTeX/archive files by extension:
+# small deliberate test fixtures may need those formats.
+# Notebook cell outputs must be cleared before commit; .gitignore cannot
+# exclude outputs embedded inside a tracked .ipynb file.
