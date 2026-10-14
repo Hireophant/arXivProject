@@ -29,27 +29,27 @@ Chỉ dùng một notebook: `src/notebooks/milestone1.ipynb`. Mỗi người s�
 
 1. Clone repository về máy. Nếu đã clone, cập nhật code mới nhất trước khi bắt đầu; giữ lại công việc đang làm, không reset/xóa thay đổi chưa bàn giao.
 2. Tạo branch riêng, ví dụ `codex/khanh-discovery`, `codex/khang-download`, `codex/nguyen-references`, `codex/danh-integration`.
-3. Dùng Python **3.11 trở lên**, tạo môi trường ảo và cài thư viện theo [README](../../README.md).
+3. Dùng **Miniconda hoặc Anaconda**, tạo môi trường `arxiv-project` (Python **3.11**) theo [README](../../README.md).
 4. Mở **cả thư mục project** trong công cụ AI để AI đọc được tài liệu, schema, module và notebook. Chỉ gửi đoạn prompt vào một chat không có repository thì chưa đủ ngữ cảnh.
 5. Mở Jupyter từ thư mục project và chọn Python kernel của môi trường vừa tạo.
 
-Ví dụ lệnh trên Windows PowerShell, chạy tại thư mục project sau khi clone:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r src/requirements.txt
-.\.venv\Scripts\python.exe -m jupyterlab
-```
-
-Trên macOS/Linux:
+Chạy tại thư mục project sau khi clone, trên Terminal macOS/Linux hoặc Anaconda Prompt của Windows. Tạo môi trường một lần:
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r src/requirements.txt
-.venv/bin/python -m jupyterlab
+conda env create -f environment.yml
+conda activate arxiv-project
+python -m jupyterlab
 ```
 
-Requirements hiện là phụ thuộc dự kiến, chưa phải môi trường đã kiểm chứng. Nếu cần thêm thư viện, báo Danh cập nhật requirements và kiểm tra trên môi trường sạch. Việc chỉ import bộ khung/xem fixture hiện dùng thư viện chuẩn.
+Những lần sau chỉ cần `conda activate arxiv-project` rồi `python -m jupyterlab` từ thư mục project. Mở `src/notebooks/milestone1.ipynb`; nếu dùng VS Code, chọn **Select Kernel → Python Environments → arxiv-project**. Dừng Jupyter bằng Ctrl+C rồi `conda deactivate` khi làm xong.
+
+Khi cập nhật thư viện trong YAML:
+
+```bash
+conda env update -f environment.yml --prune
+```
+
+Nếu `conda activate` yêu cầu khởi tạo shell, chạy `conda init zsh` trên macOS (hoặc `conda init bash` nếu dùng Bash), mở lại terminal rồi activate. File `environment.yml` quản lý môi trường local; `src/requirements.txt` giữ lại cho pip/Colab. Nếu cần thêm thư viện, báo Danh cập nhật cả hai file và kiểm tra môi trường. YAML chưa phải lockfile khóa mọi phiên bản. Việc chỉ import bộ khung/xem fixture hiện dùng thư viện chuẩn.
 
 ## 4. Đọc tài liệu và gửi đúng prompt cho AI
 

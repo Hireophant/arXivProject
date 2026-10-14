@@ -16,25 +16,92 @@ Milestone 1. No assigned arXiv range has been received.
 | `pipeline.py`, `metrics.py` | Member 4: integration, resume, measurements, summaries |
 | `src/notebooks/milestone1.ipynb` | Local Jupyter entry point and fixture walkthrough |
 
-## Environment and running
+## Cài môi trường và chạy bằng Conda
 
-Use Python 3.11 or later. The prototype imports only the standard library.
-For the intended notebook environment, from the repository root:
+Dùng **Miniconda hoặc Anaconda**. File `environment.yml` khai báo môi trường
+**`arxiv-project`**, Python **3.11** và các thư viện cần cho notebook.
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r src/requirements.txt
-.\.venv\Scripts\python.exe -m jupyterlab
+### 1. Cài lần đầu
+
+Mở Terminal trên macOS/Linux hoặc **Anaconda Prompt** trên Windows, chuyển vào
+thư mục repository `arXivProject`. Ví dụ trên macOS:
+
+```bash
+cd ~/Documents/arXivProject
 ```
 
-Open `src/notebooks/milestone1.ipynb` and select the environment's Python kernel.
-The default cells only inspect fixtures. Real calls are gated by `RUN_... = False`
-in the setup cell. After implementation, edit your flag to `True`, restart the
-kernel and run your section (or Run All with other flags off). Reset flags before
-committing. Dependencies are
-provisional, not a verified lockfile. Record tested versions after implementation.
-On Colab, load the source tree, configure the `src` path and install requirements;
-the final performance benchmark must use CPU-only mode.
+Tạo môi trường một lần, kích hoạt rồi mở JupyterLab:
+
+```bash
+conda env create -f environment.yml
+conda activate arxiv-project
+python -m jupyterlab
+```
+
+Nếu môi trường `arxiv-project` đã được tạo trên máy, bỏ qua lệnh tạo và dùng các
+lệnh ở phần bên dưới. Không cần tạo thêm `.venv` hoặc cài lại bằng pip khi dùng Conda.
+
+### 2. Chạy những lần sau
+
+Mở terminal tại thư mục project rồi chạy:
+
+```bash
+conda activate arxiv-project
+python -m jupyterlab
+```
+
+Trong JupyterLab:
+
+1. Mở `src/notebooks/milestone1.ipynb`.
+2. Chọn kernel **Python 3 (ipykernel)** của môi trường vừa kích hoạt.
+3. Chọn **Run → Run All Cells** để chạy các cell mặc định với dữ liệu mẫu.
+
+Nếu dùng VS Code, mở notebook rồi chọn **Select Kernel → Python Environments →
+arxiv-project**.
+
+**Tình trạng hiện tại:** notebook chạy dữ liệu mẫu (fixture); các hàm crawler thật
+vẫn còn `NotImplementedError`. Chạy notebook thành công chưa có nghĩa crawler đã
+hoạt động. Các cờ `RUN_...` mặc định là `False`. Sau khi triển khai phần của mình,
+đổi cờ tương ứng thành `True`, restart kernel rồi chạy phần đó; giữ cờ các phần
+khác ở `False`. Trả cờ về `False` trước khi commit.
+
+### 3. Dừng chạy
+
+Nhấn **Ctrl+C** tại terminal đang chạy JupyterLab và xác nhận dừng nếu được hỏi.
+Sau đó thoát môi trường:
+
+```bash
+conda deactivate
+```
+
+### 4. Cập nhật thư viện
+
+Khi `environment.yml` thay đổi, chạy tại thư mục project:
+
+```bash
+conda env update -f environment.yml --prune
+```
+
+Giữ danh sách thư viện trong `environment.yml` và `src/requirements.txt` đồng bộ.
+File `requirements.txt` vẫn dùng cho pip/Colab. YAML khai báo Python và các phụ
+thuộc trực tiếp, chưa phải lockfile khóa chính xác mọi phiên bản trên mọi hệ điều hành.
+
+### 5. Nếu không kích hoạt được Conda
+
+Nếu `conda activate` yêu cầu khởi tạo shell, trên macOS dùng Zsh chạy:
+
+```bash
+conda init zsh
+```
+
+Nếu dùng Bash, chạy `conda init bash`. Đóng rồi mở lại terminal, sau đó chạy lại
+`conda activate arxiv-project`. Trên Windows, dùng **Anaconda Prompt**.
+
+Đã kiểm tra trên **macOS Apple Silicon, Python 3.11.17**: import thành công các thư
+viện và thực thi toàn bộ notebook với các cờ mặc định chỉ dùng fixture.
+
+Trên Colab, tải/clone source, cấu hình đường dẫn `src` và cài
+`src/requirements.txt`. Benchmark cuối cùng phải chạy ở chế độ **CPU-only**.
 
 ## Data and reporting
 

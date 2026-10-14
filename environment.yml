@@ -1,0 +1,13 @@
+name: arxiv-project
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.11
+  # Keep application dependencies aligned with src/requirements.txt (Colab/pip).
+  - jupyterlab
+  - ipykernel
+  - requests
+  - pandas
+  - matplotlib
+  - psutil
