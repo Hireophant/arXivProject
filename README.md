@@ -86,6 +86,11 @@ Giữ danh sách thư viện trong `environment.yml` và `src/requirements.txt` 
 File `requirements.txt` vẫn dùng cho pip/Colab. YAML khai báo Python và các phụ
 thuộc trực tiếp, chưa phải lockfile khóa chính xác mọi phiên bản trên mọi hệ điều hành.
 
+Sáu thư viện trực tiếp đã được khóa phiên bản trong cả hai file. Python giữ ở
+nhánh `3.11` để Conda chọn bản vá phù hợp. Các phiên bản đã được đối chiếu metadata
+PyPI và có trên conda-forge; bộ phiên bản vừa khóa chưa được tạo môi trường và
+chạy lại notebook để kiểm chứng.
+
 ### 5. Nếu không kích hoạt được Conda
 
 Nếu `conda activate` yêu cầu khởi tạo shell, trên macOS dùng Zsh chạy:
@@ -97,7 +102,7 @@ conda init zsh
 Nếu dùng Bash, chạy `conda init bash`. Đóng rồi mở lại terminal, sau đó chạy lại
 `conda activate arxiv-project`. Trên Windows, dùng **Anaconda Prompt**.
 
-Đã kiểm tra trên **macOS Apple Silicon, Python 3.11.17**: import thành công các thư
+Trước khi khóa phiên bản thư viện, đã kiểm tra trên **macOS Apple Silicon, Python 3.11.17**: import thành công các thư
 viện và thực thi toàn bộ notebook với các cờ mặc định chỉ dùng fixture.
 
 Trên Colab, tải/clone source, cấu hình đường dẫn `src` và cài
