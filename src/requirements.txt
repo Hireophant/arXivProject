@@ -1,4 +1,4 @@
-# Bộ khung chỉ import thư viện chuẩn; chưa cần cài để import prototype.
+# Pipeline imports requests; process-tree resource sampling requires psutil.
 # Khóa phiên bản phụ thuộc trực tiếp, đồng bộ với environment.yml.
 # Chưa khóa phụ thuộc gián tiếp; cần kiểm chứng lại trên local Jupyter và Colab.
 # Không bắt buộc arxiv SDK: requests + Atom/XML stdlib cũng triển khai được.

@@ -1,54 +1,106 @@
-"""Danh: số đo lúc chạy, thống kê corpus và dữ liệu cho Jupyter Book.
+"""Corpus statistics and observed resource measurements; no network access."""
 
-Chỉ prototype. Không dùng gói nén làm byte trước lọc; không giả 0 cho thiếu.
-Không gọi API/crawl khi build báo cáo. Đỉnh RAM/đĩa là đỉnh quan sát theo mẫu.
-"""
-
+import csv
+import json
+import os
+import time
 from pathlib import Path
 from threading import Event
+from statistics import mean
 
 from . import BenchmarkResult, CorpusSummary, Manifest, ResourceSample
 
 
-def sample_resources(pid: int, data_root: Path, *, elapsed_seconds: float) -> ResourceSample:
-    """Trả RSS process pid và descendants + dung lượng thực dưới data_root.
+def _disk_bytes(root: Path) -> int:
+    total = 0
+    def fail(exc):
+        raise exc
+    for directory, dirs, files in os.walk(root, followlinks=False, onerror=fail):
+        dirs[:] = [d for d in dirs if not (Path(directory) / d).is_symlink()]
+        for name in files:
+            path = Path(directory) / name
+            if not path.is_symlink():
+                total += path.stat().st_size
+    return total
 
-    Dùng psutil, PID duy nhất; tính cả gói tạm nằm dưới root, không theo symlink
-    ra ngoài. elapsed_seconds tính từ start toàn run. OSError/ProcessLookupError
-    phải được collector ghi nhận, không thay RAM thiếu bằng 0 giả.
-    """
-    raise NotImplementedError("Danh triển khai sample_resources.")
+
+def sample_resources(pid: int, data_root: Path, *, elapsed_seconds: float) -> ResourceSample:
+    """Measure RSS of unique live processes and regular file bytes under root."""
+    import psutil
+    process = psutil.Process(pid)
+    processes = {p.pid: p for p in [process, *process.children(recursive=True)]}
+    ram = sum(p.memory_info().rss for p in processes.values())
+    return dict(elapsed_seconds=elapsed_seconds, ram_bytes=ram,
+                disk_bytes=_disk_bytes(data_root))
 
 
 def collect_resource_samples(
     pid: int, data_root: Path, stop_event: Event, *,
     interval_seconds: float, samples: list[ResourceSample], errors: list[str],
 ) -> None:
-    """Prototype worker chạy trong thread trong lúc pipeline chạy.
-
-    Mỗi interval>0 gọi sample_resources, append samples; lỗi append errors.
-    Event.wait để dừng nhanh; lấy mẫu đầu/cuối khi có thể. Caller tạo thread,
-    start trước discovery và set/join trong finally. Không giả lập số đo.
-    samples/errors là hai output buffers được caller đọc sau khi join.
-    """
-    raise NotImplementedError("Danh triển khai collect_resource_samples.")
+    """Sample immediately, periodically, and at stop; retain measurement failures."""
+    if interval_seconds <= 0:
+        raise ValueError('interval_seconds must be positive')
+    start = time.perf_counter()
+    def capture():
+        try:
+            samples.append(sample_resources(pid, data_root, elapsed_seconds=time.perf_counter() - start))
+        except Exception as exc:
+            # Do not persist exception contents (may contain sensitive paths/data).
+            errors.append(f'Resource sample failed: {type(exc).__name__}')
+    capture()
+    while not stop_event.wait(interval_seconds):
+        capture()
+    capture()
 
 
 def summarize_corpus(manifest: Manifest) -> CorpusSummary:
-    """Hàm thuần: thống kê theo mẫu số định nghĩa trong CorpusSummary.
-
-    None task -> pending; mọi phiên bản của bài phải success để full_source.
-    no_tex tính riêng. Trung bình trước/sau byte trên cùng tập version đủ số.
-    Tham khảo partial nhưng đủ trang có total có thể góp vào average_reference_count,
-    không góp vào reference_jobs_success. Mẫu số=0 -> None. Không gọi mạng/ghi file.
-    Thêm average_reference_completeness_rate và mẫu số theo CorpusSummary;
-    không gọi tỷ lệ này là độ chính xác matching hay độ phủ S2 trên BibTeX.
-    Trung bình kích thước bài: chỉ bài mọi version success và đủ số đo trước/sau,
-    cộng dung lượng các version mỗi bài rồi lấy trung bình trên cùng tập bài.
-    Trung bình thời gian bài dùng PaperState.elapsed_seconds có giá trị, không
-    tự cộng thời gian cache thành thời gian tải thật; báo cache_mode kèm số liệu.
-    """
-    raise NotImplementedError("Danh triển khai summarize_corpus.")
+    states = list(manifest['papers'].values())
+    result = dict(papers_discovered=len(states), full_source_papers=0, versions_expected=0)
+    for status in ('success', 'no_tex', 'failed', 'pending'):
+        result[f'versions_{status}'] = 0
+    for status in ('success', 'partial', 'failed', 'not_found', 'pending'):
+        result[f'reference_jobs_{status}'] = 0
+    sizes, paper_sizes, counts, completeness, times = [], [], [], [], []
+    for state in states:
+        downloads = [state['downloads'].get(str(v)) for v in state['record']['versions']]
+        result['versions_expected'] += len(downloads)
+        for item in downloads:
+            result['versions_' + (item['status'] if item else 'pending')] += 1
+        full = bool(downloads) and all(d is not None and d['status'] == 'success' for d in downloads)
+        result['full_source_papers'] += int(full)
+        paired = [(d['source_bytes_before'], d['source_bytes_after']) for d in downloads
+                  if d is not None
+                  and d['source_bytes_before'] is not None and d['source_bytes_after'] is not None]
+        sizes.extend(paired)
+        if full and len(paired) == len(downloads):
+            paper_sizes.append(tuple(map(sum, zip(*paired))))
+        refs = state['references']
+        result['reference_jobs_' + (refs['status'] if refs else 'pending')] += 1
+        if refs and refs['pagination_complete']:
+            if refs['total_references'] is not None:
+                counts.append(refs['total_references'])
+            if refs['kept_references'] > 0:
+                completeness.append((refs['kept_references'] - refs['incomplete_references']) / refs['kept_references'])
+        if state['elapsed_seconds'] is not None:
+            times.append(state['elapsed_seconds'])
+    def ratio(a, b):
+        return a / b if b else None
+    result.update(paper_success_rate=ratio(result['full_source_papers'], len(states)),
+                  source_coverage_rate=ratio(result['versions_success'] + result['versions_no_tex'], result['versions_expected']),
+                  reference_success_rate=ratio(result['reference_jobs_success'], len(states)))
+    for values, average, denominator in (
+        (counts, 'average_reference_count', 'reference_count_denominator'),
+        (completeness, 'average_reference_completeness_rate', 'reference_completeness_denominator'),
+        (times, 'average_paper_processing_seconds', 'paper_time_denominator')):
+        result[average] = float(mean(values)) if values else None
+        result[denominator] = len(values)
+    for pairs, prefix, denominator in ((sizes, 'average_source_bytes_', 'source_size_denominator'),
+                                       (paper_sizes, 'average_paper_source_bytes_', 'paper_size_denominator')):
+        result[denominator] = len(pairs)
+        for index, suffix in enumerate(('before', 'after')):
+            result[prefix + suffix] = float(mean(p[index] for p in pairs)) if pairs else None
+    return result
 
 
 def summarize_benchmark(
@@ -56,25 +108,55 @@ def summarize_benchmark(
     final_disk_bytes: int, environment: str, cpu_only: bool,
     cache_mode: str, sampling_interval_seconds: float,
 ) -> BenchmarkResult:
-    """Input số đo thật; output max RAM/đĩa, mean RAM theo mẫu và cấu hình.
-
-    cache_mode chỉ cold/resume/mixed (ValueError nếu khác). Mean ghi rõ trung
-    bình các mẫu; [] -> ba trường RAM/đỉnh đĩa=None. Không đo ngược sau chạy,
-    không tự ghi Colab CPU nếu môi trường thực không phải vậy.
-    """
-    raise NotImplementedError("Danh triển khai summarize_benchmark.")
+    if cache_mode not in ('cold', 'resume', 'mixed'):
+        raise ValueError('Invalid cache_mode')
+    if sampling_interval_seconds <= 0 or wall_seconds < 0 or final_disk_bytes < 0:
+        raise ValueError('Invalid benchmark measurement')
+    return dict(environment=environment, cpu_only=cpu_only, cache_mode=cache_mode,
+                sampling_interval_seconds=sampling_interval_seconds, wall_seconds=wall_seconds,
+                ram_peak_bytes=max(s['ram_bytes'] for s in samples) if samples else None,
+                ram_mean_bytes=float(mean(s['ram_bytes'] for s in samples)) if samples else None,
+                disk_peak_bytes=max(s['disk_bytes'] for s in samples) if samples else None,
+                final_disk_bytes=final_disk_bytes)
 
 
 def export_report_data(manifest: Manifest, benchmark: BenchmarkResult, output_dir: Path) -> None:
-    """Ghi JSON summary/benchmark và CSV bảng bài, phiên bản, tham khảo, mẫu số.
-
-    Chỉ dùng dữ liệu đã thu, không gọi API. Chỉ số thiếu giữ null/trống. Có
-    run_id để truy nguồn. Book đọc các file này rồi tính/vẽ lúc build, không
-    dùng screenshot. Không tự đẩy dữ liệu lên repo code hoặc publish Book.
-    Tên file/schema cố định: summary.json=CorpusSummary, benchmark.json=
-    BenchmarkResult, run_id.txt; papers.csv một dòng/bài, versions.csv một
-    dòng/version, references.csv một dòng/bài chính/reference ID. CSV có
-    run_id/arxiv_id; versions thêm version; references thêm reference_arxiv_id.
-    Chi tiết cột theo mục 16 bản phân công, không thay schema RunResult.
-    """
-    raise NotImplementedError("Danh triển khai export_report_data.")
+    """Export collected values only; blank CSV cells represent unknown values."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for name, value in [('summary', summarize_corpus(manifest)), ('benchmark', benchmark)]:
+        (output_dir / f'{name}.json').write_text(json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False), encoding='utf-8')
+    (output_dir / 'run_id.txt').write_text(manifest['run_id'] + '\n', encoding='utf-8')
+    papers, versions, references = [], [], []
+    for arxiv_id, state in manifest['papers'].items():
+        base = dict(run_id=manifest['run_id'], arxiv_id=arxiv_id)
+        refs = state['references']
+        statuses = [(d['status'] if d else 'pending') for d in state['downloads'].values()]
+        paper = dict(base, metadata_path=state['metadata_path'], elapsed_seconds=state['elapsed_seconds'],
+                     source_status='success' if statuses and all(s == 'success' for s in statuses) else 'incomplete',
+                     reference_status=refs['status'] if refs else 'pending', versions_expected=len(statuses))
+        for status in ('success', 'no_tex', 'failed', 'pending'):
+            paper['versions_' + status] = statuses.count(status)
+        for key in ('total_references', 'kept_references', 'incomplete_references', 'missing_submission_dates'):
+            paper[key] = refs[key] if refs else None
+        papers.append(paper)
+        for version in state['record']['versions']:
+            item = state['downloads'].get(str(version))
+            versions.append(dict(base, **{k: v for k, v in (item or {}).items() if k != 'arxiv_id'},
+                                 **({} if item else {'version': version, 'status': 'pending'})))
+        if refs:
+            for key, metadata in refs['references'].items():
+                references.append(dict(base, reference_arxiv_id=key, **metadata))
+    from . import DownloadResult, ReferenceMetadata
+    headers = {
+        'papers': ['run_id', 'arxiv_id', 'metadata_path', 'elapsed_seconds', 'source_status', 'reference_status',
+                   'versions_expected', 'versions_success', 'versions_no_tex', 'versions_failed', 'versions_pending',
+                   'total_references', 'kept_references', 'incomplete_references', 'missing_submission_dates'],
+        'versions': ['run_id', *DownloadResult.__annotations__],
+        'references': ['run_id', 'arxiv_id', 'reference_arxiv_id', *ReferenceMetadata.__annotations__],
+    }
+    for name, rows in [('papers', papers), ('versions', versions), ('references', references)]:
+        with (output_dir / f'{name}.csv').open('w', encoding='utf-8', newline='') as stream:
+            writer = csv.DictWriter(stream, fieldnames=headers[name])
+            writer.writeheader()
+            for row in rows:
+                writer.writerow({k: json.dumps(v, ensure_ascii=False) if isinstance(v, (dict, list)) else v for k, v in row.items()})
