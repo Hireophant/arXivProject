@@ -17,8 +17,9 @@ exports an English-report data bundle. Collection always uses real services.
 The shared types and callable contracts are in `src/crawling/__init__.py`.
 Use one notebook: `src/notebooks/milestone1.ipynb`. The older milestone planning
 documents describe development stages; follow the current notebook for execution.
-No official assigned scope has been recorded in this integration work. The configuration contains four blank member assignments. No screenshot values
-are treated as the official scope, and no default paper is collected.
+Danh's confirmed assigned range is `2606.15734`–`2606.20733` (5,000 IDs).
+The notebook currently runs a development trial of its first 100 IDs:
+`2606.15734`–`2606.15833`. The other three member assignments remain blank.
 
 ## Local setup
 
@@ -43,11 +44,11 @@ The existing validation environment is not proof of a fresh pinned installation.
 
 ## Notebook workflow
 
-The notebook contains 24 cells organized around the project rather than separate
+The notebook contains 25 cells organized around the project rather than separate
 member test runs:
 
 1. Local/Colab source setup and optional installation.
-2. Four blank assigned ranges, selected member, run mode, HTTP policy and output paths.
+2. Member ranges, a 100-ID Danh trial, run mode, HTTP policy and output paths.
 3. Actual machine, package versions and source revision.
 4. One complete pipeline call using all real default dependencies.
 5. Coverage, reference completeness and per-paper/per-version tables.
@@ -57,9 +58,12 @@ member test runs:
 9. Per-run exports and downloadable report ZIP.
 10. Interpretation, methods, manual verification and milestone handoff.
 
-Default `ALLOW_NETWORK=False`; clone/install are also off. This default loads
-setup and instructions without crawling. To collect, set `ALLOW_NETWORK=True`,
-fill the selected member assignment and choose a run mode before Run All:
+The current preset has `ALLOW_NETWORK=True`, `RUN_MODE="cold"`,
+`EXISTING_ROOT=None` and `SCOPE_PURPOSE="development"`. Run All collects the
+100-ID Danh trial. Set `ALLOW_NETWORK=False` to inspect without collecting.
+On Colab, source cloning, dependency installation, CPU-only validation and
+report ZIP download are enabled automatically; they are off locally.
+Choose the range and run mode before Run All:
 
 | RUN_MODE | Configuration | Behavior |
 |---|---|---|
@@ -70,8 +74,8 @@ fill the selected member assignment and choose a run mode before Run All:
 Fill `ASSIGNMENTS` with four rows, one per member. Each row has `member`,
 `start_month`, `start_id`, `end_month`, `end_id`. Months use `YYYY-MM`; IDs are
 numeric suffixes. Set `SELECTED_MEMBER` to choose which row this notebook runs.
-All four range values are initially None; collection is blocked if the selected
-row is incomplete. Both ends are included. Output roots are separated by member.
+The Danh row is populated for the trial; other rows have None values.
+Collection is blocked if the selected row is incomplete. Both ends are included. Output roots are separated by member.
 
 For a same-month row the notebook creates the unchanged range Scope. For a row
 crossing months, set `MONTH_END_IDS` to the verified last ID for each month before
@@ -88,6 +92,14 @@ matches the manifest. Partial/failed collection still produces diagnostics; a
 successful notebook execution does not imply complete corpus collection.
 
 ## Colab CPU benchmark
+
+For the first trial, keep Danh `end_id=15833` and `SCOPE_PURPOSE="development"`.
+For the complete assigned range, change `end_id=20733` and
+`SCOPE_PURPOSE="assigned"`. Do not label the 100-ID trial as full coverage.
+The current discovery implementation saves its result only after the entire
+scope is scanned; an interruption during discovery requires scanning it again.
+Use sequential smaller ranges if a full scan cannot finish in one runtime, and
+report each run separately. Save the corpus as well as the report ZIP.
 
 1. Commit/push the intended source revision to the shared repository, or upload
    the source directory together with the notebook. A GitHub clone uses the

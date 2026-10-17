@@ -101,7 +101,9 @@ def _http_request_with_policy(
                     backoff = delay * (2 ** (attempt - 1))
                     wait_sec = min(max(backoff, delay), backoff_cap)
                 else:
-                    wait_sec = min(max(wait_sec, delay), backoff_cap)
+                    # The cap only bounds our own backoff, never the server's
+                    # explicit cooldown (which may legitimately be much longer).
+                    wait_sec = max(wait_sec, delay)
                 time.sleep(wait_sec)
                 continue
 
@@ -420,7 +422,7 @@ def fetch_paper(arxiv_id: str, *, policy: HttpPolicy) -> PaperRecord:
 def _fetch_submission_dates_batch(
     batch: list[str], policy: HttpPolicy
 ) -> tuple[dict[str, str], dict[str, str]]:
-    """Fetch submission dates for a batch of IDs, falling back to individual lookups if batch fails."""
+    """Fetch dates in a batch; split only HTTP 400 to isolate invalid IDs."""
     found_dates: dict[str, str] = {}
     errors: dict[str, str] = {}
 
@@ -459,15 +461,13 @@ def _fetch_submission_dates_batch(
             errors[batch[0]] = f"arXiv API error: malformed or invalid ID '{batch[0]}'"
             return found_dates, errors
     except Exception as exc:
-        if len(batch) > 1:
-            for single_id in batch:
-                s_dates, s_errs = _fetch_submission_dates_batch([single_id], policy)
-                found_dates.update(s_dates)
-                errors.update(s_errs)
-            return found_dates, errors
-        else:
-            errors[batch[0]] = f"Lookup request failed: {exc}"
-            return found_dates, errors
+        # Requests already exhausted the bounded retry policy. Splitting a
+        # throttled/timed-out batch into N requests amplifies load on the same
+        # service. Preserve missing dates and let a later resume retry them.
+        for identifier in batch:
+            if identifier not in found_dates:
+                errors[identifier] = f"Lookup request failed: {exc}"
+        return found_dates, errors
 
     return found_dates, errors
 
