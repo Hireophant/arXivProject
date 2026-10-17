@@ -1,510 +1,380 @@
-"""Khánh: tìm bài, metadata, mọi phiên bản và ngày gửi của bài tham khảo.
+"""Assigned-ID discovery and v1 dates from OAI-PMH arXivRaw only.
 
-Hướng triển khai đã chốt: arXiv API bằng requests + XML Atom, không dùng Kaggle
-hay OAI-PMH trong module này. Endpoint: https://export.arxiv.org/api/query.
-Tài liệu: https://info.arxiv.org/help/api/user-manual.html
-Nhịp: https://info.arxiv.org/help/api/tou.html (>=3 giây, một kết nối).
-Chỉ prototype. Không tải nguồn hay ghi metadata.json: pipeline sở hữu ghi file.
-Không trả list đơn lẻ: DiscoveryResult ghi rõ quét thiếu/lỗi để không mất bài.
+Current documentation (checked 17 October 2026):
+https://info.arxiv.org/help/oa/index.html
+https://info.arxiv.org/help/api/tou.html
+https://www.openarchives.org/OAI/openarchivesprotocol.html#GetRecord
+GetRecord targets the assigned IDs; no submission-date harvesting, Query API,
+HTML metadata fallback or Kaggle snapshot is used. Sequential callers only.
+Design choices and full citations: docs/milestone1/KE_HOACH_MILESTONE_1.md.
 """
+from __future__ import annotations
 
-import email.utils
+from copy import deepcopy
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+import hashlib
+import json
+import logging
+import math
+import os
+from pathlib import Path
 import re
+import tempfile
 import time
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
-from typing import Any, Literal
 
 import requests
 
-from . import (
-    DateLookupResult,
-    DiscoveryIssue,
-    DiscoveryResult,
-    HttpPolicy,
-    PaperMetadata,
-    PaperRecord,
-    Scope,
-)
+from . import DateLookupResult, DiscoveryResult, HttpPolicy, PaperRecord, Scope
 
-ARXIV_API_URL = "https://export.arxiv.org/api/query"
-ARXIV_ABS_URL = "https://arxiv.org/abs/"
-ATOM_NS = "{http://www.w3.org/2005/Atom}"
-ARXIV_NS = "{http://arxiv.org/schemas/atom}"
+OAI_ENDPOINT = 'https://oaipmh.arxiv.org/oai'
+METADATA_PREFIX = 'arXivRaw'
+METADATA_SOURCE = 'oai-pmh/arXivRaw'
+_OAI = '{http://www.openarchives.org/OAI/2.0/}'
+_RAW = '{http://arxiv.org/OAI/arXivRaw/}'
+_ID = re.compile(r'(?:\d{4}\.\d{4,5}|[A-Za-z][A-Za-z0-9.-]*/\d{7})\Z')
+_MAX_XML_BYTES = 8 * 1024**2
+_CACHE_SECONDS = 24 * 60 * 60
+_LOG = logging.getLogger(__name__)
 
 
-def _format_utc_date(date_str: str) -> str:
-    """Normalize an ISO 8601 date string to YYYY-MM-DD in UTC."""
-    clean_str = date_str.strip()
-    if re.match(r"^\d{4}-\d{2}-\d{2}$", clean_str):
-        return clean_str
-    dt = datetime.fromisoformat(clean_str.replace("Z", "+00:00")).astimezone(timezone.utc)
-    return dt.strftime("%Y-%m-%d")
-
-
-def _clean_arxiv_id(raw_id: str) -> tuple[str, int | None]:
-    """Clean arXiv ID string, removing URL prefixes and extracting version if present.
-
-    Returns (base_id, version_int_or_None).
-    """
-    clean = re.sub(r"^https?://arxiv\.org/abs/", "", raw_id.strip())
-    clean = re.sub(r"^abs/", "", clean)
-    v_match = re.search(r"v(\d+)$", clean)
-    version = int(v_match.group(1)) if v_match else None
-    base_id = re.sub(r"v\d+$", "", clean)
-    return base_id, version
-
-
-def _http_request_with_policy(
-    url: str,
-    params: dict[str, Any] | None,
-    policy: HttpPolicy,
-    allow_400: bool = False,
-) -> requests.Response:
-    """Execute an HTTP GET request observing pacing, headers, and bounded retries."""
-    delay = policy.get("arxiv_delay_seconds", 3.0)
-    timeout = policy.get("timeout_seconds", 30.0)
-    max_attempts = max(1, policy.get("max_attempts", 3))
-    backoff_cap = policy.get("backoff_cap_seconds", 60.0)
-    headers = {"User-Agent": policy.get("user_agent", "ArxivCourseProject/0.1")}
-
-    for attempt in range(1, max_attempts + 1):
-        if delay > 0:
-            time.sleep(delay)
-
-        try:
-            resp = requests.get(url, params=params, headers=headers, timeout=timeout)
-            if resp.status_code == 200:
-                return resp
-            if resp.status_code == 400 and allow_400:
-                return resp
-            if resp.status_code == 404:
-                raise LookupError(f"HTTP 404 Not Found from {url}")
-            if resp.status_code in {429, 500, 502, 503, 504}:
-                if attempt >= max_attempts:
-                    raise RuntimeError(
-                        f"HTTP {resp.status_code} from {url} after {max_attempts} attempts: {resp.text[:200]}"
-                    )
-                # Compute wait time
-                wait_sec: float | None = None
-                retry_after = resp.headers.get("Retry-After")
-                if retry_after:
-                    try:
-                        wait_sec = float(retry_after)
-                    except ValueError:
-                        try:
-                            parsed_dt = email.utils.parsedate_to_datetime(retry_after)
-                            wait_sec = max(0.0, (parsed_dt - datetime.now(timezone.utc)).total_seconds())
-                        except Exception:
-                            wait_sec = None
-                if wait_sec is None:
-                    backoff = delay * (2 ** (attempt - 1))
-                    wait_sec = min(max(backoff, delay), backoff_cap)
-                else:
-                    # The cap only bounds our own backoff, never the server's
-                    # explicit cooldown (which may legitimately be much longer).
-                    wait_sec = max(wait_sec, delay)
-                time.sleep(wait_sec)
-                continue
-
-            raise LookupError(f"HTTP {resp.status_code} from {url}: {resp.text[:200]}")
-        except requests.RequestException as exc:
-            if attempt >= max_attempts:
-                raise RuntimeError(
-                    f"Network error requesting {url} after {max_attempts} attempts: {exc}"
-                ) from exc
-            backoff = delay * (2 ** (attempt - 1))
-            wait_sec = min(max(backoff, delay), backoff_cap)
-            time.sleep(wait_sec)
-
-    raise RuntimeError(f"Request failed unexpectedly for {url}")
-
-
-def _parse_atom_entry(entry: ET.Element) -> tuple[str, int | None, dict[str, Any]]:
-    """Extract metadata from an Atom <entry> element."""
-    id_elem = entry.find(f"{ATOM_NS}id")
-    if id_elem is None or not id_elem.text:
-        raise ValueError("Atom entry is missing <id> element")
-    raw_id = id_elem.text.strip()
-
-    title_elem = entry.find(f"{ATOM_NS}title")
-    title_text = " ".join(title_elem.text.split()) if title_elem is not None and title_elem.text else ""
-
-    if "errors#" in raw_id or title_text == "Error":
-        raise LookupError(f"arXiv API error entry: {title_text} ({raw_id})")
-    if not title_text:
-        raise ValueError("Atom entry has empty title")
-
-    base_id, version = _clean_arxiv_id(raw_id)
-
-    authors: list[str] = []
-    for a in entry.findall(f"{ATOM_NS}author"):
-        name_elem = a.find(f"{ATOM_NS}name")
-        if name_elem is not None and name_elem.text and name_elem.text.strip():
-            authors.append(" ".join(name_elem.text.split()))
-    if not authors:
-        raise ValueError(f"Atom entry for {base_id} has no authors")
-
-    pub_elem = entry.find(f"{ATOM_NS}published")
-    if pub_elem is None or not pub_elem.text:
-        raise ValueError(f"Atom entry for {base_id} missing <published>")
-    published = _format_utc_date(pub_elem.text)
-
-    upd_elem = entry.find(f"{ATOM_NS}updated")
-    updated = _format_utc_date(upd_elem.text) if upd_elem is not None and upd_elem.text else published
-
-    jref_elem = entry.find(f"{ARXIV_NS}journal_ref")
-    venue = " ".join(jref_elem.text.split()) if jref_elem is not None and jref_elem.text and jref_elem.text.strip() else None
-
-    return base_id, version, {
-        "title": title_text,
-        "authors": authors,
-        "published": published,
-        "updated": updated,
-        "venue": venue,
-    }
-
-
-def _get_submission_history_from_abstract(arxiv_id: str, policy: HttpPolicy) -> dict[int, str]:
-    """Inspect abstract page HTML to extract all versions and their UTC dates."""
-    url = f"{ARXIV_ABS_URL}{arxiv_id}"
-    resp = _http_request_with_policy(url, None, policy)
-    idx = resp.text.find("Submission history")
-    if idx == -1:
-        found = re.findall(r"\[v(\d+)\]", resp.text)
-        if not found:
-            found = re.findall(rf"/abs/{re.escape(arxiv_id)}v(\d+)", resp.text)
-        return {int(x): "" for x in found}
-
-    sub_chunk = resp.text[idx : idx + 3000]
-    pattern = r"\[v(\d+)\](?:</a>)?\s*</strong>\s*([A-Za-z]{3},\s*\d{1,2}\s+[A-Za-z]{3}\s+\d{4}\s+\d{2}:\d{2}:\d{2}(?:\s+[A-Z0-9]+)?)"
-    matches = re.findall(pattern, sub_chunk)
-    history: dict[int, str] = {}
-    for v_str, d_str in matches:
-        v = int(v_str)
-        try:
-            dt = email.utils.parsedate_to_datetime(d_str.strip())
-            history[v] = dt.astimezone(timezone.utc).strftime("%Y-%m-%d")
-        except Exception:
-            parts = d_str.split()
-            dt = datetime.strptime(f"{parts[1]} {parts[2]} {parts[3]}", "%d %b %Y")
-            history[v] = dt.strftime("%Y-%m-%d")
-    return history
+def _base_id(value: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError('arXiv ID must be a string.')
+    identifier = re.sub(r'v\d+$', '', value.strip())
+    if not _ID.fullmatch(identifier):
+        raise ValueError('Invalid arXiv ID.')
+    digits = identifier.split('/')[-1] if '/' in identifier else identifier[:4]
+    if not 1 <= int(digits[2:4]) <= 12:
+        raise ValueError('Invalid arXiv month.')
+    return identifier
 
 
 def _expand_scope(scope: Scope) -> list[str]:
-    """Validate and expand a Scope into a deduplicated list of arXiv IDs."""
     if not isinstance(scope, dict):
-        raise ValueError("Scope must be a dictionary.")
-    mode = scope.get("mode")
-    if mode not in {"ids", "range"}:
-        raise ValueError(f"Invalid scope mode: {mode}. Must be 'ids' or 'range'.")
+        raise ValueError('Invalid scope.')
+    if scope.get('mode') == 'ids':
+        values = scope.get('ids')
+        if not isinstance(values, list) or not values or scope.get('start_id') is not None or scope.get('end_id') is not None:
+            raise ValueError('IDs scope requires IDs and no range endpoints.')
+        return list(dict.fromkeys(_base_id(value) for value in values))
+    if scope.get('mode') != 'range' or scope.get('ids') != []:
+        raise ValueError('Invalid range scope.')
+    start, end = _base_id(scope['start_id']), _base_id(scope['end_id'])
+    if '/' in start or '/' in end or start[:4] != end[:4] or len(start) != len(end) or start > end:
+        raise ValueError('Range must use ordered modern IDs in the same month.')
+    width = len(start) - 5
+    return [f'{start[:4]}.{number:0{width}d}' for number in range(int(start[5:]), int(end[5:]) + 1)]
 
-    if mode == "ids":
-        raw_ids = scope.get("ids")
-        if not isinstance(raw_ids, list) or len(raw_ids) == 0:
-            raise ValueError("Scope mode 'ids' requires a non-empty list in 'ids'.")
-        seen: set[str] = set()
-        unique_ids: list[str] = []
-        for x in raw_ids:
-            if not isinstance(x, str) or not x.strip():
-                raise ValueError("Every ID in scope['ids'] must be a non-empty string.")
-            clean_id, _ = _clean_arxiv_id(x)
-            if clean_id not in seen:
-                seen.add(clean_id)
-                unique_ids.append(clean_id)
-        return unique_ids
 
-    # mode == "range"
-    start_id = scope.get("start_id")
-    end_id = scope.get("end_id")
-    if not isinstance(start_id, str) or not isinstance(end_id, str):
-        raise ValueError("Scope mode 'range' requires 'start_id' and 'end_id' as strings.")
+def _authors(value: str) -> list[str]:
+    """Split raw top-level name separators, preserving affiliations and suffixes.
 
-    start_clean = start_id.strip()
-    end_clean = end_id.strip()
-    start_match = re.match(r"^(\d{4})\.(\d+)$", start_clean)
-    end_match = re.match(r"^(\d{4})\.(\d+)$", end_clean)
-    if not start_match or not end_match:
-        raise ValueError(
-            f"Range IDs must be modern arXiv IDs (YYMM.NNNNN): got start='{start_id}', end='{end_id}'"
-        )
+    The original author text remains in the checkpointed XML for audit. Do not
+    expand initials or split commas/and inside parenthesized affiliation groups.
+    """
+    value = ' '.join(value.split())
+    if not value:
+        raise ValueError('OAI record has no authors.')
+    parts, current, depth = [], [], 0
+    plain, group_depth = [], 0
+    for char in value:
+        if char in '({[':
+            group_depth += 1
+        plain.append(' ' if group_depth else char)
+        if char in ')}]':
+            group_depth -= 1
+    plain = ''.join(plain)
+    i = 0
+    while i < len(value):
+        char = value[i]
+        if char in '({[':
+            depth += 1
+        elif char in ')}]':
+            depth -= 1
+            if depth < 0:
+                raise ValueError('Unbalanced raw author grouping.')
+        separator = 1 if depth == 0 and char in ',;' else 0
+        if depth == 0 and value[i:i+5] == ' and ':
+            # Collective names with "and" are kept as a single source string.
+            nearby = re.split(r'[,;]', plain[:i])[-1] + ' ' + re.split(r'[,;]', plain[i+5:])[0]
+            collective = re.search(r'\b(collaboration|consortium|team|group|project)s?\b', nearby, re.I)
+            if not collective:
+                separator = 5
+        if separator:
+            part = ''.join(current).strip()
+            if part:
+                parts.append(part)
+            current = []
+            i += separator
+            continue
+        current.append(char)
+        i += 1
+    if depth:
+        raise ValueError('Unbalanced raw author grouping.')
+    if ''.join(current).strip():
+        parts.append(''.join(current).strip())
+    result = []
+    for part in parts:
+        if result and re.fullmatch(r'(?i:(?:Jr\.?|Sr\.?|II|III|IV)(?:\s*[\(\[].*[\)\]])?)', part):
+            result[-1] += ', ' + part
+        else:
+            result.append(part)
+    if not result:
+        raise ValueError('OAI record has no authors.')
+    return result
 
-    yymm_start, num_start_str = start_match.groups()
-    yymm_end, num_end_str = end_match.groups()
-    if yymm_start != yymm_end:
-        raise ValueError(
-            f"Range IDs must share the same YYMM prefix: start='{start_id}', end='{end_id}'"
-        )
-    if len(num_start_str) != len(num_end_str):
-        raise ValueError(
-            f"Range IDs must have matching suffix digit length: start='{start_id}', end='{end_id}'"
-        )
 
-    num_start = int(num_start_str)
-    num_end = int(num_end_str)
-    if num_start > num_end:
-        raise ValueError(
-            f"Scope range is reversed (start_id > end_id): start='{start_id}', end='{end_id}'"
-        )
+def _version_date(value: str) -> datetime:
+    text = value.strip()
+    try:
+        result = parsedate_to_datetime(text)
+    except (ValueError, TypeError):
+        try:
+            result = datetime.fromisoformat(text.replace('Z', '+00:00'))
+            if re.fullmatch(r'\d{4}-\d{2}-\d{2}', text):
+                result = result.replace(tzinfo=timezone.utc)
+        except ValueError as exc:
+            raise ValueError('Invalid OAI version date.') from exc
+    if result.tzinfo is None:
+        raise ValueError('OAI version timestamp has no timezone.')
+    return result.astimezone(timezone.utc)
 
-    width = len(num_start_str)
-    return [f"{yymm_start}.{i:0{width}d}" for i in range(num_start, num_end + 1)]
+
+def _parse_raw(body: bytes, identifier: str) -> PaperRecord:
+    """Validate one assigned record and derive dates from its version history.
+
+    OAI header datestamps describe metadata updates, not submission times.
+    arXivRaw's v1..vN dates are therefore the source of the corpus dates.
+    """
+    if len(body) > _MAX_XML_BYTES or b'<!DOCTYPE' in body.upper() or b'<!ENTITY' in body.upper():
+        raise ValueError('Unsupported OAI XML size/declarations.')
+    try:
+        root = ET.fromstring(body)
+    except ET.ParseError as exc:
+        raise ValueError('Malformed OAI XML.') from exc
+    if root.tag != _OAI + 'OAI-PMH':
+        raise ValueError('Expected an OAI-PMH response.')
+    error = root.find(_OAI + 'error')
+    if error is not None:
+        if error.get('code') == 'idDoesNotExist':
+            raise LookupError('OAI idDoesNotExist for ' + identifier)
+        raise ValueError('OAI protocol error: ' + str(error.get('code')))
+    records = root.findall(f'{_OAI}GetRecord/{_OAI}record')
+    if len(records) != 1:
+        raise ValueError('Expected exactly one OAI record.')
+    record = records[0]
+    header = record.find(_OAI + 'header')
+    if header is None or header.findtext(_OAI + 'identifier') != 'oai:arXiv.org:' + identifier:
+        raise ValueError('OAI header identity mismatch.')
+    if header.get('status') == 'deleted':
+        raise LookupError('OAI record is deleted: ' + identifier)
+    raw = record.find(f'{_OAI}metadata/{_RAW}arXivRaw')
+    if raw is None or raw.findtext(_RAW + 'id') != identifier:
+        raise ValueError('arXivRaw identity/format mismatch.')
+    title = ' '.join((raw.findtext(_RAW + 'title') or '').split())
+    if not title:
+        raise ValueError('OAI record has no title.')
+    names = _authors(raw.findtext(_RAW + 'authors') or '')
+    history = {}
+    for version in raw.findall(_RAW + 'version'):
+        label = version.get('version', '')
+        if not re.fullmatch(r'v[1-9]\d*', label) or int(label[1:]) in history:
+            raise ValueError('Invalid/duplicate OAI version.')
+        history[int(label[1:])] = _version_date(version.findtext(_RAW + 'date') or '')
+    versions = sorted(history)
+    if not versions or versions != list(range(1, len(versions) + 1)):
+        raise ValueError('OAI history must contain every version starting with v1.')
+    dates = [history[version] for version in versions]
+    if dates != sorted(dates):
+        raise ValueError('OAI version dates are not chronological.')
+    venue = ' '.join((raw.findtext(_RAW + 'journal-ref') or '').split()) or None
+    return dict(arxiv_id=identifier, versions=versions, metadata=dict(
+        arxiv_id=identifier, title=title, authors=names,
+        submission_date=history[1].date().isoformat(),
+        revised_dates=[history[version].date().isoformat() for version in versions[1:]],
+        venue=venue,
+    ))
+
+
+def _atomic_bytes(path: Path, value: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    name = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=path.parent, prefix='.oai-', delete=False) as stream:
+            name = stream.name
+            stream.write(value)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(name, path)
+    finally:
+        if name and os.path.exists(name):
+            os.unlink(name)
+
+
+class OaiClient:
+    """One sequential client shared by discovery and reference-date lookup."""
+    def __init__(self, *, policy: HttpPolicy, cache_dir: Path | None = None, use_cache: bool = True):
+        for key in ('timeout_seconds', 'arxiv_delay_seconds', 'backoff_cap_seconds'):
+            if type(policy[key]) not in (int, float) or not math.isfinite(policy[key]) or policy[key] < 0:
+                raise ValueError('Invalid OAI HTTP policy.')
+        if (policy['timeout_seconds'] <= 0 or type(policy['max_attempts']) is not int
+                or policy['max_attempts'] < 1 or not policy['user_agent'].strip()):
+            raise ValueError('Invalid OAI HTTP policy.')
+        self.policy = dict(policy)
+        self.cache_dir = Path(cache_dir) if cache_dir is not None else None
+        self.use_cache = use_cache
+        self._records = {}
+        self._retrieved = {}
+        self._stats = dict(metadata_source=METADATA_SOURCE, network_requests=0, disk_cache_hits=0, memory_cache_hits=0)
+
+    def stats(self):
+        return dict(self._stats)
+
+    def _paths(self, identifier):
+        key = hashlib.sha256(identifier.encode()).hexdigest()
+        return self.cache_dir / (key + '.xml'), self.cache_dir / (key + '.json')
+
+    def _cached(self, identifier, *, require_fresh=True):
+        """Check identity/hash/XML; require freshness for collection by default.
+
+        Historical notebook audits disable freshness only to verify a saved
+        snapshot. They must not reuse that mode to refresh a live collection.
+        """
+        if self.cache_dir is None or not self.use_cache:
+            return None
+        xml_path, receipt_path = self._paths(identifier)
+        try:
+            if xml_path.stat().st_size > _MAX_XML_BYTES:
+                return None
+            body = xml_path.read_bytes()
+            receipt = json.loads(receipt_path.read_text(encoding='utf-8'))
+            timestamp = datetime.fromisoformat(receipt['retrieved_at'])
+            if timestamp.tzinfo is None:
+                return None
+            age = (datetime.now(timezone.utc) - timestamp).total_seconds()
+            if (receipt['schema_version'] != '3.0' or receipt['arxiv_id'] != identifier
+                    or receipt['endpoint'] != OAI_ENDPOINT or receipt['metadata_prefix'] != METADATA_PREFIX
+                    or receipt['sha256'] != hashlib.sha256(body).hexdigest()
+                    or (require_fresh and not 0 <= age <= _CACHE_SECONDS)):
+                return None
+            result = _parse_raw(body, identifier)
+            self._stats['disk_cache_hits'] += 1
+            self._retrieved[identifier] = timestamp
+            return result
+        except (OSError, ValueError, KeyError, TypeError, LookupError):
+            return None
+
+    def _save(self, identifier, body):
+        if self.cache_dir is None:
+            return
+        xml_path, receipt_path = self._paths(identifier)
+        receipt = dict(schema_version='3.0', arxiv_id=identifier, endpoint=OAI_ENDPOINT,
+                       metadata_prefix=METADATA_PREFIX, retrieved_at=self._retrieved[identifier].isoformat(),
+                       sha256=hashlib.sha256(body).hexdigest())
+        _atomic_bytes(xml_path, body)
+        _atomic_bytes(receipt_path, json.dumps(receipt, indent=2).encode('utf-8'))
+
+    def _request(self, identifier):
+        """Issue one serial GetRecord, pacing every attempt and server cooldown.
+
+        Exact IDs need no ListRecords pagination or expiring resumption token.
+        HTTP failures do not prove that an arXiv item is absent.
+        """
+        policy = self.policy
+        delay = max(3.0, policy['arxiv_delay_seconds'])
+        params = dict(verb='GetRecord', metadataPrefix=METADATA_PREFIX, identifier='oai:arXiv.org:' + identifier)
+        for attempt in range(1, policy['max_attempts'] + 1):
+            time.sleep(delay)
+            self._stats['network_requests'] += 1
+            cooldown = None
+            try:
+                with requests.get(OAI_ENDPOINT, params=params, timeout=policy['timeout_seconds'],
+                                  headers={'User-Agent': policy['user_agent']}, allow_redirects=False) as response:
+                    if response.status_code == 200:
+                        return response.content
+                    if response.status_code not in {408, 429, 500, 502, 503, 504}:
+                        raise RuntimeError(f'OAI endpoint HTTP {response.status_code}; paper absence is unverified.')
+                    error = f'OAI endpoint HTTP {response.status_code} after {attempt} attempts.'
+                    cooldown = response.headers.get('Retry-After')
+            except requests.RequestException as exc:
+                error = f'OAI transport failed ({type(exc).__name__}) after {attempt} attempts.'
+            if attempt == policy['max_attempts']:
+                raise RuntimeError(error)
+            wait = min(2.0 ** min(attempt - 1, 30), policy['backoff_cap_seconds'])
+            if cooldown:
+                try:
+                    server_wait = float(cooldown)
+                except ValueError:
+                    try:
+                        timestamp = parsedate_to_datetime(cooldown)
+                        server_wait = (timestamp - datetime.now(timezone.utc)).total_seconds()
+                    except (ValueError, TypeError, OverflowError):
+                        server_wait = 0.0
+                if math.isfinite(server_wait):
+                    wait = max(wait, server_wait)
+            time.sleep(max(0.0, wait))
+        raise RuntimeError('OAI request failed.')
+
+    def fetch(self, arxiv_id: str) -> PaperRecord:
+        identifier = _base_id(arxiv_id)
+        if identifier in self._records:
+            age = (datetime.now(timezone.utc) - self._retrieved[identifier]).total_seconds()
+            if 0 <= age <= _CACHE_SECONDS:
+                self._stats['memory_cache_hits'] += 1
+                return deepcopy(self._records[identifier])
+            del self._records[identifier]
+        record = self._cached(identifier)
+        if record is None:
+            body = self._request(identifier)
+            record = _parse_raw(body, identifier)
+            self._retrieved[identifier] = datetime.now(timezone.utc)
+            self._save(identifier, body)  # Per-ID checkpoint, before the next request.
+        self._records[identifier] = record
+        return deepcopy(record)
+
+    def discover(self, scope: Scope) -> DiscoveryResult:
+        """Resolve only assigned IDs; retain missing/failed IDs as explicit issues."""
+        started = time.monotonic()
+        identifiers = _expand_scope(scope)
+        papers, issues = [], []
+        for position, identifier in enumerate(identifiers, 1):
+            _LOG.info('OAI discovery %s/%s: %s', position, len(identifiers), identifier)
+            try:
+                papers.append(self.fetch(identifier))
+            except LookupError as exc:
+                issues.append(dict(arxiv_id=identifier, status='not_found', error=str(exc)))
+            except (ValueError, RuntimeError, OSError) as exc:
+                issues.append(dict(arxiv_id=identifier, status='failed', error=str(exc)))
+        complete = not any(issue['status'] == 'failed' for issue in issues)
+        status = 'success' if not issues else ('failed' if not papers and not complete and all(i['status']=='failed' for i in issues) else 'partial')
+        return dict(status=status, scope=deepcopy(scope), requested_count=len(identifiers),
+                    scope_complete=complete, papers=papers, issues=issues,
+                    elapsed_seconds=time.monotonic() - started, metadata_source=METADATA_SOURCE)
+
+    def submission_dates(self, ids: list[str]) -> DateLookupResult:
+        """Look up v1 dates once per normalized ID using the shared raw cache."""
+        dates, errors = {}, {}
+        for identifier in dict.fromkeys(_base_id(value) for value in ids):
+            try:
+                dates[identifier] = self.fetch(identifier)['metadata']['submission_date']
+            except (LookupError, ValueError, RuntimeError, OSError) as exc:
+                dates[identifier] = None
+                errors[identifier] = str(exc)
+        return dict(dates=dates, errors=errors, metadata_source=METADATA_SOURCE)
 
 
 def discover_papers(scope: Scope, *, policy: HttpPolicy) -> DiscoveryResult:
-    """Input: Scope hợp lệ + chính sách HTTP; output: DiscoveryResult.
-
-    Cách làm: kiểm tra mode/ID/range. mode=ids: dùng ids đã cung cấp; mode=range:
-    sinh các mã cùng YYMM, bao gồm hai đầu, giữ độ dài phần số. Chia batch
-    id_list, gửi requests.get(endpoint, params=...), đọc Atom bằng ElementTree
-    với namespace. start/max_results điều khiển phân trang; không coi mặc định
-    API là trả hết. Đối chiếu ID yêu cầu với ID trả về, gọi fetch_paper để bổ
-    sung lịch sử phiên bản/metadata. Ghi issues cho mã thiếu,
-    lỗi mạng hoặc chưa xác minh phiên bản; không âm thầm bỏ bài. Không quét ngoài
-    phạm vi. Không tìm bằng keyword tùy ý thay cho phạm vi được giao.
-    elapsed_seconds gồm chờ/retry. scope_complete=False khi còn mã chưa xác minh.
-    Raises ValueError nếu cấu hình sai; lỗi mạng được phản ánh trong result.
-    Không ghi file và không gọi download/references.
-    """
-    start_time = time.perf_counter()
-
-    unique_ids = _expand_scope(scope)
-    requested_count = len(unique_ids)
-
-    papers: list[PaperRecord] = []
-    issues: list[DiscoveryIssue] = []
-
-    for arxiv_id in unique_ids:
-        try:
-            record = fetch_paper(arxiv_id, policy=policy)
-            papers.append(record)
-        except LookupError as exc:
-            issues.append({
-                "arxiv_id": arxiv_id,
-                "status": "not_found",
-                "error": str(exc),
-            })
-        except Exception as exc:
-            issues.append({
-                "arxiv_id": arxiv_id,
-                "status": "failed",
-                "error": str(exc),
-            })
-
-    elapsed_seconds = round(time.perf_counter() - start_time, 4)
-
-    has_failed = any(issue["status"] == "failed" for issue in issues)
-    scope_complete = not has_failed
-
-    if scope_complete and len(issues) == 0:
-        status: Literal["success", "partial", "failed"] = "success"
-    elif len(papers) == 0 and all(issue["status"] == "failed" for issue in issues) and requested_count > 0:
-        status = "failed"
-    else:
-        status = "partial"
-
-    return {
-        "status": status,
-        "scope": scope,
-        "requested_count": requested_count,
-        "scope_complete": scope_complete,
-        "papers": papers,
-        "issues": issues,
-        "elapsed_seconds": elapsed_seconds,
-    }
+    """Standalone scope lookup; the pipeline uses one shared OaiClient instead."""
+    return OaiClient(policy=policy).discover(scope)
 
 
 def fetch_paper(arxiv_id: str, *, policy: HttpPolicy) -> PaperRecord:
-    """Input: ID gốc hợp lệ; output: PaperRecord có metadata và mọi versions.
-
-    Cách làm: API id_list=arxiv_id lấy bản mới nhất; đọc title, author/name,
-    published và arxiv:journal_ref từ Atom. API không trả một danh sách lịch sử
-    đầy đủ trong một entry: xác định latest vN nếu phản hồi thể hiện rõ; khi
-    chưa có N đáng tin cậy, bổ sung xác minh lịch sử trên trang abstract.
-    Truy vấn id_list có hậu tố v1..vN theo batch để xác minh từng phiên bản,
-    thu ngày cập nhật từng bản sửa; không lấy một updated mới nhất làm cả lịch sử.
-    Kiểm tra ID/version phản hồi đúng yêu cầu; chưa xác minh đủ thì báo lỗi,
-    không tự chốt [1]. Chuẩn hóa ngày
-    UTC về YYYY-MM-DD, giữ tên tác giả và mã cũ; venue=None nếu không có.
-    Không có bài: LookupError; mạng/API: RuntimeError; dữ liệu thiếu/sai:
-    ValueError. discover_papers bắt các lỗi này để ghi DiscoveryIssue.
-    Không tự điền metadata giả để trả PaperRecord trông như hoàn chỉnh.
-    """
-    base_id, _ = _clean_arxiv_id(arxiv_id)
-    if not base_id:
-        raise ValueError("arxiv_id must be a non-empty string")
-
-    # Step 1: Query API for base ID
-    resp = _http_request_with_policy(ARXIV_API_URL, {"id_list": base_id}, policy, allow_400=True)
-    root = ET.fromstring(resp.text)
-    entries = root.findall(f"{ATOM_NS}entry")
-    if not entries:
-        raise LookupError(f"Paper '{base_id}' not found on arXiv (0 entries returned).")
-
-    _, entry_version, meta = _parse_atom_entry(entries[0])
-
-    latest_v = entry_version
-    abs_history: dict[int, str] | None = None
-    if latest_v is None:
-        abs_history = _get_submission_history_from_abstract(base_id, policy)
-        if not abs_history:
-            raise ValueError(f"Could not determine versions for {base_id}")
-        latest_v = max(abs_history.keys())
-
-    if latest_v < 1:
-        raise ValueError(f"Invalid latest version {latest_v} for paper {base_id}")
-
-    if latest_v == 1:
-        versions = [1]
-        submission_date = meta["published"]
-        revised_dates: list[str] = []
-    else:
-        # Step 2: Query all versions v1..vN in a batch to verify and collect dates
-        ver_ids = [f"{base_id}v{v}" for v in range(1, latest_v + 1)]
-        expected_versions = list(range(1, latest_v + 1))
-        version_data: dict[int, dict[str, Any]] = {}
-
-        try:
-            ver_resp = _http_request_with_policy(
-                ARXIV_API_URL,
-                {"id_list": ",".join(ver_ids), "start": 0, "max_results": len(ver_ids)},
-                policy,
-            )
-            ver_root = ET.fromstring(ver_resp.text)
-            ver_entries = ver_root.findall(f"{ATOM_NS}entry")
-            for ve in ver_entries:
-                try:
-                    _, v_num, v_meta = _parse_atom_entry(ve)
-                    if v_num is not None:
-                        version_data[v_num] = v_meta
-                except LookupError:
-                    continue
-        except Exception:
-            pass
-
-        # Supplement missing version dates from abstract page submission history
-        if not all(v in version_data for v in expected_versions):
-            if abs_history is None:
-                abs_history = _get_submission_history_from_abstract(base_id, policy)
-            for v in expected_versions:
-                if v not in version_data and v in abs_history and abs_history[v]:
-                    version_data[v] = {
-                        "published": abs_history[1] if 1 in abs_history else meta["published"],
-                        "updated": abs_history[v],
-                    }
-
-        for v in expected_versions:
-            if v not in version_data:
-                raise ValueError(
-                    f"Version verification incomplete for {base_id}: version v{v} not found."
-                )
-
-        versions = expected_versions
-        submission_date = version_data[1]["published"]
-        revised_dates = [version_data[v]["updated"] for v in range(2, latest_v + 1)]
-
-    paper_metadata: PaperMetadata = {
-        "arxiv_id": base_id,
-        "title": meta["title"],
-        "authors": meta["authors"],
-        "submission_date": submission_date,
-        "revised_dates": revised_dates,
-        "venue": meta["venue"],
-    }
-    return {
-        "arxiv_id": base_id,
-        "versions": versions,
-        "metadata": paper_metadata,
-    }
-
-
-def _fetch_submission_dates_batch(
-    batch: list[str], policy: HttpPolicy
-) -> tuple[dict[str, str], dict[str, str]]:
-    """Fetch dates in a batch; split only HTTP 400 to isolate invalid IDs."""
-    found_dates: dict[str, str] = {}
-    errors: dict[str, str] = {}
-
-    try:
-        resp = _http_request_with_policy(
-            ARXIV_API_URL,
-            {"id_list": ",".join(batch), "start": 0, "max_results": len(batch)},
-            policy,
-            allow_400=True,
-        )
-        if resp.status_code == 200:
-            root = ET.fromstring(resp.text)
-            for entry in root.findall(f"{ATOM_NS}entry"):
-                id_elem = entry.find(f"{ATOM_NS}id")
-                raw_entry_id = id_elem.text.strip() if id_elem is not None and id_elem.text else ""
-                title_elem = entry.find(f"{ATOM_NS}title")
-                title_text = " ".join(title_elem.text.split()) if title_elem is not None and title_elem.text else ""
-                if "errors#" in raw_entry_id or title_text == "Error":
-                    continue
-                b_id, _ = _clean_arxiv_id(raw_entry_id)
-                pub_elem = entry.find(f"{ATOM_NS}published")
-                if pub_elem is not None and pub_elem.text:
-                    found_dates[b_id] = _format_utc_date(pub_elem.text)
-
-            missing = [x for x in batch if x not in found_dates]
-            for m in missing:
-                errors[m] = "Paper ID not found in arXiv API response"
-            return found_dates, errors
-        elif resp.status_code == 400 and len(batch) > 1:
-            for single_id in batch:
-                s_dates, s_errs = _fetch_submission_dates_batch([single_id], policy)
-                found_dates.update(s_dates)
-                errors.update(s_errs)
-            return found_dates, errors
-        elif resp.status_code == 400 and len(batch) == 1:
-            errors[batch[0]] = f"arXiv API error: malformed or invalid ID '{batch[0]}'"
-            return found_dates, errors
-    except Exception as exc:
-        # Requests already exhausted the bounded retry policy. Splitting a
-        # throttled/timed-out batch into N requests amplifies load on the same
-        # service. Preserve missing dates and let a later resume retry them.
-        for identifier in batch:
-            if identifier not in found_dates:
-                errors[identifier] = f"Lookup request failed: {exc}"
-        return found_dates, errors
-
-    return found_dates, errors
+    """Return validated metadata/history for one modern or legacy arXiv ID."""
+    return OaiClient(policy=policy).fetch(arxiv_id)
 
 
 def fetch_submission_dates(ids: list[str], *, policy: HttpPolicy) -> DateLookupResult:
-    """Input: ID gốc có thể trùng; output: dates chứa mọi ID duy nhất input.
-
-    Cách làm: API id_list ghép các mã bằng dấu phẩy, chia batch/phân trang;
-    đọc entry/published của bài, không đọc feed/updated. Đọc ngày published lần
-    đầu, không dùng updated. Missing=None và errors[id] giải thích; không làm
-    mất các ID đã lấy được khi một batch lỗi. ids=[] -> dates={}, errors={}.
-    Dùng lại pacing arXiv; pipeline chạy tuần tự để tránh hai module gọi dồn.
-    Nguyên nhận hàm đã gắn policy qua functools.partial làm DateLookup.
-    """
-    if not ids:
-        return {"dates": {}, "errors": {}}
-
-    unique_ids: list[str] = []
-    seen: set[str] = set()
-    for raw_id in ids:
-        clean, _ = _clean_arxiv_id(raw_id)
-        if clean and clean not in seen:
-            seen.add(clean)
-            unique_ids.append(clean)
-
-    dates: dict[str, str | None] = {}
-    errors: dict[str, str] = {}
-
-    batch_size = 50
-    for i in range(0, len(unique_ids), batch_size):
-        batch = unique_ids[i : i + batch_size]
-        f_dates, f_errs = _fetch_submission_dates_batch(batch, policy)
-        for b_id in batch:
-            if b_id in f_dates:
-                dates[b_id] = f_dates[b_id]
-            else:
-                dates[b_id] = None
-                errors[b_id] = f_errs.get(b_id, "Date lookup failed")
-
-    return {"dates": dates, "errors": errors}
+    """Return UTC v1 dates and per-ID errors without guessing publication dates."""
+    return OaiClient(policy=policy).submission_dates(ids)

@@ -1,4 +1,9 @@
-"""Sequential orchestration; file owners validate receipts on every resume."""
+"""Sequential orchestration; file owners validate receipts on every resume.
+
+Contracts, validators and checkpoints are project logic using Python's typing,
+threading and filesystem APIs. Their attribution map and full citations are in
+sections 7 and 10 of docs/milestone1/KE_HOACH_MILESTONE_1.md.
+"""
 
 import json
 import math
@@ -14,22 +19,21 @@ import types
 import uuid
 from copy import deepcopy
 from datetime import date, datetime, timezone
-from functools import partial
 from pathlib import Path
 from threading import Event, Thread
 from typing import get_args, get_origin, get_type_hints, is_typeddict, Literal, Union
 
 from . import (
-    DatesCallable, DiscoverCallable, DownloadCallable, HttpPolicy, Manifest,
+    DownloadCallable, HttpPolicy, Manifest,
     PaperRecord, ReferencesCallable, RunResult, Scope, DownloadResult, ReferenceResult,
     DiscoveryResult,
 )
-from .discover import discover_papers, fetch_submission_dates
+from .discover import METADATA_SOURCE, OaiClient
 from .download import download_version
 from .references import collect_references
 from .metrics import collect_resource_samples, summarize_corpus, summarize_benchmark, _disk_bytes
 
-_ID = re.compile(r'(?:\d{4}\.\d{4,5}|[a-z][a-z0-9.-]*/\d{7})\Z')
+_ID = re.compile(r'(?:\d{4}\.\d{4,5}|[a-zA-Z][a-zA-Z0-9.-]*/\d{7})\Z')
 
 
 def _utc():
@@ -37,7 +41,7 @@ def _utc():
 
 
 def _typed(value, annotation):
-    """Validate JSON primitives against the unchanged shared TypedDict schemas."""
+    """Validate JSON primitives against the shared TypedDict schemas."""
     origin, args = get_origin(annotation), get_args(annotation)
     if is_typeddict(annotation):
         fields = get_type_hints(annotation)
@@ -176,7 +180,7 @@ def initialize_manifest(scope: Scope, *, run_id: str) -> Manifest:
     _scope(scope)
     if not isinstance(run_id, str) or not run_id.strip():
         raise ValueError('run_id must be nonempty')
-    return dict(schema_version='1.0', run_id=run_id, scope=deepcopy(scope),
+    return dict(schema_version='3.0', metadata_source=METADATA_SOURCE, run_id=run_id, scope=deepcopy(scope),
                 discovery=None, papers={}, updated_at=_utc())
 
 
@@ -250,9 +254,19 @@ def _references(result, identifier):
         raise ValueError('Inconsistent reference counts/identity')
     if result['total_references'] is not None and result['total_references'] < result['kept_references']:
         raise ValueError('Reference total smaller than kept count')
+    if (result['pagination_complete'] and result['total_references'] != len(result['all_references'])):
+        raise ValueError('Complete reference count differs from stored rows')
+    arxiv_keys = {item['arxiv_id'] if '/' in item['arxiv_id'] else item['arxiv_id'].replace('.', '-')
+                  for item in result['all_references'] if item['arxiv_id'] is not None}
+    if arxiv_keys != set(result['references']):
+        raise ValueError('Local references and arXiv matching pool disagree')
+    non_arxiv = sum(item['arxiv_id'] is None for item in result['all_references'])
+    if result['incomplete_non_arxiv_references'] > non_arxiv:
+        raise ValueError('Inconsistent non-arXiv reference completeness')
     if result['used_cache'] and (result['attempts'] or result['status'] != 'success'):
         raise ValueError('Invalid reference cache result')
-    if result['status'] == 'success' and (not result['pagination_complete'] or result['incomplete_references'] or result['error'] is not None):
+    if result['status'] == 'success' and (not result['pagination_complete'] or result['incomplete_references']
+            or result['error'] is not None):
         raise ValueError('Inconsistent reference success')
 
 
@@ -309,11 +323,16 @@ def _cpu_only_environment():
 
 def run_pipeline(
     scope: Scope, data_root: Path, *, policy: HttpPolicy, resume: bool = True,
-    discover_fn: DiscoverCallable = discover_papers,
     download_fn: DownloadCallable = download_version,
     reference_fn: ReferencesCallable = collect_references,
-    dates_fn: DatesCallable = fetch_submission_dates,
 ) -> RunResult:
+    """Collect one scope, checkpoint each task and measure the whole run.
+
+    Discovery and reference-date lookups share an OAI client; sources and S2
+    references retain their separate endpoints. Resource sampling starts before
+    discovery, so benchmark wall time includes metadata requests and cooldowns.
+    See docs/milestone1/KE_HOACH_MILESTONE_1.md for design and citations.
+    """
     _scope(scope)
     _require(policy, HttpPolicy)
     if (type(resume) is not bool or policy['timeout_seconds'] <= 0 or policy['max_attempts'] < 1
@@ -348,7 +367,9 @@ def run_pipeline(
     worker.start()
     try:
         save_manifest(manifest, path)
-        discovery = discover_fn(deepcopy(scope), policy=policy)
+        # Repeated references across assigned papers reuse this client's cache.
+        metadata_client = OaiClient(policy=policy, cache_dir=root / 'metadata_cache', use_cache=resume)
+        discovery = metadata_client.discover(deepcopy(scope))
         _discovery(discovery, scope)
         manifest['discovery'] = deepcopy(discovery)
         save_manifest(manifest, path)
@@ -381,12 +402,13 @@ def run_pipeline(
                 save_manifest(manifest, path)
             task_started = time.perf_counter()
             try:
-                refs = reference_fn(identifier, directory, partial(dates_fn, policy=policy), policy=policy, use_cache=resume)
+                date_lookup = metadata_client.submission_dates
+                refs = reference_fn(identifier, directory, date_lookup, policy=policy, use_cache=resume)
             except (ValueError, NotImplementedError):
                 raise
             except Exception as exc:
-                refs = dict(arxiv_id=identifier, status='failed', references={}, total_references=None, kept_references=0,
-                            missing_submission_dates=0, incomplete_references=0, pagination_complete=False,
+                refs = dict(arxiv_id=identifier, metadata_source=METADATA_SOURCE, status='failed', references={}, all_references=[], total_references=None, kept_references=0,
+                            missing_submission_dates=0, incomplete_references=0, incomplete_non_arxiv_references=0, pagination_complete=False,
                             retrieved_at=_utc(), elapsed_seconds=time.perf_counter() - task_started, attempts=0, used_cache=False,
                             error=f'Reference dependency raised {type(exc).__name__}')
             _references(refs, identifier)
@@ -407,7 +429,7 @@ def run_pipeline(
                                         environment=f'{platform.system()} {platform.machine()}; Python {platform.python_version()}; ' + ('Colab' if 'COLAB_RELEASE_TAG' in os.environ or 'google.colab' in sys.modules else 'local development'),
                                         cpu_only=cpu_only, cache_mode=cache_mode, sampling_interval_seconds=interval)
         output = dict(status=status, run_id=manifest['run_id'], manifest_path='manifest.json', metrics_path='metrics/run_summary.json',
-                      summary=summary, benchmark=benchmark)
+                      summary=summary, benchmark=benchmark, metadata_stats=metadata_client.stats())
         _atomic_json(root / 'metrics' / 'run_summary.json', output)
     finally:
         stop.set()

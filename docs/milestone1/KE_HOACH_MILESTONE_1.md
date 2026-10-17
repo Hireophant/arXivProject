@@ -1,340 +1,155 @@
 # Kế hoạch Milestone 1 — Thu thập dữ liệu bài báo arXiv
 
-Ngày lập: 11/10/2026. Tổng hợp từ đề bài và cuộc trao đổi về cách làm bằng Jupyter Notebook.
+Cập nhật **17/10/2026** theo code hiện tại. Giữ tài liệu này để ghi phương pháp, quyết định kỹ thuật, nguồn tham khảo và tiến độ; cập nhật tại chỗ khi cách làm thay đổi.
 
-> Đây là kế hoạch tổng quan. Khi triển khai, đọc [phân công cập nhật](./PHAN_CONG_MILESTONE_1_4_NGUOI.md), nhất là mục 11–17, và schema/prototype hiện tại trong src/crawling. Nhóm đã chốt requests + XML Atom cho discovery, một notebook chung và bốn người Khánh/Khang/Nguyên/Danh; các ví dụ hoặc lựa chọn cũ dưới đây không thay giao diện đã chốt.
+Tài liệu liên quan: [đề tổng](../../ARXIV_PROJECT_FULL.md), [phân công bốn người](./PHAN_CONG_MILESTONE_1_4_NGUOI.md), [hướng dẫn thành viên](./HUONG_DAN_THANH_VIEN_MILESTONE_1.md), [cách chạy](./CHAY_VA_KIEM_TRA_WINDOWS.md), [chi tiết OAI và bằng chứng](./OAI_RAW_HIEN_TAI.md).
 
-**Mục tiêu:** viết chương trình Python tự động thu thập các bài arXiv được giao, đủ mọi phiên bản, kèm thông tin bài và tài liệu tham khảo; tổ chức thành kho dữ liệu và báo cáo kết quả.
+## 1. Mục tiêu và yêu cầu của đề
 
-**Cách triển khai đề xuất:** dùng Jupyter Notebook để điều khiển, xem kết quả và phân tích; đưa các hàm tái sử dụng vào file Python. Báo cáo Milestone 1 và 2 dùng chung một Jupyter Book ở repository riêng.
+M1 resolve đúng dải ID TA giao, crawl **mọi version** kể cả v1, giữ source TeX/BibTeX nguyên nội dung và metadata của bài/references. Đề không bắt buộc harvest toàn repository. M1 chưa nộp corpus; dữ liệu local là đầu vào M2/M3. [1, 2]
 
-**Công cụ:** Python, Jupyter Notebook, requests, pathlib, json, tarfile/gzip, pandas, matplotlib, psutil; chọn arXiv API làm cách tìm bài ban đầu. Thư viện arxiv có thể hỗ trợ truy vấn. Các tên thư viện và cách chia file dưới đây là đề xuất, không phải danh sách bắt buộc của thầy.
+Phần General Requirements của [đề tổng](../../ARXIV_PROJECT_FULL.md) yêu cầu: “Ensure your code is well-documented with clear comments.” Đồng thời tài liệu online được tham khảo phải có trích dẫn đầy đủ. Vì vậy module cần docstring giải thích vai trò/hợp đồng, comment giải thích các quyết định khó và dẫn tới mục tài liệu tham khảo bên dưới. Không chỉ ghi tên thư viện hoặc URL không rõ dùng làm gì. [1]
 
-**Đề đối chiếu:** [ARXIV_PROJECT_FULL.md](../../ARXIV_PROJECT_FULL.md), phần Milestone 1. Trang gốc: https://hcmus-cs-ta.github.io/lab-book/intro-ds/statement/crawling/
+## 2. Phương án discovery hiện tại và vì sao phù hợp đề
 
-## 1. Hiểu đúng việc đang làm
+Chỉ dùng **OAI-PMH `arXivRaw`** cho discovery, metadata, lịch sử phiên bản và ngày gửi arXiv references:
 
-Hãy hình dung mỗi bài báo là một tập hồ sơ. Nhóm cần tự động tạo hồ sơ gồm:
+```text
+GET https://oaipmh.arxiv.org/oai
+verb=GetRecord
+metadataPrefix=arXivRaw
+identifier=oai:arXiv.org:{base_id}
+```
 
-| Thành phần | Hiểu dễ hiểu | Dùng tiếp để làm gì? |
+`GetRecord` là verb chính thức của OAI-PMH để lấy metadata theo identifier. Đề đưa Sickle/`ListRecords` làm ví dụ bulk harvesting; không yêu cầu dùng thư viện Sickle hoặc đúng nguyên mẫu đó. Code dùng Requests + XML stdlib để kiểm soát pacing, lỗi giao thức, xác minh ID và checkpoint. Đây là lựa chọn triển khai theo yêu cầu resolve ID, không phải chuyển sang Query API. [2, 3, 4, 7, 8]
+
+Chọn `arXivRaw` vì tài liệu arXiv xác nhận format này chứa lịch sử versions; format `arXiv` mô tả metadata của version mới nhất. Parser kiểm header/raw ID, title/authors, v1..vN liên tục và ngày theo thứ tự. Ngày gửi lấy từ v1, ngày revisions lấy từ v2..vN. Chuỗi tác giả raw được tách theo separator ngoài nhóm trong ngoặc, giữ hậu tố tên; XML gốc vẫn được lưu để kiểm tay tên phức tạp. [3]
+
+Không dùng `from`/`until` để suy ra tháng gửi bài: OAI datestamp là ngày metadata được sửa. Một bài gửi tháng 6 nhưng sửa tháng 10 có thể nằm ngoài harvest tháng 6. `GetRecord` theo ID tránh nhầm phạm vi này. Phương án hiện tại không có phân trang OAI/resumption token, nên không cần xử lý token hết hạn hằng ngày. Không khẳng định cách này nhanh hơn bulk `ListRecords`: lượt đầu cần một OAI request cho mỗi ID duy nhất, gồm references. [3, 4]
+
+## 3. Nhịp truy cập, cache và lỗi
+
+- Chạy tuần tự, một request/kết nối tại một thời điểm; trước mỗi request arXiv nghỉ ít nhất **3 giây**, mặc định **3,1 giây**, kể cả retry. Giới hạn tính chung các máy nhóm kiểm soát; nhóm xếp lịch hoặc điều phối chung, không tăng máy để vượt giới hạn. [5]
+- Retry có giới hạn cho lỗi tạm thời/429/5xx, tôn trọng `Retry-After`; hết lượt thì ghi failed/partial. Không fallback sang Query API/HTML/Kaggle.
+- OAI `idDoesNotExist` hoặc header deleted mới được ghi không tìm thấy; HTTP 404/lỗi truy cập chưa chứng minh paper không tồn tại. [4]
+- Lưu XML + receipt nguồn/ID/timestamp/SHA-256 sau từng ID thành công. Một OAI client dùng chung cho discovery và ngày references, nên ID trùng dùng cache.
+- Cache metadata và references có TTL **24 giờ**. Đây là quyết định của nhóm để làm mới snapshot, không phải thời hạn bắt buộc của OAI. Không gia hạn tuổi gốc khi đọc cache, không cache lỗi vĩnh viễn.
+- Manifest/receipt schema **3.0**; xác minh hash, identity và provenance trước khi dùng. Corpus schema cũ cần root mới. Analyze chỉ audit snapshot local, không gọi mạng hay khẳng định snapshot còn mới.
+
+## 4. Tải và lọc source
+
+Tải riêng từng version tại `https://export.arxiv.org/src/{id}vN`, dùng mirror theo đề, nhịp nghỉ như trên. Nhận diện tar/gzip, TeX đơn, PDF/DOCX hoặc dữ liệu lỗi theo nội dung. Archive có giới hạn kích thước/số entries; xử lý đường dẫn an toàn, không extract cả archive rồi xóa hình. [2, 6, 9]
+
+Chỉ giữ `.tex` và `.bib` nguyên byte, cùng cấu trúc thư mục. Không giữ `.sty`, `.cls`, `.bbl`, ảnh hoặc text khác; không sửa `figure`, `includegraphics` hay lệnh bảng trong TeX. Version không có TeX giữ record `no_tex`, thư mục rỗng và receipt; lỗi download là failed. Bytes trước/sau lọc dùng cùng cơ sở source chưa nén; archive bytes được ghi riêng. [2]
+
+## 5. References và lưu dữ liệu
+
+Semantic Scholar vẫn là nguồn references bắt buộc; nó không thay nguồn metadata arXiv. Endpoint dùng `/paper/ARXIV:{id}/references`, query fields phẳng `title,authors,externalIds,publicationDate,year,venue`. `citedPaper` là wrapper ở response, không phải prefix query fields; `authors.name` không dùng. Theo `next` để lấy hết trang; không đoán thiếu trang chỉ vì trang cuối đủ 100 hàng. [2, 10]
+
+`references_all.json` giữ mọi hàng nhận được, gồm non-arXiv, entries trùng hoặc citedPaper chưa rõ. `references.json` giữ pool arXiv duy nhất cho matching. Giữ legacy IDs `archive/YYMMNNN`; bỏ version suffix trước tra ngày. Ngày gửi lấy v1 từ cùng OAI client, không thay bằng S2 `publicationDate`. [2, 3, 10]
+
+Thiếu trang hoặc trường bắt buộc/ngày của pool arXiv làm job partial. Non-arXiv thiếu metadata từ S2 vẫn được giữ null và đếm chất lượng riêng; không đo completeness của mọi references bằng tỷ lệ của pool arXiv. References là snapshot theo publication; S2 không bảo đảm danh sách riêng cho từng revision. Partial retry không thay complete store tốt bằng dữ liệu thiếu.
+
+Pipeline ghi manifest sau từng task. Source owner ghi source/receipt, reference owner ghi hai stores/receipt; pipeline ghi metadata/manifest. JSON/CSV là working format do nhóm chọn, không phải format bắt buộc của đề. Dataset cuối có 6 bảng; M1 định nghĩa `papers`, `references`, M3 mới xuất bản sharded Parquet. [2]
+
+## 6. Thống kê, benchmark và báo cáo
+
+`metrics.py` đếm papers/versions/status, success rates, source bytes trước/sau, mọi reference rows và arXiv matching pool. Các tỷ lệ/trung bình có mẫu số; giá trị chưa đo là None, không tự điền 0. Source coverage tính cả `no_tex` hợp lệ; paper success với nguồn TeX mọi version là chỉ số khác.
+
+Sampler đo RSS của process tree bằng `psutil.Process.children(recursive=True)` và `memory_info().rss`; file bytes của corpus được đo riêng. Xuất samples/timestamps, chu kỳ 0,25 giây và lỗi đo. RAM/disk peak là peak **quan sát** theo lấy mẫu; không bảo đảm bắt mọi đỉnh rất ngắn. [11]
+
+Wall time end-to-end bắt đầu trước discovery, gồm cả nghỉ/retry và dừng sampler; không lấy tổng task times làm wall time. Có discovery time, từng paper/mean, RAM peak/mean, disk peak/final và environment/cache_mode. Benchmark nghiệm thu phải cold Colab CPU; một bài local không thay benchmark cuối. [2, 12]
+
+Jupyter Book tiếng Anh nằm trong public repo riêng, hosted GitHub Pages. Dùng dữ liệu thật xuất từ pipeline để sinh bảng/hình **lúc build**. Notebook/report ZIP cung cấp dữ liệu và figures kiểm tra; ZIP tự nó chưa phải Book nộp bài. Public code repo có README/requirements; nộp hai links qua Moodle trước hạn. [1, 2]
+
+## 7. Comment và truy nguyên nguồn cho toàn bộ /src
+
+Phạm vi rà soát gồm **tất cả 8 file trong `src/`**, không chỉ OAI. Phải phân biệt ba loại thông tin:
+
+- **Tham khảo đặc tả/tài liệu API:** dùng endpoint, response fields, ý nghĩa ngày, contract hoặc cách gọi thư viện theo tài liệu; không đồng nghĩa chép code của trang đó.
+- **Logic riêng của project:** scope/receipts/cache/status/denominators và cách phối hợp được thể hiện bằng code, comment và test; không gán chúng cho tác giả tài liệu thư viện.
+- **Code copy/adapt từ nguồn ngoài:** nếu có phải ghi đúng đoạn/hàm, URL/revision, tác giả, license và thay đổi đã thực hiện. Không được lấy một link documentation để thay cho attribution của block code đã sao chép.
+
+### 7.1. Bảng đối chiếu đủ từng file
+
+| File trong /src | Thành phần dựa trên tài liệu/thư viện | Logic riêng và giới hạn truy nguyên | Nguồn |
+|---|---|---|---|
+| `crawling/__init__.py` | `TypedDict`, `Protocol`, `Literal`, `Callable`; các cột dữ liệu theo đề | Contract JSON, schema 3.0, trạng thái và quy ước đường dẫn của project; type hints không tự validate runtime | [1, 2, 13] |
+| `crawling/discover.py` | OAI GetRecord/arXivRaw, XML namespaces, Requests GET, UTC/date parsing, stdlib hash/file I/O | `_authors`, `_parse_raw` invariants, scope expansion, TTL, checkpoint/provenance và shared cache là implementation của project | [3, 4, 5, 7, 8, 14] |
+| `crawling/download.py` | Versioned export source, Requests streaming; `tarfile`, gzip/zip/XML, pathlib/tempfile/hashlib/os | Nhận diện payload, whitelist nguyên byte, giới hạn/path checks, no_tex, staging/rollback và receipts là implementation áp dụng yêu cầu đề | [2, 5, 6, 8, 9, 14] |
+| `crawling/references.py` | S2 fields/citedPaper/offset-next, Requests và date/hash/JSON stdlib | Hai stores, dedup pool, OAI DateLookup, quality counters, completeness và partial preservation là thiết kế project | [2, 3, 8, 10, 14] |
+| `crawling/pipeline.py` | `typing` introspection, threading/Event, perf_counter, subprocess, filesystem/JSON | `_typed` validator, assignment conversion, shared client, checkpoint, điều kiện success/cache mode và phạm vi benchmark do project viết | [2, 3, 5, 13, 14] |
+| `crawling/metrics.py` | psutil Process RSS/children, stdlib CSV/JSON/statistics/threading/time | Mẫu số, None/0, source coverage/no_tex, các trung bình và xuất report là cách tổng hợp của project | [2, 11, 14] |
+| `notebooks/milestone1.ipynb` | Colab runtime/Secrets/files.download; pandas DataFrame/Styler; Matplotlib pyplot; IPython display; stdlib Git/process/package/filesystem APIs | Configuration, guards, tables/audits/charts layout, benchmark checks và report bundle là notebook của project; chi tiết từng nhóm cells ở mục 7.2 | [1, 2, 12, 14, 15, 16, 17, 18] |
+| `requirements.txt` | Cú pháp requirements `package==version`; các distribution dependencies của pipeline/notebook | Danh sách/version pins là cấu hình environment, không phải block thuật toán sao chép; đồng bộ `environment.yml`, không phải transitive lockfile | [8, 11, 15, 16, 17, 19, 20, 21, 22] |
+
+Nguồn stdlib [14] bao gồm các API hỗ trợ xuất hiện trong imports: `collections.abc`, copy, csv, datetime/date/timezone, email.utils, gzip, hashlib, importlib, json, logging, math, os, pathlib, platform, re, shutil, statistics, subprocess, sys, tempfile, threading, time, types, uuid và zipfile. XML/tar/typing quan trọng được cite riêng ở [7, 9, 13]. Sử dụng API thư viện không có nghĩa lấy mã nguồn triển khai bên trong thư viện vào project.
+
+### 7.2. Notebook: nguồn áp dụng cho từng nhóm cells
+
+| Cells (theo id trong notebook) | API/tài liệu áp dụng | Phần project tự tổ chức |
 |---|---|---|
-| Nguồn từng phiên bản | Các file văn bản dùng để tạo bài báo | Milestone 2 tách nội dung và chuẩn hóa |
-| metadata.json | Phiếu thông tin của chính bài đang thu thập | Quản lý, thống kê, xuất dataset cuối |
-| references.json | Phiếu thông tin các bài mà bài hiện tại tham khảo | Milestone 3 đối chiếu với tham khảo trích từ nguồn |
-| Nhật ký và số đo | Ghi lại kết quả thu thập và tài nguyên sử dụng | Báo cáo, kiểm tra thiếu dữ liệu, chạy tiếp khi lỗi |
-
-Luồng công việc:
-
-```text
-Khoảng mã bài trợ giảng giao
-    → tìm bài và các phiên bản
-    → tải nguồn, giữ văn bản
-    → lấy metadata bài và metadata tham khảo
-    → lưu kho dữ liệu theo bài/phiên bản
-    → kiểm tra, thống kê, benchmark
-    → viết Jupyter Book và nộp link
-```
-
-Chặng này chưa cần huấn luyện mô hình, chưa cần tách cây nội dung hoặc gộp tài liệu tham khảo trùng giữa các phiên bản.
-
-### Sơ đồ quy trình Milestone 1
-
-```mermaid
-flowchart TD
-    A[Nhận khoảng mã arXiv từ trợ giảng] --> B[Tìm các bài và toàn bộ phiên bản]
-    B --> C[Xử lý lần lượt từng bài]
-    C --> D[Lấy thông tin bài từ arXiv]
-    D --> E[Lưu metadata.json: tên, tác giả, ngày gửi và sửa]
-    E --> F[Tải nguồn của từng phiên bản]
-    F --> G{Có nguồn TeX?}
-    G -->|Có| H[Giữ file văn bản, bỏ ảnh nhị phân; giữ lệnh hình và bảng]
-    G -->|Không| I[Ghi phiên bản không có TeX; giữ bản ghi rỗng]
-    H --> J[Lấy danh sách tham khảo từ Semantic Scholar]
-    I --> J
-    J --> K[Lọc tài liệu có mã arXiv và bổ sung ngày gửi từ arXiv]
-    K --> L[Lưu references.json: thông tin các bài được tham khảo]
-    L --> M{Còn bài hoặc phiên bản cần xử lý?}
-    M -->|Có| C
-    M -->|Không| N[Kiểm tra dữ liệu và thống kê kết quả]
-    N --> O[Benchmark toàn quy trình trên Colab CPU: thời gian, RAM, đĩa]
-    O --> P[Viết Jupyter Book; sinh bảng và biểu đồ khi build]
-    P --> Q[Nộp Moodle: link code và link báo cáo]
-    Q --> R[Giữ corpus để làm Milestone 2 và 3]
-```
-
-**Đọc sơ đồ:** mỗi bài có một phiếu thông tin `metadata.json`, nguồn riêng cho từng phiên bản và một danh sách thông tin tham khảo `references.json`. Lặp lại việc đó cho phạm vi được giao, rồi kiểm tra, đo hiệu năng và báo cáo. Nhật ký và số đo được ghi trong lúc chạy; benchmark là lần đo toàn quy trình trên Colab, không chỉ đo bước tổng hợp cuối. Lỗi mạng/API cần được ghi nhận và thử lại có giới hạn, không coi là trường hợp không có TeX hay không có tham khảo. Nếu còn lỗi chưa khắc phục, báo cáo rõ dữ liệu thiếu.
-
-## 2. Những điểm đã thống nhất và những điều đề chưa nói
-
-- Phạm vi bài chính thức là khoảng mã arXiv do trợ giảng cung cấp. Link đề hiện chưa chỉ ra khoảng mã cụ thể của nhóm.
-- BERT và RoBERTa chỉ là hai bài tự chọn để minh họa kỹ thuật.
-- Kaggle chứa metadata có thể giúp tìm/lọc bài; nó không thay cho việc tải nguồn LaTeX và lấy metadata tham khảo.
-- arXiv API, OAI-PMH và Kaggle là những phương án được đề giới thiệu, không phải ba cách đều bắt buộc triển khai.
-- Đề cho phép source `.py` hoặc `.ipynb`; hướng của nhóm là notebook kết hợp module Python.
-- Jupyter Notebook là nơi chạy code theo ô. Jupyter Book là công cụ biên dịch notebook và nội dung giải thích thành website báo cáo.
-- Tên thư mục/file đề gợi ý có thể điều chỉnh, nhưng dữ liệu vẫn phải đầy đủ và dùng được cho chặng sau.
-- Việc dùng dataset bên ngoài để huấn luyện thuộc Milestone 3. Đề không ghi cấm toàn bộ dataset ngoài; cũng chưa nói rõ được thay dữ liệu tự tạo bằng dataset ngoài. Không suy diễn thành một lệnh cấm trong kế hoạch này.
-
-## 3. Các yêu cầu cần giữ xuyên suốt
-
-- Thu thập bằng chương trình trên phạm vi được giao, lấy tất cả phiên bản của từng bài.
-- Giữ nguồn văn bản gốc; đề khuyên bỏ ảnh nhị phân để giảm dung lượng nhưng giữ các lệnh hình/bảng trong LaTeX.
-- Phiên bản không có TeX phải được ghi nhận bằng bản ghi rỗng, không làm mất bài khỏi danh sách.
-- Lấy metadata tài liệu tham khảo qua Semantic Scholar cho mỗi bài. Không mặc định dịch vụ phân biệt được tham khảo của từng phiên bản.
-- Code công khai trong một repository dùng xuyên suốt các milestone; lưu lịch sử cập nhật.
-- Báo cáo công khai trong repository Jupyter Book riêng, đưa lên GitHub Pages.
-- Bảng/biểu đồ của báo cáo được tạo khi biên dịch sách.
-- Benchmark cuối trên Google Colab CPU; không đặt giới hạn thời gian theo đề, nhưng phải nằm trong dung lượng đĩa Colab.
-- Milestone 1 chưa nộp corpus. Giữ lại để làm Milestone 2–3 và xuất Hugging Face ở cuối.
-- Nộp Moodle theo nhóm, đúng ngôn ngữ chính thức của chương trình học; không được nộp trễ. Dùng tài liệu ngoài phải trích dẫn, code phải có giải thích rõ.
-
-## 4. Sẽ dùng Jupyter như thế nào?
-
-Notebook sẽ là bảng điều khiển, chia thành các ô theo trình tự:
-
-1. Giải thích mục tiêu và phạm vi đang chạy.
-2. Nạp thư viện, cấu hình và đường dẫn dữ liệu.
-3. Tìm bài, hiển thị bảng bài và phiên bản.
-4. Gọi hàm tải nguồn.
-5. Gọi hàm lấy metadata và tham khảo.
-6. Kiểm tra dữ liệu, xem lỗi.
-7. Tổng hợp thống kê và vẽ biểu đồ.
-
-Các hàm dài như tải gói nguồn, gọi API hoặc đo tài nguyên nằm trong `.py`, notebook gọi lại. Cách này giúp chạy lại từng bước và tái sử dụng code ở milestone sau.
-
-Không đặt tất cả tác vụ cào vào quá trình biên dịch báo cáo: chạy cào riêng, lưu dữ liệu/kết quả đo; notebook báo cáo đọc những kết quả đó để tính bảng và biểu đồ khi build sách.
-
-## 5. Cấu trúc dự kiến
-
-Trong repository code:
-
-```text
-src/
-├── crawling/
-│   ├── __init__.py
-│   ├── discover.py       # Tìm bài, metadata và phiên bản
-│   ├── download.py       # Tải, nhận diện và xử lý nguồn
-│   ├── references.py     # Semantic Scholar, bổ sung metadata tham khảo
-│   ├── pipeline.py       # Điều phối, trạng thái, chạy tiếp
-│   └── metrics.py        # Thống kê, thời gian, RAM, dung lượng
-├── notebooks/
-│   └── milestone1.ipynb  # Chạy quy trình và kiểm tra kết quả
-└── requirements.txt
-README.md
-.gitignore
-```
+| Cell in Python version; `runtime-bootstrap`, `imports` | Python sys/importlib/subprocess/path [14]; Colab [12, 18]; pandas/Matplotlib/IPython [15–17] | Tìm project folder, lựa chọn clone/install, xử lý environment và import module |
+| `configuration`, `environment` | Stdlib version/Git/process APIs [14], psutil [11], pandas [15] | Assignment/scope, cold/resume/analyze, CPU guard, ghi package/source revision |
+| `collection` | Code pipeline/metrics nội bộ; filesystem/JSON/ZIP support [14] | Gọi pipeline thật, kiểm run_id, xuất configuration/environment/metadata stats |
+| `coverage-tables`, `integrity-audit` | pandas/Styler [15], hash/file I/O [14], OAI identity/version semantics [3, 4] | Các bảng coverage, kiểm metadata/source/hai stores/raw checkpoints và outstanding tasks |
+| `corpus-charts`, `resource-charts` | Matplotlib [16], pandas [15] | Chọn dữ liệu, axes/labels/layout, PNG/SVG; không có số liệu hardcode thay kết quả crawl |
+| `benchmark-tables` | Yêu cầu benchmark [2, 12], pandas [15] | Điều kiện nghiệm thu, units, mẫu số và phân biệt local/Colab/cold/cache |
+| `report-export`, markdown methods/submission | shutil/archive [14], IPython [17], Colab files API [18], đề [1, 2] | Report README/ZIP và hướng dẫn interpret/backup/nộp Book |
 
-Trên máy hoặc Colab, ngoài phần code được đưa lên GitHub:
+### 7.3. Kết luận về code sao chép và mức bằng chứng
 
-```text
-data/
-├── manifest.json        # Danh sách bài/phiên bản và trạng thái
-├── 1810-04805/
-│   ├── metadata.json
-│   ├── references.json
-│   └── sources/
-│       ├── v1/
-│       └── v2/
-└── 1907-11692/
-    ├── metadata.json
-    ├── references.json
-    └── sources/v1/
-logs/
-metrics/
-```
+Rà source hiện tại, comment attribution, imports/calls của cả 8 file và lịch sử commit có sẵn chưa xác định được một block code cụ thể mang attribution copy/adapt từ repository hoặc bài viết ngoài project. **Đây không phải chứng nhận rằng mọi dòng code lịch sử đều nguyên bản**: repository không lưu đầy đủ lịch sử các nguồn mà từng thành viên có thể đã đọc.
 
-Hai mã bài trên chỉ minh họa cấu trúc. Không commit corpus, gói tải, log, khóa API hoặc output notebook chứa dữ liệu cào hàng loạt vào repository code. Notebook code vẫn được giữ, nhưng làm sạch output trước khi commit nếu chứa dữ liệu đó. Repository báo cáo riêng có cấu hình sách và nội dung báo cáo.
+Các đoạn triển khai/chỉnh sửa trong phiên làm việc hiện tại được viết theo yêu cầu project và đặc tả/API đã đối chiếu; không có block ngoài nào được nhận diện để khai báo là copy nguyên văn. Các citations bổ sung trong lần rà soát toàn `/src` là **tài liệu đối chiếu API đang dùng**, không phải bằng chứng code đã được chép từ những trang đó. Nếu thành viên xác nhận một đoạn cũ từng copy/adapt, bổ sung attribution đúng nguồn và license vào ngay hàm/đoạn đó và mục này.
 
-## 6. Kế hoạch thực hiện từng việc
+Quyết định scope, checkpoint, receipts, TTL, tách stores và điều kiện trạng thái là thiết kế của project, không phải yêu cầu bắt buộc của arXiv. Comment ở từng module và notebook dẫn về mục này để người đọc tìm nguồn của đúng phần code.
 
-### Việc 1 — Chốt đầu vào và chuẩn bị môi trường
+## 8. Phạm vi, phân công và thứ tự thực hiện
 
-**Làm gì:** lấy khoảng mã chính thức từ Moodle/trợ giảng; tạo môi trường Python và notebook.
+Khánh phụ trách discovery/OAI, Khang source, Nguyên S2 references, Danh pipeline/metrics/notebook/báo cáo. Input/output và checklist từng người nằm ở [doc phân công](./PHAN_CONG_MILESTONE_1_4_NGUOI.md).
 
-**Làm bằng gì:** Python, Jupyter, pip; Colab cho benchmark cuối.
+Danh có assignment `2606.15734`–`2606.20733` (5.000 ID); preset notebook thử 100 ID đến `15833`. Thử một ID thì `end_id=15734`. Ba phạm vi còn lại cần TA/nhóm cung cấp, không suy đoán. Ranges gồm cả hai đầu; qua tháng cần ID cuối tháng đã xác minh.
 
-**Làm thế nào:**
+1. Kiểm requirements/contracts và notebook kernel mới; suite lịch sử đã chạy đạt trước khi dọn.
+2. Thử cold một ID thật, audit và so nguồn độc lập.
+3. Crawl đủ assignment, resume phần thiếu, sao lưu corpus/report theo run.
+4. Tổng hợp toàn nhóm, benchmark cold Colab CPU.
+5. Build/publish Book, kiểm links, nộp Moodle; giữ corpus cho M2/M3.
 
-- [ ] Ghi lại phạm vi được giao và nguồn thông báo, tránh tự đoán bài phải làm.
-- [ ] Tạo notebook theo các ô ở mục 4.
-- [ ] Cài các thư viện cần dùng, ghi phiên bản đã chạy thành công vào requirements.txt.
-- [ ] Đặt đường dẫn corpus và cấu hình phạm vi ở đầu notebook.
-- [ ] Nếu có Semantic Scholar API key, đọc từ biến môi trường hoặc Colab Secrets, không ghi vào code/notebook.
+## 9. Tiến độ và bằng chứng hiện tại
 
-**Đầu ra:** notebook mở được; import thư viện thành công; cấu hình phạm vi rõ ràng. Nếu chưa có phạm vi chính thức, chỉ chạy thử bằng danh sách bài minh họa và ghi đúng nhãn thử nghiệm.
+Code OAI đã triển khai, không còn là prototype. Lượt cold thật mới sau khi dọn dữ liệu: `2606.15734`, run `59dc98b6-be0c-4c7d-b10f-96bb5606fa5f`, success trong **168,3166 giây**; 46 OAI requests, không cache hits; đủ v1/v2 và 69 reference rows (45 arXiv có ngày v1, 24 non-arXiv). Có 17 non-arXiv rows thiếu metadata nguồn được giữ null/đếm riêng.
 
-### Việc 2 — Tìm bài và xác định mọi phiên bản
+27 regression tests và hai kernel notebook offline/integration đã đạt; analyze dữ liệu thật không gọi mạng, 5 audit rows và ZIP CRC đạt. Corpus/report/verification từng ở `data/milestone1/one-paper/`; các artifacts này đã được xóa theo yêu cầu dọn cuối, chỉ còn số liệu lịch sử trong tài liệu. Bộ 27 tests và notebook fixtures cũng đã xóa sau lượt kiểm đạt cuối theo yêu cầu. Đây là kết quả lịch sử đã ghi, không còn script/artifact kèm checkout để chạy lại nguyên suite; khi sửa hành vi phải có kiểm chứng tương ứng mới. [Chi tiết](./OAI_RAW_HIEN_TAI.md).
 
-**Làm gì:** chuyển khoảng mã thành danh sách bài tồn tại, metadata và các phiên bản cần tải.
+Chưa crawl toàn bộ assignment, chưa benchmark Colab CPU cuối, chưa hoàn thành/publish Book và chưa nộp Moodle. Không dùng kết quả một bài để đánh dấu cả M1 hoàn thành.
 
-**Làm bằng gì:** arXiv API; có thể dùng thư viện arxiv để đọc kết quả. Chọn một đường tìm bài trước, chỉ bổ sung Kaggle/OAI-PMH khi cần.
+## 10. Tài liệu tham khảo
 
-**Làm thế nào:**
+Ngày truy cập/đối chiếu: **17/10/2026**. `n.d.` là trang không ghi ngày xuất bản cố định. Các citations là tài liệu kỹ thuật, không phải bằng chứng đã benchmark/crawl toàn corpus. Phiên bản chạy được ghi trong environment/report; không tự nâng dependencies chỉ vì trang docs mới hơn.
 
-- [ ] Truy vấn đúng phạm vi; xử lý phân trang nếu kết quả nhiều.
-- [ ] Lưu mã bài gốc và danh sách phiên bản đã xác minh. Không lấy ngày sửa mới nhất làm toàn bộ lịch sử phiên bản.
-- [ ] Tạo manifest ghi từng bài/phiên bản đang chờ, đã thành công, không có TeX hay lỗi tải.
-- [ ] Phân biệt mã bài chuẩn với tên thư mục: `1810.04805` là mã gốc, `1810-04805` là tên lưu theo gợi ý. Mã kiểu cũ như `hep-th/9901001` cần ánh xạ tên thư mục an toàn nhưng giữ nguyên mã gốc trong dữ liệu.
+1. HCMUS CS Teaching Assistants. (n.d.). *Introduction to Data Science — Project Statement*, General Requirements. [Trang gốc](https://hcmus-cs-ta.github.io/lab-book/intro-ds/statement/). Bản đối chiếu local: [ARXIV_PROJECT_FULL.md](../../ARXIV_PROJECT_FULL.md). Dùng cho yêu cầu comments, complete citations, ngôn ngữ và cách tổ chức project.
+2. HCMUS CS Teaching Assistants. (n.d.). *Project Milestone 1 — Crawling*. [Trang gốc](https://hcmus-cs-ta.github.io/lab-book/intro-ds/statement/crawling/). Dùng cho assigned-ID discovery, mọi versions, source filtering, references, statistics, Colab và Book/nộp bài.
+3. arXiv. (n.d.; mục thay đổi March 2025). *Open Archives Initiative (OAI)*. [Tài liệu chính thức](https://info.arxiv.org/help/oa/index.html). Dùng cho endpoint mới, supported metadata formats, history trong arXivRaw, datestamps và resumption tokens.
+4. Lagoze, C., Van de Sompel, H., Nelson, M., & Warner, S. (2002, June 14). *The Open Archives Initiative Protocol for Metadata Harvesting, Version 2.0*, §4.1 GetRecord. [Đặc tả OAI-PMH](https://www.openarchives.org/OAI/openarchivesprotocol.html#GetRecord). Dùng cho verb, identifier/metadataPrefix và protocol errors; ví dụ endpoint cũ trong đặc tả không được dùng làm endpoint arXiv hiện tại.
+5. arXiv. (n.d.). *Terms of Use for arXiv APIs*, Rate limits. [Quy định chính thức](https://info.arxiv.org/help/api/tou.html). Dùng cho tối đa một request mỗi ba giây, một connection và tổng các máy được kiểm soát.
+6. arXiv. (n.d.). *Media types*. [Tài liệu chính thức](https://info.arxiv.org/help/mimetypes.html). Dùng để hiểu source payload formats; whitelist `.tex`/`.bib` cụ thể đến từ đề [2].
+7. Python Software Foundation. (n.d.). *xml.etree.ElementTree — The ElementTree XML API*. [Python documentation](https://docs.python.org/3/library/xml.etree.elementtree.html). Dùng cho parse XML/namespaces; kiểm ID và version invariants do project bổ sung.
+8. Requests contributors. (n.d.). *Requests — Developer Interface*. [API documentation](https://requests.readthedocs.io/en/latest/api/). Dùng cho GET/query params, timeout, response lifecycle, streaming và exceptions; pacing/retry được project xử lý riêng.
+9. Python Software Foundation. (n.d.). *tarfile — Read and write tar archive files*. [Python documentation](https://docs.python.org/3/library/tarfile.html). Dùng cho duyệt/đọc archive members; project kiểm path/size và chỉ copy entries được phép thay vì extract toàn bộ.
+10. Allen Institute for AI. (n.d.). *Semantic Scholar Academic Graph API*, Paper Data: Get paper references. [API reference](https://api.semanticscholar.org/api-docs/graph#tag/Paper-Data/operation/get_graph_get_paper_references). Dùng cho `/references`, fields, `citedPaper`, offset/next pagination; bộ regression và lượt gọi thật kiểm request fields thực dùng.
+11. Rodolà, G., & psutil contributors. (n.d.). *psutil — Process and System Utilities for Python*, Process API. [Documentation](https://psutil.io/). Dùng cho RSS/process tree; chu kỳ lấy mẫu và công thức tổng hợp là thiết kế project.
+12. Google. (n.d.). *Colaboratory Frequently Asked Questions*. [Colab FAQ](https://research.google.com/colaboratory/faq.html). Dùng cho runtime/accelerator và tính tạm thời của VM; yêu cầu benchmark CPU-only đến từ đề [2].
+13. Python Software Foundation. (n.d.). *typing — Support for type hints*, Python 3.11 documentation. [Tài liệu typing](https://docs.python.org/3.11/library/typing.html). Đối chiếu TypedDict/Protocol/Literal/Callable và type introspection trong contracts/pipeline; runtime validation là code riêng.
+14. Python Software Foundation. (n.d.). *The Python Standard Library*, Python 3.11 documentation. [Mục lục API chuẩn](https://docs.python.org/3.11/library/index.html). Đối chiếu nhóm API hỗ trợ liệt kê ở mục 7.1: files/JSON/CSV/hash/dates/processes/threads/time/archives; không dùng link này để khai báo nguồn sao chép của một thuật toán.
+15. pandas development team. (n.d.). *Table Visualization — pandas User Guide*. [Styler documentation](https://pandas.pydata.org/docs/user_guide/style.html). Đối chiếu DataFrame/Styler.format và hiển thị bảng notebook; bảng, chỉ số và dữ liệu do project chọn.
+16. Matplotlib development team. (n.d.). *matplotlib.pyplot — Matplotlib API Reference*. [Pyplot documentation](https://matplotlib.org/stable/api/pyplot_summary.html). Đối chiếu subplots, bar/hist/plot, labels/layout và savefig PNG/SVG; không sử dụng một chart template bên ngoài đã được nhận diện.
+17. IPython development team. (n.d.). *IPython.display — API documentation*. [Display/Markdown documentation](https://ipython.readthedocs.io/en/stable/api/generated/IPython.display.html). Đối chiếu display và Markdown trong notebook; không phải nguồn của nội dung report.
+18. Google Colaboratory contributors. (n.d.). *colabtools: google.colab.userdata and google.colab.files*. [Secrets API source](https://github.com/googlecolab/colabtools/blob/main/google/colab/userdata.py), [files API source](https://github.com/googlecolab/colabtools/blob/main/google/colab/files.py). Đối chiếu gọi userdata.get và files.download từ notebook; project import package, không chép implementation của Google.
+19. Python Packaging Authority. (n.d.). *pip — Requirements File Format*. [Requirements documentation](https://pip.pypa.io/en/stable/reference/requirements-file-format/). Đối chiếu cú pháp version pins trong requirements.txt; không xác nhận environment đã cài mới/chạy đạt.
+20. Project Jupyter contributors. (n.d.). *JupyterLab Documentation*. [Tài liệu chính thức](https://jupyterlab.readthedocs.io/en/stable/). Vai trò JupyterLab trong dependency/setup notebook; không có source JupyterLab được vendored vào `/src`.
+21. IPython/Jupyter contributors. (n.d.). *IPython Kernel for Jupyter*. [ipykernel documentation](https://ipykernel.readthedocs.io/en/stable/). Vai trò kernel trong notebook/environment; project dùng package, không chép implementation kernel.
+22. Pallets Projects. (n.d.). *Jinja Documentation*. [Jinja documentation](https://jinja.palletsprojects.com/en/stable/). Dependency phục vụ pandas Styler; project không có custom Jinja template trong `/src` để gán attribution.
 
-**Đầu ra:** bảng danh sách bài và các phiên bản cần xử lý.
-
-**Kiểm tra:** chạy thử BERT phải nhận đúng v1/v2; RoBERTa có v1 ở lần kiểm tra ví dụ. Các mã này là trường hợp đối chiếu, không hardcode số phiên bản vào crawler.
-
-### Việc 3 — Tải nguồn và giữ phần văn bản
-
-**Làm gì:** tải mỗi phiên bản, nhận diện nội dung, giải nén an toàn và giữ các file cần thiết.
-
-**Làm bằng gì:** requests/urllib, pathlib, tarfile, gzip.
-
-**Làm thế nào:**
-
-- [ ] Dùng mã có phiên bản để lấy nguồn, chẳng hạn `1810.04805v1`.
-- [ ] Theo hướng dẫn trong đề, ưu tiên mirror `export.arxiv.org/src/`, có User-Agent rõ ràng và nhịp truy cập phù hợp. Kiểm tra tài liệu hiện hành khi triển khai thực tế.
-- [ ] Xác định dữ liệu là tar/gzip, văn bản TeX đơn hay dạng khác; không dựa hoàn toàn vào đuôi file.
-- [ ] Chặn đường dẫn thoát thư mục và liên kết nguy hiểm khi giải nén.
-- [ ] Giữ `.tex`, `.bib`, `.bbl` và các nguồn văn bản liên quan; bỏ ảnh nhị phân nhưng không sửa lệnh hình/bảng trong file TeX.
-- [ ] Với nguồn PDF/Word không có TeX, ghi trạng thái không có TeX, giữ metadata và bản ghi phiên bản rỗng.
-- [ ] Dọn gói tạm sau khi xác minh thành công, hoặc lưu riêng nếu cần đối chiếu và đủ dung lượng.
-
-**Đầu ra:** nguồn từng phiên bản trong thư mục riêng, có trạng thái rõ ràng.
-
-**Kiểm tra:** đủ các phiên bản, mở được văn bản, không lẫn nguồn v1/v2, không âm thầm bỏ bài thất bại.
-
-### Việc 4 — Tạo metadata.json
-
-**Làm gì:** tạo phiếu thông tin của bài đang thu thập.
-
-**Làm bằng gì:** dữ liệu arXiv và thư viện json.
-
-**Các trường tối thiểu theo đề:** tên bài dạng chuỗi, tác giả dạng danh sách chuỗi, ngày gửi dạng ISO, các ngày sửa dạng danh sách ISO; thêm nơi xuất bản nếu có. Có thể lưu thêm mã arXiv để tự mô tả dữ liệu.
-
-- [ ] Lấy đủ danh sách tác giả, không thay bằng “và cộng sự”.
-- [ ] Giữ tiếng Unicode và ngày tháng nhất quán.
-- [ ] Nơi xuất bản không có thì để thiếu/null theo schema đã ghi rõ, không tự đoán.
-- [ ] Đọc lại JSON để kiểm tra cấu trúc và kiểu dữ liệu.
-
-**Đầu ra:** mỗi bài một metadata.json.
-
-### Việc 5 — Lấy tham khảo từ Semantic Scholar
-
-**Làm gì:** hỏi dịch vụ bài hiện tại tham khảo những bài nào và lấy thông tin nhận diện chúng.
-
-**Làm bằng gì:** requests gọi Semantic Scholar Academic Graph API. Có thể dùng batch chính thức để giảm số yêu cầu; batch vẫn có thể bị giới hạn, không phải bảo đảm hết lỗi 429.
-
-**Làm thế nào:**
-
-- [ ] Gửi mã arXiv bài chính, lấy tham khảo gồm title, authors, paperId, externalIds và ngày nếu có.
-- [ ] Đảm bảo lấy hết danh sách, xử lý phân trang nếu endpoint đang dùng yêu cầu; đối chiếu tài liệu API hiện hành khi viết code.
-- [ ] Lọc tham khảo có mã arXiv để tạo references.json theo gợi ý đề. Phân biệt bị lọc vì không có mã với lỗi gọi API.
-- [ ] Bổ sung ngày gửi từ arXiv khi cần. Không gán ngày xuất bản Semantic Scholar thành ngày gửi arXiv.
-- [ ] Lưu các trường tên, danh sách tác giả, ngày gửi và mã Semantic Scholar. Dữ liệu không lấy được phải ghi thiếu rõ ràng, không bịa giá trị.
-- [ ] Với 429, tôn trọng Retry-After nếu có, chờ tăng dần và giới hạn số lần thử. Với lỗi tạm thời/mất mạng, lưu trạng thái để chạy tiếp. Phân biệt bài chưa được lập chỉ mục với bài thực sự có danh sách tham khảo rỗng.
-- [ ] Lưu nguồn gốc và thời điểm truy vấn để biết metadata bên ngoài được lấy lúc nào.
-
-**Đầu ra:** mỗi bài một references.json và trạng thái truy vấn.
-
-**Hiểu bằng ví dụ:** trong references.json của RoBERTa có mục BERT. Đây là thông tin về bài BERT mà RoBERTa trích dẫn, không phải metadata của RoBERTa.
-
-Không cần tải toàn bộ mã nguồn của mọi bài được tham khảo chỉ vì chúng xuất hiện trong references.json. Phạm vi tải nguồn vẫn là bài được giao.
-
-### Việc 6 — Ghép quy trình và cho phép chạy tiếp
-
-**Làm gì:** để notebook gọi một luồng hoàn chỉnh thay vì thao tác thủ công từng bài.
-
-**Làm bằng gì:** pipeline.py, manifest, logging.
-
-- [ ] Với mỗi bài: cập nhật metadata, xử lý từng phiên bản, lấy tham khảo, ghi trạng thái.
-- [ ] Nếu một bước lỗi, giữ các phần đã lấy được và ghi rõ phần thiếu.
-- [ ] Chạy lại bỏ qua kết quả đã xác minh, thử lại phần lỗi; không tải lại toàn bộ vô điều kiện.
-- [ ] Ghi số lần thử, loại lỗi và thời gian; không in khóa API ra log.
-- [ ] Dừng rồi chạy lại trên mẫu nhỏ để xác nhận không tạo bản trùng hoặc mất dữ liệu.
-
-**Đầu ra:** notebook chạy được từ đầu đến cuối và phục hồi sau gián đoạn. Khả năng chạy tiếp là đề xuất giúp crawler ổn định, không phải định dạng bắt buộc riêng của đề.
-
-### Việc 7 — Thống kê và benchmark
-
-**Làm gì:** tổng hợp chất lượng kho dữ liệu và hiệu năng chương trình.
-
-**Làm bằng gì:** pandas, matplotlib, time.perf_counter, psutil và cơ chế đo RAM toàn tiến trình liên quan.
-
-- [ ] Đếm bài được giao, bài tìm thấy, phiên bản dự kiến, phiên bản tải thành công và phiên bản không có TeX.
-- [ ] Định nghĩa rõ “thành công”: ví dụ đủ phiên bản khác với chỉ lấy được metadata. Báo cáo tách riêng, không gộp thành một tỷ lệ mơ hồ.
-- [ ] Đo dung lượng nguồn trước/sau bỏ ảnh trên cùng cơ sở chưa nén; ghi dung lượng gói nén riêng. Chỉ giải nén đầy đủ khi đủ đĩa, nếu không tính tổng kích thước thành viên từ archive và nêu cách đo.
-- [ ] Tính số tham khảo trung bình, tỷ lệ lấy metadata tham khảo thành công và tỷ lệ có mã arXiv; giải thích mẫu số của mỗi tỷ lệ.
-- [ ] Đo thời gian tìm bài, thời gian xử lý từng bài và toàn pipeline từ đầu đến cuối.
-- [ ] Đo RAM cao nhất/trung bình phù hợp, đỉnh dung lượng đĩa và dung lượng cuối. Nếu có tiến trình con, tính cả hệ thống.
-- [ ] Chạy benchmark cuối trên Colab CPU; ghi cấu hình, số bài, nhịp API, retry và trạng thái cache. Không dùng lần chạy đã tải sẵn để đại diện cho hiệu năng cào từ đầu.
-- [ ] Lưu kết quả số đo để notebook báo cáo đọc lại và sinh bảng/biểu đồ.
-
-**Đầu ra:** bảng thống kê, biểu đồ có nhận xét và file số đo tái sử dụng được.
-
-### Việc 8 — Báo cáo, hướng dẫn và nộp
-
-**Làm gì:** giải thích chương trình và kết quả đủ để người khác hiểu và chạy lại.
-
-**Làm bằng gì:** Jupyter Book, GitHub Pages và README của repository code.
-
-- [ ] Trong sách: trình bày mục tiêu, phạm vi bài, luồng thu thập, công cụ, cách lưu dữ liệu, lỗi và giới hạn.
-- [ ] Sinh bảng/biểu đồ lúc biên dịch sách từ các kết quả đã lưu; bổ sung nhận xét thay vì chỉ đưa số.
-- [ ] Trong README code: ghi phiên bản Python, cài thư viện, cấu hình phạm vi, đường dẫn dữ liệu, cách chạy notebook và vị trí đầu ra.
-- [ ] Ghi tài liệu tham khảo cho code/ý tưởng sử dụng; nêu rõ nguồn arXiv, Semantic Scholar và Kaggle nếu có dùng.
-- [ ] Chạy lại notebook từ kernel sạch và kiểm tra website Jupyter Book sau khi build.
-- [ ] Commit code theo tiến độ vào cùng repository; báo cáo dùng repository riêng.
-- [ ] Nộp Moodle hai link công khai: repository code và phần báo cáo Milestone 1. Không cần đưa corpus lên Hugging Face ở chặng này.
-
-**Đầu ra:** code có thể chạy lại, báo cáo truy cập được và link nộp đúng yêu cầu.
-
-## 7. Các lỗi cần chủ động kiểm tra
-
-| Tình huống | Cách xử lý mong đợi |
-|---|---|
-| Bài có nhiều phiên bản | Tải đủ, tách riêng; phiên bản lỗi không làm mất các phiên bản khác |
-| Nguồn không phải tar.gz hoặc chỉ có PDF | Nhận diện đúng; ghi không có TeX thay vì giải nén mù hoặc bỏ bài |
-| API trả 429, mất mạng, hoặc chưa tìm thấy bài | Chờ/retry có giới hạn, ghi trạng thái; không coi thất bại là danh sách rỗng |
-| Mã arXiv kiểu cũ có dấu gạch chéo | Giữ mã thật, ánh xạ đường dẫn an toàn, không tạo nhầm cấu trúc thư mục |
-| Notebook chạy lại hoặc chương trình bị ngắt | Dùng kết quả hợp lệ đã lưu, không nhân đôi dữ liệu; tiếp tục phần chưa xong |
-
-Kiểm tra các trường hợp này trên mẫu nhỏ trước khi chạy cả phạm vi. Các hàm nhận diện gói, ánh xạ mã và xử lý trạng thái nên có kiểm tra tự động nhỏ bằng dữ liệu giả lập, không gọi API thật trong mỗi lần kiểm tra.
-
-## 8. Ví dụ đã làm thật đến đâu?
-
-Chi tiết nằm trong [milestone1_demo/README.md](../../milestone1_demo/README.md).
-
-| Việc | Trạng thái |
-|---|---|
-| Kiểm tra BERT/RoBERTa trên arXiv | Đã làm |
-| Tải BERT v1/v2 và RoBERTa v1 | Đã làm, 3 bộ nguồn thật |
-| Giữ file văn bản, lưu metadata của 2 bài | Đã làm |
-| Gọi Semantic Scholar | Đã làm bằng batch sau khi gọi riêng bị 429 |
-| Lấy tham khảo BERT | 63 mục trả về, 35 mục có mã arXiv được giữ |
-| Lấy tham khảo RoBERTa | 68 mục trả về, 40 mục có mã arXiv được giữ |
-| Bổ sung ngày gửi tham khảo | Đã có cho 75 mục trong 2 file, từ 65 bài khác nhau |
-| Crawler Python/notebook chạy tự động | Chưa xây |
-| Thu thập đúng phạm vi nhóm được giao | Chưa làm vì chưa có khoảng mã chính thức |
-| Benchmark Colab và báo cáo Jupyter Book | Chưa làm |
-
-Ví dụ đã làm giúp xác nhận dữ liệu và cách lưu; không được xem là hoàn thành Milestone 1. Số liệu tham khảo phản ánh lần truy vấn này, dịch vụ có thể cập nhật về sau. Gói tải gốc trong ví dụ được giữ để đối chiếu nên tổng dung lượng thư mục gồm cả gói lẫn nguồn giải nén.
-
-## 9. Cách nối sang Milestone 2 và 3
-
-| Chặng | Lấy gì từ Milestone 1? | Việc chính tiếp theo |
-|---|---|---|
-| Milestone 2 | Nguồn từng phiên bản | Tìm đường biên dịch, tách cây nội dung, chuẩn hóa, trích/gộp tham khảo |
-| Milestone 3 | references.json, metadata và kết quả Milestone 2 | Tạo nhãn, đặc trưng, huấn luyện và đánh giá ghép tham khảo |
-
-Vì vậy nên giữ nguồn theo phiên bản, mã bài ổn định, nguồn gốc rõ ràng và dữ liệu đọc được bằng Python. Khi xuất dataset cuối ở Milestone 3, chuyển sang 7 bảng Parquet theo schema đề; chưa cần dùng Parquet làm định dạng làm việc ở Milestone 1.
-
-## 10. Thứ tự bắt đầu và điều kiện hoàn thành
-
-Thứ tự đề xuất: môi trường → một bài nhiều phiên bản → metadata → tham khảo → xử lý lỗi/chạy tiếp → mẫu vài bài → toàn phạm vi → benchmark → báo cáo/nộp.
-
-- [ ] Có phạm vi bài được giao và danh sách phiên bản rõ ràng.
-- [ ] Chương trình chạy tự động, ghi nhận đủ bài/phiên bản, cả các trường hợp không có TeX hoặc lỗi.
-- [ ] Metadata bài và tham khảo đúng kiểu, nguồn thiếu được ghi nhận; không bịa thông tin.
-- [ ] Kho nguồn sạch, tách phiên bản, giữ lệnh LaTeX cần cho Milestone 2.
-- [ ] Có thống kê chất lượng dữ liệu và số đo hiệu năng Colab CPU.
-- [ ] Code công khai, có requirements.txt và README đủ để chạy lại.
-- [ ] Jupyter Book công khai, bảng/biểu đồ sinh khi build, có giải thích và trích dẫn.
-- [ ] Nộp đúng hai link qua Moodle trước hạn trợ giảng thông báo.
-
-Kế hoạch này là tài liệu hướng dẫn triển khai; các ô chưa đánh dấu là công việc còn phải làm, không phải tuyên bố đã hoàn thành.
+Khi tham khảo thêm hoặc thay đổi cách làm, bổ sung tác giả/tổ chức, tên tài liệu, ngày/phiên bản nếu có, URL, ngày truy cập và nội dung đã áp dụng vào mục này; đồng bộ comment liên quan trong code và phần References của Book.

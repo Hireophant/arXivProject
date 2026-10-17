@@ -3,7 +3,9 @@
 Sequential callers only: do not write the same version directory concurrently.
 No TeX compilation, discovery, metadata, or manifest writes occur here.
 References: https://info.arxiv.org/help/mimetypes.html and
-https://info.arxiv.org/help/api/tou.html (checked 2026-10-15).
+https://info.arxiv.org/help/api/tou.html (checked 2026-10-17).
+Full citations and the M1 extraction policy are documented in
+docs/milestone1/KE_HOACH_MILESTONE_1.md.
 """
 
 from __future__ import annotations
@@ -198,10 +200,10 @@ def _extract_tar(path: Path, output: Path) -> tuple[int, bool]:
                 data = stream.read(member.size + 1)
             if len(data) != member.size:
                 raise _SourceError("Truncated tar member.")
-            if _is_text(data):
+            if Path(name).suffix.lower() in {".tex", ".bib"} and _is_text(data):
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(data)
-                has_tex = has_tex or _is_tex(data)
+                has_tex = has_tex or (Path(name).suffix.lower() == ".tex" and _is_tex(data))
     if not files:
         raise _SourceError("Empty source archive.")
     return before, has_tex
@@ -284,14 +286,15 @@ def _inventory(directory: Path) -> tuple[dict[str, str], int, bool]:
             raise _SourceError("Source tree contains a link.")
         if path.is_dir():
             continue
-        if not path.is_file() or path.stat().st_size > _MAX_FILE_BYTES:
+        if (not path.is_file() or path.stat().st_size > _MAX_FILE_BYTES
+                or path.suffix.lower() not in {".tex", ".bib"}):
             raise _SourceError("Invalid source tree file.")
         size += path.stat().st_size
         if size > _MAX_EXPANDED_BYTES or len(hashes) >= _MAX_MEMBERS:
             raise _SourceError("Source tree exceeds limits.")
         data = path.read_bytes()
         hashes[path.relative_to(directory).as_posix()] = hashlib.sha256(data).hexdigest()
-        has_tex = has_tex or _is_tex(data)
+        has_tex = has_tex or (path.suffix.lower() == ".tex" and _is_tex(data))
     return hashes, size, has_tex
 
 
@@ -386,7 +389,7 @@ def _cached(arxiv_id: str, version: int, target: Path) -> DownloadResult | None:
             return None
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
         result = receipt["result"]
-        if (receipt["schema_version"] != "1.0" or receipt["arxiv_id"] != arxiv_id
+        if (receipt["schema_version"] != "3.0" or receipt["arxiv_id"] != arxiv_id
                 or type(receipt["version"]) is not int or receipt["version"] != version
                 or receipt["source_url"] != f"{_URL}{arxiv_id}v{version}"
                 or receipt["source_kind"] not in _KINDS
@@ -519,7 +522,7 @@ def download_version(
                                 kind = ("gzip-" if compressed else "") + kind
                                 hashes, _, _ = _inventory(work / "prepared")
                                 result["elapsed_seconds"] = time.monotonic() - started
-                                receipt: SourceReceipt = dict(schema_version="1.0", arxiv_id=arxiv_id,
+                                receipt: SourceReceipt = dict(schema_version="3.0", arxiv_id=arxiv_id,
                                     version=version, source_url=url, source_kind=kind,
                                     result=dict(result), files_sha256=hashes)
                                 _publish(work / "prepared", target, work, version, receipt)

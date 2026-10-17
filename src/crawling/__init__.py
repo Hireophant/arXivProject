@@ -3,13 +3,18 @@
 Chỉ khai báo kiểu, không thực hiện crawler. Python >= 3.11.
 TypedDict mô tả dictionary trao đổi, KHÔNG tự kiểm tra dữ liệu lúc chạy.
 Khánh: discover; Khang: download; Nguyên: references;
-Danh: pipeline, metrics và báo cáo. Hàm nghiệp vụ đều chưa triển khai.
+Danh: pipeline, metrics và báo cáo. Các module nghiệp vụ đã triển khai.
 
 Quy ước: arxiv_id giữ mã gốc, không hậu tố v; version là int >= 1.
 Ngày dữ liệu YYYY-MM-DD (UTC), thời điểm log ISO có múi giờ; byte/int,
 giây/float. None là chưa biết, không phải 0. Path chỉ dùng ở input;
 output JSON chỉ chứa kiểu primitive, đường dẫn tương đối với data_root.
 Chuỗi lỗi không được chứa API key. Fixture chỉ để phát triển, không nộp.
+
+Typing API: https://docs.python.org/3.11/library/typing.html . Dataset columns
+come from the course statement; local runtime contracts are project decisions.
+The source/API attribution map for all src files is in section 7 of
+docs/milestone1/KE_HOACH_MILESTONE_1.md (full citations in section 10).
 """
 
 from collections.abc import Callable
@@ -22,7 +27,7 @@ class Scope(TypedDict):
 
     mode=range: ids=[], start_id/end_id là mã hiện đại cùng YYMM,
     lấy cả hai đầu. Phạm vi khác phải chuyển thành ids đã xác minh,
-    không tự suy diễn. Chưa có phạm vi chính thức của nhóm.
+    không tự suy diễn. Phạm vi từng thành viên được cấu hình trong notebook.
     """
 
     mode: Literal["ids", "range"]
@@ -40,6 +45,7 @@ class HttpPolicy(TypedDict):
     Triển khai đơn giản tuần tự: chờ service delay TRƯỚC mỗi request, kể cả
     request đầu/retry, để không gọi dồn khi chuyển discover -> download -> dates.
     Backoff/Retry-After không được làm thời gian chờ ngắn hơn service delay.
+    arxiv_delay_seconds áp dụng cho OAI-PMH arXivRaw và tải source, tối thiểu 3 s.
     """
 
     timeout_seconds: float
@@ -97,6 +103,7 @@ class DiscoveryResult(TypedDict):
     papers: list[PaperRecord]
     issues: list[DiscoveryIssue]
     elapsed_seconds: float
+    metadata_source: Literal["oai-pmh/arXivRaw"]
 
 
 class DateLookupResult(TypedDict):
@@ -104,6 +111,7 @@ class DateLookupResult(TypedDict):
 
     dates: dict[str, str | None]
     errors: dict[str, str]
+    metadata_source: Literal["oai-pmh/arXivRaw"]
 
 
 DateLookup = Callable[[list[str]], DateLookupResult]
@@ -145,21 +153,44 @@ class ReferenceMetadata(TypedDict):
     publication_date: str | None
 
 
+class CrawledReference(ReferenceMetadata):
+    """Mọi reference local, kể cả không có arXiv ID hoặc S2 không rõ bài đích.
+
+    arxiv_id là base ID gốc, None nếu không có. Ngày gửi chỉ tra cho arXiv;
+    non-arXiv có submission_date=None là bình thường. Giữ external identifiers.
+    """
+
+    arxiv_id: str | None
+    year: int | None
+    venue: str | None
+    external_ids: dict[str, str | int | None]
+
+
 class ReferenceResult(TypedDict):
-    """total_references trước lọc; kept_references=len(references).
+    """all_references giữ mọi mục crawled; references là dict arXiv để matching.
+
+    total_references là số hàng API khi đủ trang, None nếu chưa đủ.
+    kept_references=len(references) đếm ID arXiv duy nhất; thiếu ngày và
+    incomplete_references chỉ xét pool arXiv. incomplete_non_arxiv_references
+    đếm mục non-arXiv thiếu title/authors/S2 ID, không đòi ngày gửi; đây là
+    chỉ báo chất lượng dữ liệu nguồn, không tự biến harvest đủ trang thành partial.
 
     API lỗi/not_found: total=None, references={}, kept=0, KHÔNG ghi đè file cũ.
     success với {} chỉ khi xác minh danh sách hợp lệ (có thể không có arXiv).
-    partial nếu thiếu trang, thiếu trường, hoặc xung đột metadata chưa giải quyết.
+    partial nếu thiếu trang, thiếu trường bắt buộc ở pool arXiv, hoặc xung đột
+    metadata chưa giải quyết. Giữ nguyên null của non-arXiv, không tự đoán.
     """
 
     arxiv_id: str
+    metadata_source: Literal["oai-pmh/arXivRaw"]
     status: Literal["success", "partial", "not_found", "failed"]
     references: dict[str, ReferenceMetadata]
+    all_references: list[CrawledReference]
     total_references: int | None
     kept_references: int
     missing_submission_dates: int
     incomplete_references: int
+    incomplete_non_arxiv_references: int
     pagination_complete: bool
     retrieved_at: str
     elapsed_seconds: float
@@ -177,7 +208,7 @@ class SourceReceipt(TypedDict):
     Receipt không tính vào số byte/file nguồn, nhưng tính vào dung lượng đĩa.
     """
 
-    schema_version: Literal["1.0"]
+    schema_version: Literal["3.0"]
     arxiv_id: str
     version: int
     source_url: str
@@ -189,14 +220,18 @@ class SourceReceipt(TypedDict):
 class ReferenceReceipt(TypedDict):
     """Nguyên ghi .references_receipt.json cạnh references.json, sau file dữ liệu.
 
-    references_sha256 là hash byte file UTF-8 đã lưu; cache chỉ success, đúng
-    ID/schema/hash và schema nội dung. Giữ retrieved_at gốc khi dùng cache.
+    references_sha256 và all_references_sha256 xác minh cả hai file UTF-8;
+    cache chỉ success, đúng ID/schema/hash và nội dung. Giữ retrieved_at gốc.
     """
 
-    schema_version: Literal["1.0"]
+    schema_version: Literal["3.0"]
+    metadata_source: Literal["oai-pmh/arXivRaw"]
+    endpoint: Literal["https://oaipmh.arxiv.org/oai"]
+    metadata_prefix: Literal["arXivRaw"]
     arxiv_id: str
     result: ReferenceResult
     references_sha256: str
+    all_references_sha256: str
 
 
 class PaperState(TypedDict):
@@ -216,7 +251,8 @@ class PaperState(TypedDict):
 class Manifest(TypedDict):
     """Chỉ pipeline ghi manifest; keys papers giữ ID gốc, path nằm trong data_root."""
 
-    schema_version: Literal["1.0"]
+    schema_version: Literal["3.0"]
+    metadata_source: Literal["oai-pmh/arXivRaw"]
     run_id: str
     scope: Scope
     discovery: DiscoveryResult | None
@@ -282,6 +318,9 @@ class CorpusSummary(TypedDict):
     reference_count_denominator: int
     average_reference_completeness_rate: float | None
     reference_completeness_denominator: int
+    crawled_reference_rows: int
+    arxiv_reference_rows: int
+    non_arxiv_reference_rows: int
     average_source_bytes_before: float | None
     average_source_bytes_after: float | None
     source_size_denominator: int
@@ -290,6 +329,15 @@ class CorpusSummary(TypedDict):
     paper_size_denominator: int
     average_paper_processing_seconds: float | None
     paper_time_denominator: int
+
+
+class MetadataStats(TypedDict):
+    """Network attempts include retries; memory cache reuse is inside this run."""
+
+    metadata_source: Literal["oai-pmh/arXivRaw"]
+    network_requests: int
+    disk_cache_hits: int
+    memory_cache_hits: int
 
 
 class RunResult(TypedDict):
@@ -301,31 +349,7 @@ class RunResult(TypedDict):
     metrics_path: str
     summary: CorpusSummary
     benchmark: BenchmarkResult
-
-
-class DiscoverCallable(Protocol):
-    """Khuôn KIỂU HÀM discovery, không phải hàm mock hay crawler.
-
-    Hàm được truyền vào pipeline phải nhận scope và keyword policy, trả
-    DiscoveryResult. Thường dùng discover_papers thật; nếu nhóm viết hàm giả
-    để kiểm tra, hàm giả cũng phải có chữ ký này. Không tạo instance lớp này.
-    """
-
-    def __call__(self, scope: Scope, *, policy: HttpPolicy) -> DiscoveryResult:
-        """Chỉ prototype chữ ký dependency, không xử lý."""
-        raise NotImplementedError
-
-
-class DatesCallable(Protocol):
-    """Khuôn kiểu hàm tra ngày: ids + keyword policy -> DateLookupResult.
-
-    Không gọi API, không cung cấp dữ liệu giả. partial gắn policy vào hàm thật
-    để người 3 chỉ cần gọi date_lookup(ids), phù hợp kiểu DateLookup.
-    """
-
-    def __call__(self, ids: list[str], *, policy: HttpPolicy) -> DateLookupResult:
-        """Chỉ prototype chữ ký dependency, không xử lý."""
-        raise NotImplementedError
+    metadata_stats: MetadataStats
 
 
 class DownloadCallable(Protocol):

@@ -1,4 +1,9 @@
-"""Corpus statistics and observed resource measurements; no network access."""
+"""Corpus statistics and observed resource measurements; no network access.
+
+Process-tree RSS uses psutil's Process.children and Process.memory_info APIs:
+https://psutil.io/ . Full citations and denominator/measurement decisions are
+documented in docs/milestone1/KE_HOACH_MILESTONE_1.md.
+"""
 
 import csv
 import json
@@ -55,6 +60,12 @@ def collect_resource_samples(
 
 
 def summarize_corpus(manifest: Manifest) -> CorpusSummary:
+    """Compute rates with explicit denominators; unknown measurements stay None.
+
+    Source coverage includes validated no_tex records, while paper_success_rate
+    counts papers with TeX in every version. Reference completeness describes
+    the arXiv matching pool; non-arXiv quality counts are reported separately.
+    """
     states = list(manifest['papers'].values())
     result = dict(papers_discovered=len(states), full_source_papers=0, versions_expected=0)
     for status in ('success', 'no_tex', 'failed', 'pending'):
@@ -62,6 +73,7 @@ def summarize_corpus(manifest: Manifest) -> CorpusSummary:
     for status in ('success', 'partial', 'failed', 'not_found', 'pending'):
         result[f'reference_jobs_{status}'] = 0
     sizes, paper_sizes, counts, completeness, times = [], [], [], [], []
+    result.update(crawled_reference_rows=0, arxiv_reference_rows=0, non_arxiv_reference_rows=0)
     for state in states:
         downloads = [state['downloads'].get(str(v)) for v in state['record']['versions']]
         result['versions_expected'] += len(downloads)
@@ -76,6 +88,10 @@ def summarize_corpus(manifest: Manifest) -> CorpusSummary:
         if full and len(paired) == len(downloads):
             paper_sizes.append(tuple(map(sum, zip(*paired))))
         refs = state['references']
+        if refs:
+            result['crawled_reference_rows'] += len(refs['all_references'])
+            result['arxiv_reference_rows'] += sum(r['arxiv_id'] is not None for r in refs['all_references'])
+            result['non_arxiv_reference_rows'] += sum(r['arxiv_id'] is None for r in refs['all_references'])
         result['reference_jobs_' + (refs['status'] if refs else 'pending')] += 1
         if refs and refs['pagination_complete']:
             if refs['total_references'] is not None:
@@ -108,6 +124,11 @@ def summarize_benchmark(
     final_disk_bytes: int, environment: str, cpu_only: bool,
     cache_mode: str, sampling_interval_seconds: float,
 ) -> BenchmarkResult:
+    """Report observed sample peaks/mean RSS and separately measured final disk.
+
+    Sampling can miss brief peaks. Missing samples remain None, not zero; wall
+    time is measured by the pipeline rather than summed from individual tasks.
+    """
     if cache_mode not in ('cold', 'resume', 'mixed'):
         raise ValueError('Invalid cache_mode')
     if sampling_interval_seconds <= 0 or wall_seconds < 0 or final_disk_bytes < 0:
@@ -126,17 +147,17 @@ def export_report_data(manifest: Manifest, benchmark: BenchmarkResult, output_di
     for name, value in [('summary', summarize_corpus(manifest)), ('benchmark', benchmark)]:
         (output_dir / f'{name}.json').write_text(json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False), encoding='utf-8')
     (output_dir / 'run_id.txt').write_text(manifest['run_id'] + '\n', encoding='utf-8')
-    papers, versions, references = [], [], []
+    papers, versions, references, all_references = [], [], [], []
     for arxiv_id, state in manifest['papers'].items():
         base = dict(run_id=manifest['run_id'], arxiv_id=arxiv_id)
         refs = state['references']
         statuses = [(d['status'] if d else 'pending') for d in state['downloads'].values()]
-        paper = dict(base, metadata_path=state['metadata_path'], elapsed_seconds=state['elapsed_seconds'],
+        paper = dict(base, metadata_source=manifest['metadata_source'], metadata_path=state['metadata_path'], elapsed_seconds=state['elapsed_seconds'],
                      source_status='success' if statuses and all(s == 'success' for s in statuses) else 'incomplete',
                      reference_status=refs['status'] if refs else 'pending', versions_expected=len(statuses))
         for status in ('success', 'no_tex', 'failed', 'pending'):
             paper['versions_' + status] = statuses.count(status)
-        for key in ('total_references', 'kept_references', 'incomplete_references', 'missing_submission_dates'):
+        for key in ('total_references', 'kept_references', 'incomplete_references', 'incomplete_non_arxiv_references', 'missing_submission_dates'):
             paper[key] = refs[key] if refs else None
         papers.append(paper)
         for version in state['record']['versions']:
@@ -145,16 +166,21 @@ def export_report_data(manifest: Manifest, benchmark: BenchmarkResult, output_di
                                  **({} if item else {'version': version, 'status': 'pending'})))
         if refs:
             for key, metadata in refs['references'].items():
-                references.append(dict(base, reference_arxiv_id=key, **metadata))
-    from . import DownloadResult, ReferenceMetadata
+                reference_id = key if '/' in key else key.replace('-', '.')
+                references.append(dict(base, reference_arxiv_id=reference_id, **metadata))
+            for metadata in refs['all_references']:
+                all_references.append(dict(base, reference_arxiv_id=metadata['arxiv_id'],
+                                           **{k: v for k, v in metadata.items() if k != 'arxiv_id'}))
+    from . import CrawledReference, DownloadResult, ReferenceMetadata
     headers = {
-        'papers': ['run_id', 'arxiv_id', 'metadata_path', 'elapsed_seconds', 'source_status', 'reference_status',
+        'papers': ['run_id', 'arxiv_id', 'metadata_source', 'metadata_path', 'elapsed_seconds', 'source_status', 'reference_status',
                    'versions_expected', 'versions_success', 'versions_no_tex', 'versions_failed', 'versions_pending',
-                   'total_references', 'kept_references', 'incomplete_references', 'missing_submission_dates'],
+                   'total_references', 'kept_references', 'incomplete_references', 'incomplete_non_arxiv_references', 'missing_submission_dates'],
         'versions': ['run_id', *DownloadResult.__annotations__],
         'references': ['run_id', 'arxiv_id', 'reference_arxiv_id', *ReferenceMetadata.__annotations__],
+        'references_all': ['run_id', 'arxiv_id', 'reference_arxiv_id', *[k for k in CrawledReference.__annotations__ if k != 'arxiv_id']],
     }
-    for name, rows in [('papers', papers), ('versions', versions), ('references', references)]:
+    for name, rows in [('papers', papers), ('versions', versions), ('references', references), ('references_all', all_references)]:
         with (output_dir / f'{name}.csv').open('w', encoding='utf-8', newline='') as stream:
             writer = csv.DictWriter(stream, fieldnames=headers[name])
             writer.writeheader()
