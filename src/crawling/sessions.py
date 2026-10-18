@@ -15,7 +15,7 @@ from pathlib import Path, PurePosixPath
 import re
 import shutil
 import stat
-from uuid import uuid4
+from uuid import UUID, uuid4
 import zipfile
 
 from .backup import _sha256
@@ -90,6 +90,67 @@ def _write(path: Path, value: dict) -> None:
         raise OSError('Published retry state could not be verified.')
 
 
+def completed_sources(state: dict) -> dict[str, str]:
+    """Replay the append-only receipt ledger; later failures never erase success.
+
+    Also migrates old v1 queues without inventing completion for unbacked IDs.
+    Each ID has one chosen verified source, even across checkpoints and retries.
+    """
+    result = {}
+    for item in state['backups']:
+        for identifier in item['completed_ids']:
+            result[identifier] = item['receipt_path']
+    return result
+
+
+def progress(state_path: Path, *, member: str, assignment_scope: dict) -> dict:
+    """Read-only startup overview: saved completion, pending and next unseen ID."""
+    assigned = scope_ids(assignment_scope)
+    state = _read(Path(state_path), member)
+    if state.get('assignment_ids', assigned) != assigned:
+        raise ValueError('Full assignment changed; keep the saved member range.')
+    seen = set(state['pending_ids'])
+    for entry in state['backups']:
+        seen.update(entry['requested_ids'])
+    if not seen.issubset(assigned):
+        raise ValueError('Saved work contains IDs outside this member assignment.')
+    completed = completed_sources(state)
+    pending = [i for i in state['pending_ids'] if i not in completed]
+    unseen = [i for i in assigned if i not in seen]
+    return dict(member=member, total=len(assigned), completed=len(set(assigned) & completed.keys()),
+                pending=len(pending), unseen=len(unseen),
+                next_new_id=unseen[0] if unseen else None,
+                pending_ids=pending, unseen_ids=unseen,
+                last_saved_id=next((b['completed_ids'][-1] for b in reversed(state['backups']) if b['completed_ids']), None))
+
+
+def plan_session(state_path: Path, *, member: str, assignment_scope: dict,
+                 new_limit: int, retry_limit: int = 40, retry_only: bool = False) -> dict:
+    """Select N unseen IDs plus bounded retry work; never reschedule saved success."""
+    if (type(new_limit) is not int or new_limit < 1 or type(retry_limit) is not int
+            or retry_limit < 0 or type(retry_only) is not bool):
+        raise ValueError('New limit must be positive and retry limit nonnegative.')
+    info = progress(state_path, member=member, assignment_scope=assignment_scope)
+    retries = info['pending_ids'][:retry_limit]
+    new = [] if retry_only else info['unseen_ids'][:new_limit]
+    selected = list(dict.fromkeys([*retries, *new]))
+    if not selected:
+        return dict(ticket=None, member=member, scope=None, requested_ids=[], new_ids=[],
+                    retry_ids=[], deferred_ids=info['pending_ids'], sources={}, progress_before=info)
+    path = Path(state_path)
+    state = _read(path, member)
+    state['assignment_ids'] = scope_ids(assignment_scope)
+    _write(path, state)
+    plan = prepare_session(path, member=member,
+                           scope=dict(mode='ids', ids=selected, start_id=None, end_id=None), extend=False)
+    plan['assignment_scope'] = deepcopy(assignment_scope)
+    plan['progress_before'] = {k:v for k,v in info.items() if k not in ('pending_ids','unseen_ids')}
+    state = _read(path, member)
+    state.setdefault('plans', []).append({k:deepcopy(plan[k]) for k in ('ticket','new_ids','retry_ids','requested_ids')})
+    _write(path, state)
+    return plan
+
+
 def prepare_session(state_path: Path, *, member: str, scope: dict, extend: bool = True) -> dict:
     """Register work durably; cold sessions prepend pending IDs to the new scope.
 
@@ -103,20 +164,47 @@ def prepare_session(state_path: Path, *, member: str, scope: dict, extend: bool 
     requested = scope_ids(scope)
     state = _read(path, member)
     before = state['pending_ids']
+    known = set(before)
+    for entry in state['backups']:
+        known.update(entry['requested_ids'])
     combined = list(dict.fromkeys([*before, *requested])) if extend else requested
     actual_scope = (dict(mode='ids', ids=combined, start_id=None, end_id=None)
                     if extend and before else deepcopy(scope))
     plan = dict(ticket=str(uuid4()), member=member, state_path=str(path.resolve()),
                 backup_root=str(path.resolve().parent.parent), input_scope=deepcopy(scope),
                 scope=actual_scope, requested_ids=combined,
-                retry_ids=[i for i in combined if i in before],
-                new_ids=[i for i in requested if i not in before],
+                retry_ids=[i for i in combined if i in known],
+                new_ids=[i for i in requested if i not in known],
                 deferred_ids=[i for i in before if i not in combined],
                 sources={i: state['sources'][i] for i in combined if i in state['sources']})
     state['pending_ids'] = list(dict.fromkeys([*before, *requested]))
     state['active_session'] = plan['ticket']
     _write(path, state)
     return plan
+
+
+def locate_receipt(value: str, allowed_root: Path) -> Path:
+    """Resolve a copied member tree without following old machine/Drive paths.
+
+    Only the known run UUID/attempt/receipt layout may be rebased. Keep each
+    member's backup tree intact when collecting four personal Drives for Book.
+    """
+    root = Path(allowed_root).resolve()
+    path = Path(value).resolve()
+    if path.is_relative_to(root):
+        return path
+    parts = value.replace('\\','/').split('/')
+    if len(parts)<3 or parts[-1]!='backup_receipt.json':
+        raise ValueError('Unrecognized portable backup receipt path.')
+    if str(UUID(parts[-3])) != parts[-3]:
+        raise ValueError('Portable backup run ID is invalid.')
+    if not re.fullmatch(r'\d{8}T\d{6}Z-[0-9a-f]{8}',parts[-2]):
+        raise ValueError('Portable backup attempt name is invalid.')
+    tail = parts[-4:] if len(parts)>=4 and parts[-4] in ('checkpoints','session-reports') else parts[-3:]
+    path = root.joinpath(*tail).resolve()
+    if not path.is_relative_to(root):
+        raise ValueError('Portable backup path escapes its member folder.')
+    return path
 
 
 def _receipt(path: Path, allowed_root: Path) -> dict:
@@ -149,8 +237,9 @@ def seed_pending(plan: dict, root: Path) -> int:
         grouped.setdefault(receipt_path, []).append(identifier)
     copied = 0
     for receipt_path, identifiers in grouped.items():
-        receipt = _receipt(Path(receipt_path), Path(plan['backup_root']))
-        archive = Path(receipt_path).resolve().parent / 'corpus.zip'
+        receipt_file = locate_receipt(receipt_path,Path(plan['backup_root']))
+        receipt = _receipt(receipt_file, Path(plan['backup_root']))
+        archive = receipt_file.parent / 'corpus.zip'
         expected = receipt['archives']['corpus']
         if archive.stat().st_size != expected['bytes'] or _sha256(archive) != expected['sha256']:
             raise OSError('Retry corpus ZIP does not match its backup receipt.')
@@ -177,7 +266,24 @@ def seed_pending(plan: dict, root: Path) -> int:
     return copied
 
 
-def finish_session(state_path: Path, plan: dict, manifest: dict, backup: dict, *, invalid_ids=()) -> dict:
+def successful_ids(manifest: dict, invalid_ids=()) -> set[str]:
+    """Operational completion, excluding known discovery/artifact audit failures."""
+    invalid = set(invalid_ids)
+    invalid.update(i['arxiv_id'] for i in (manifest.get('discovery') or {}).get('issues', []))
+    done = set()
+    for identifier in scope_ids(manifest['scope']):
+        paper = manifest['papers'].get(identifier)
+        if not paper or identifier in invalid:
+            continue
+        versions = paper['record']['versions']
+        if (versions and all((paper['downloads'].get(str(v)) or {}).get('status') in ('success', 'no_tex')
+                             for v in versions)
+                and (paper.get('references') or {}).get('status') == 'success'):
+            done.add(identifier)
+    return done
+
+
+def finish_session(state_path: Path, plan: dict, manifest: dict, backup: dict, *, invalid_ids=(), final=True) -> dict:
     """Acknowledge only complete, audited IDs in a verified archived run.
 
     Missing/failed discovery, source, references, or failed integrity audit all
@@ -192,7 +298,9 @@ def finish_session(state_path: Path, plan: dict, manifest: dict, backup: dict, *
         return state
     if state['active_session'] != plan['ticket']:
         raise ValueError('A newer session owns this member queue; old completion rejected.')
-    if manifest['scope'] != plan['scope'] or backup['run_id'] != manifest['run_id']:
+    covered = scope_ids(manifest['scope'])
+    if ((final and manifest['scope'] != plan['scope'])
+            or not set(covered).issubset(plan['requested_ids']) or backup['run_id'] != manifest['run_id']):
         raise ValueError('Retry completion belongs to a different run/scope.')
     receipt_path = Path(backup['receipt_path']).resolve()
     receipt = _receipt(receipt_path, Path(plan['backup_root']))
@@ -200,26 +308,43 @@ def finish_session(state_path: Path, plan: dict, manifest: dict, backup: dict, *
         raise ValueError('Retry backup receipt belongs to a different run.')
     if any(not (receipt_path.parent/e['filename']).is_file() for e in receipt['archives'].values()):
         raise OSError('Retry backup archive is missing.')
-    invalid = set(invalid_ids)
-    invalid.update(i['arxiv_id'] for i in (manifest.get('discovery') or {}).get('issues', []))
-    done = set()
-    for identifier in plan['requested_ids']:
-        paper = manifest['papers'].get(identifier)
-        if not paper or identifier in invalid:
-            continue
-        versions = paper['record']['versions']
-        if (versions and all((paper['downloads'].get(str(v)) or {}).get('status') in ('success', 'no_tex')
-                             for v in versions)
-                and (paper.get('references') or {}).get('status') == 'success'):
-            done.add(identifier)
-    state['pending_ids'] = [i for i in state['pending_ids'] if i not in done]
+    if any(b['receipt_path'] == str(receipt_path) for b in state['backups']):
+        return state
+    done = successful_ids(manifest, invalid_ids)
+    still_pending = set(state['pending_ids']) - done
+    # Failed retries rotate to the tail, so permanently missing upstream data
+    # cannot starve deferred IDs when a per-session retry limit is configured.
+    state['pending_ids'] = ([i for i in state['pending_ids'] if i in still_pending and i not in covered]
+                            + [i for i in covered if i in still_pending])
     state['sources'] = {i: source for i, source in state['sources'].items() if i not in done}
-    for identifier in plan['requested_ids']:
+    for identifier in covered:
         if identifier in state['pending_ids']:
             state['sources'][identifier] = str(receipt_path)
     state['backups'].append(dict(run_id=manifest['run_id'], receipt_path=str(receipt_path),
-                                 requested_ids=plan['requested_ids'], completed_ids=sorted(done)))
-    state['last_completed_session'] = plan['ticket']
-    state['active_session'] = None
+                                 requested_ids=covered, completed_ids=sorted(done),
+                                 kind='final' if final else 'checkpoint'))
+    if final:
+        state['last_completed_session'] = plan['ticket']
+        state['active_session'] = None
     _write(path, state)
     return state
+
+
+def register_final_report(plan: dict, backup: dict) -> None:
+    """Record a small final report without pointing corpus recovery at its stub.
+
+    Each paper's recoverable bytes were already committed by a checkpoint.
+    This report-only bundle contains a manifest stub in corpus.zip, so it MUST
+    NOT acknowledge papers or replace their source-archive pointers.
+    """
+    path = Path(plan['state_path'])
+    state = _read(path, plan['member'])
+    if state['active_session'] != plan['ticket']:
+        raise ValueError('A newer session owns the queue.')
+    receipt = _receipt(Path(backup['receipt_path']), Path(plan['backup_root']))
+    if receipt['run_id'] != backup['run_id'] or receipt['archives'] != backup['archives']:
+        raise ValueError('Final report receipt mismatch.')
+    if not any(b['receipt_path'] == backup['receipt_path'] for b in state['backups']):
+        state['backups'].append(dict(run_id=backup['run_id'], receipt_path=backup['receipt_path'],
+                                     requested_ids=plan['requested_ids'], completed_ids=[], kind='final_report'))
+        _write(path, state)

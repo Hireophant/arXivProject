@@ -19,13 +19,19 @@ from . import BenchmarkResult, CorpusSummary, Manifest, ResourceSample
 def _disk_bytes(root: Path) -> int:
     total = 0
     def fail(exc):
-        raise exc
+        if not isinstance(exc, FileNotFoundError):
+            raise exc
     for directory, dirs, files in os.walk(root, followlinks=False, onerror=fail):
         dirs[:] = [d for d in dirs if not (Path(directory) / d).is_symlink()]
         for name in files:
             path = Path(directory) / name
             if not path.is_symlink():
-                total += path.stat().st_size
+                try:
+                    total += path.stat().st_size
+                except FileNotFoundError:
+                    # Background uploads delete verified staging directories.
+                    # Sampling is a live observation, not an archive inventory.
+                    pass
     return total
 
 

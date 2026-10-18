@@ -10,7 +10,7 @@ Không khôi phục Query API/Atom/HTML/Kaggle discovery hoặc mock metadata v�
 
 ## 2. Leader chuẩn bị và thành viên cài môi trường
 
-Leader cung cấp code revision, phân công bốn người, range TA giao từng người và thông tin report repo. Danh có `2606.15734`–`2606.20733`; ba range khác vẫn cần được xác nhận. Không tự bịa range hoặc số phiên bản.
+Leader cung cấp code revision, phân công bốn người, range TA giao từng người và thông tin report repo. Cả bốn range đã ghi đúng từ ảnh TA trong assignments.py, mỗi người 5.000 ID; mốc cuối tháng đã đối chiếu OAI. Không tự bịa range hoặc số phiên bản.
 
 Tạo môi trường theo `environment.yml` hoặc `src/requirements.txt`, Python >= 3.11; mở notebook chung [milestone1.ipynb](../../src/notebooks/milestone1.ipynb). Chọn đúng kernel. [Hướng dẫn chạy Windows/Colab](./CHAY_VA_KIEM_TRA_WINDOWS.md) mô tả cấu hình cold/resume/analyze.
 
@@ -32,7 +32,7 @@ Notebook gọi nghiệp vụ từ `.py`; không chép crawler riêng vào cells.
 
 27 regression tests và hai notebook kernels đã đạt trước khi dọn. Theo yêu cầu, thư mục tests, toàn bộ data/output tạm và environment local kiểm thử đã xóa; checkout không cung cấp các script test cũ. Xem kết quả lịch sử trong kế hoạch.
 
-Lần chạy mới: mở notebook GitHub trên Colab CPU, thử một ID development với cold root mới, kiểm audit và so nguồn độc lập rồi mới tăng scope. Notebook preset hiện là 100 ID Danh, không phải một ID. [Hướng dẫn Colab từng bước](./CHAY_VA_KIEM_TRA_WINDOWS.md#7-chạy-lại-colab-từ-bản-github-vừa-push).
+Lần chạy mới: mở notebook GitHub trên Colab CPU, thử một ID development với cold root mới, kiểm audit và so nguồn độc lập rồi mới tăng scope. Full assignment không thay đổi; NEW_PAPERS_PER_SESSION mặc định100, đặt1 để smoke test hoặc200 mỗi lượt sau. Không sửa endpoints mỗi lượt. [Hướng dẫn Colab từng bước](./CHAY_VA_KIEM_TRA_WINDOWS.md#7-chạy-lại-colab-từ-bản-github-vừa-push).
 
 Giữ delay tối thiểu arXiv 3 giây, mặc định 3,1 giây; cả nhóm điều phối tuần tự vì giới hạn tính chung các máy. 429/503 có thể xảy ra, không giảm nhịp hoặc đổi sang metadata route cũ để né lỗi.
 
@@ -63,9 +63,12 @@ Thử thật một bài đã thành công trước đợt dọn; corpus lịch s
 
 ## 9. Backup cuối lượt trên Colab
 
-SAVE_TO_DRIVE mặc định bật ở Colab. Cấp quyền ở cell Connect Drive đầu phiên, trước collection; giữ folder có đủ corpus.zip, report.zip và backup_receipt.json. Chỉ coi copy đã được kiểm toàn vẹn khi thấy Drive backup VERIFIED; vẫn cần đọc status/audit để đánh giá corpus. Lỗi Drive thì chạy lại riêng cell backup; không crawl lại. Backup này chạy cuối lượt, không checkpoint Drive giữa chừng. Tham khảo và implementation được ghi trong kế hoạch.
+SAVE_TO_DRIVE mặc định bật ở Colab. Cấp quyền ở cell Connect Drive đầu phiên, trước collection; giữ folder có đủ corpus.zip, report.zip và backup_receipt.json. Chỉ coi copy đã được kiểm toàn vẹn khi thấy Drive backup VERIFIED; vẫn cần đọc status/audit để đánh giá corpus. Lỗi Drive thì chạy lại riêng cell backup; không crawl lại. Ngoài full backup cuối lượt, pipeline có background checkpoint mỗi40 bài và raw final report độc lập cell giao diện; source thật nằm ở checkpoints/full backup, session-reports corpus ZIP chỉ là manifest stub. Tham khảo và implementation được ghi trong kế hoạch.
 
 
 ### Retry qua nhiều phiên
 
-Giữ đúng member, thứ tự bốn dòng và Drive backup root. Mỗi phiên cold nhập đoạn ID mới; AUTO_RETRY_FROM_DRIVE tự thêm ID còn lỗi của chính member vào đầu scope, dùng lại source phiên bản tốt từ ZIP đã verified. Không xóa retry-state hoặc ZIP cũ. Chỉ một runtime/member; phiên sau có thể xử lý hơn số ID mới vì có retry. Source/ref/metadata/audit còn lỗi thì chưa bỏ queue; chỉ acknowledge sau backup VERIFIED. Runtime chết trước backup có thể mất bytes local nhưng ID vẫn pending. M2/M3 cần các corpus ZIP của toàn bộ lượt, không chỉ report. Run cũ phải restore/resume bằng notebook mới một lần để đăng ký queue. Chi tiết thao tác xem mục 9 trong hướng dẫn chạy Windows/Colab.
+Giữ đúng member, thứ tự bốn dòng và Drive backup root. Mỗi phiên cold chỉ chọn NEW_PAPERS_PER_SESSION=100/200, planner tự lấy đoạn mới; AUTO_RETRY_FROM_DRIVE tự thêm ID còn lỗi của chính member vào đầu scope, dùng lại source phiên bản tốt từ ZIP đã verified. Không xóa retry-state hoặc ZIP cũ. Chỉ một runtime/member; phiên sau có thể xử lý hơn số ID mới vì có retry. Source/ref/metadata/audit còn lỗi thì chưa bỏ queue; chỉ acknowledge sau backup VERIFIED. Runtime chết trước backup có thể mất bytes local nhưng ID vẫn pending. M2/M3 cần các corpus ZIP của toàn bộ lượt, không chỉ report. Run cũ phải restore/resume bằng notebook mới một lần để đăng ký queue. Chi tiết thao tác xem mục 9 trong hướng dẫn chạy Windows/Colab.
+
+
+**Tiến độ/Book:** bảng đầu phiên hiển thị completed/pending/unseen/next ID; RETRY_ONLY=True không lấy bài mới. Retry được gắn vai trò riêng, completed không được chọn lại. Giữ một runtime/member và nguyên cây Drive để bàn giao. reports.aggregate_reports tổng hợp unique corpus/attempts/benchmark từ cả4 cây; không cộng checkpoint và final của một run. Xem mục9 hướng dẫn chạy; chưa tự tạo/publish Book.

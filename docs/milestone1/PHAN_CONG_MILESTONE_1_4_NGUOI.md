@@ -1,6 +1,6 @@
 # Phân công Milestone 1 — Khánh, Khang, Nguyên, Danh
 
-Cập nhật **17/10/2026** theo implementation hiện tại. Giữ doc phân công này; khi thay đổi phương pháp thì sửa nội dung, không xóa tài liệu.
+Cập nhật **18/10/2026** theo implementation hiện tại. Giữ doc phân công này; khi thay đổi phương pháp thì sửa nội dung, không xóa tài liệu.
 
 Đọc [đề tổng](../../ARXIV_PROJECT_FULL.md), [kế hoạch/phương pháp và citations](./KE_HOACH_MILESTONE_1.md), [hướng dẫn thành viên](./HUONG_DAN_THANH_VIEN_MILESTONE_1.md) và [cách chạy](./CHAY_VA_KIEM_TRA_WINDOWS.md).
 
@@ -11,7 +11,7 @@ Cập nhật **17/10/2026** theo implementation hiện tại. Giữ doc phân c�
 - Nguyên: lấy đủ S2 references, giữ mọi hàng local và pool arXiv riêng.
 - Danh: điều phối, checkpoints, statistics, resources, notebook, tổng hợp Book.
 - Một notebook chung: [milestone1.ipynb](../../src/notebooks/milestone1.ipynb); nghiệp vụ nằm trong các module `.py`.
-- Code đã triển khai và thử thật một bài; data/test local đã dọn sau kiểm chứng, số liệu lịch sử được giữ trong kế hoạch. Phạm vi Danh đã biết, ba phạm vi còn lại chưa được điền.
+- Code đã triển khai và thử thật một bài; data/test local đã dọn sau kiểm chứng, số liệu lịch sử được giữ trong kế hoạch. Cả4 phạm vi đã nhập từ ảnh TA; assignments.py và kế hoạch mục13 ghi đủ endpoints/mốc tháng, mỗi người5.000 ID không giao nhau.
 - Chú thích rõ input/output, quyết định khó và giới hạn. Tài liệu tham khảo ghi đầy đủ trong [kế hoạch, mục 10](./KE_HOACH_MILESTONE_1.md#10-tài-liệu-tham-khảo).
 
 ## 2. Hợp đồng kỹ thuật chung
@@ -80,7 +80,7 @@ ID gốc giữ dot/slash; version là int riêng. Ngày YYYY-MM-DD theo UTC; ret
 
 ## 6. Danh — Pipeline, số đo và báo cáo
 
-**Files:** `pipeline.py`, `metrics.py`, `backup.py`, `sessions.py`, notebook chung, README/requirements và phối hợp Book repo.
+**Files:** `pipeline.py`, `metrics.py`, `backup.py`, `sessions.py`, `assignments.py`, `checkpoints.py`, `reports.py`, notebook chung, README/requirements và phối hợp Book repo.
 
 1. Xác minh assignment/scope, cold root mới hoặc resume cùng scope. Chỉ một OAI client cho discovery/ngày references.
 2. Ghi metadata/manifest sau mỗi task; gọi source từng version, references theo publication; không che pending/failed/partial.
@@ -122,3 +122,6 @@ Code crawler đã được thử; các checklist nghiệm thu toàn nhóm chưa 
 
 
 **Bổ sung Danh — retry qua phiên:** phụ trách sessions.py, mount/write guard đầu notebook, queue member trên Drive, restore source/receipts/cache từ ZIP verified và acknowledge sau backup + audit. Phối hợp Khánh/Khang/Nguyên giữ validators/cache TTL; không đổi quyền sở hữu module gốc. Mỗi thành viên giữ đúng member/thứ tự bốn dòng, chạy tuần tự và giữ queue/ZIP/report mọi lượt; không lẫn report retry với cold benchmark hoặc đếm trùng khi Book tổng hợp.
+
+
+**Bổ sung planner/background/aggregate:** Danh sở hữu assignments.py, sessions.py (preview/plan/new/retry/rotation), checkpoints.py (immutable group + single worker + bounded queue + flush/measured overhead), reports.py (role tags/unique corpus/run dedup). Khánh/Khang/Nguyên giữ module nguồn và phối hợp cache/artifact audit. Mỗi người chỉ chọn tên/new count, giữ queue/ZIP, cấp quyền Drive đầu. Book dùng aggregate CSV tại build; kiểm nguồn được chọn có ZIP thật/hash đúng, không dùng manifest stub làm corpus.

@@ -325,6 +325,7 @@ def run_pipeline(
     scope: Scope, data_root: Path, *, policy: HttpPolicy, resume: bool = True,
     download_fn: DownloadCallable = download_version,
     reference_fn: ReferencesCallable = collect_references,
+    checkpoint=None,
 ) -> RunResult:
     """Collect one scope, checkpoint each task and measure the whole run.
 
@@ -373,6 +374,10 @@ def run_pipeline(
         _discovery(discovery, scope)
         manifest['discovery'] = deepcopy(discovery)
         save_manifest(manifest, path)
+        for issue in discovery['issues']:
+            if checkpoint is not None:
+                checkpoint.paper_done(manifest,issue['arxiv_id'],samples=samples,errors=errors,
+                                      elapsed_seconds=time.perf_counter()-started)
         for record in discovery['papers']:
             identifier = record['arxiv_id']
             directory = paper_directory(identifier, root)
@@ -415,6 +420,9 @@ def run_pipeline(
             state['references'] = deepcopy(refs)
             state['elapsed_seconds'] = time.perf_counter() - paper_started
             save_manifest(manifest, path)
+            if checkpoint is not None:
+                checkpoint.paper_done(manifest,identifier,samples=samples,errors=errors,
+                                      elapsed_seconds=time.perf_counter()-started)
         summary = summarize_corpus(manifest)
         complete = (discovery['status'] == 'success' and discovery['scope_complete'] and not discovery['issues']
                     and not any(summary[k] for k in ('versions_failed', 'versions_pending', 'reference_jobs_partial',
@@ -432,10 +440,14 @@ def run_pipeline(
                       summary=summary, benchmark=benchmark, metadata_stats=metadata_client.stats())
         _atomic_json(root / 'metrics' / 'run_summary.json', output)
     finally:
-        stop.set()
-        worker.join()
-        _atomic_json(root / 'metrics' / 'resource_errors.json', errors)
-        _atomic_json(root / 'metrics' / 'resource_samples.json', samples)
+        try:
+            if checkpoint is not None:
+                checkpoint.close()  # Flush last group and measure upload wait/RSS.
+        finally:
+            stop.set()
+            worker.join()
+            _atomic_json(root / 'metrics' / 'resource_errors.json', errors)
+            _atomic_json(root / 'metrics' / 'resource_samples.json', samples)
     # Fold the final sample into the result after the worker has joined. The
     # initial summary was persisted with the sampler still running. Wall time
     # includes that write and worker shutdown; final rewrite is bookkeeping.
@@ -450,4 +462,6 @@ def run_pipeline(
         benchmark['final_disk_bytes'] = size
     else:
         raise OSError('Run summary disk footprint did not stabilize')
+    if checkpoint is not None:
+        checkpoint.finalize(output,manifest)
     return output

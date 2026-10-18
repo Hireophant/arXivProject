@@ -64,7 +64,7 @@ Jupyter Book tiếng Anh nằm trong public repo riêng, hosted GitHub Pages. D�
 
 ## 7. Comment và truy nguyên nguồn cho toàn bộ /src
 
-Phạm vi rà soát gồm **tất cả 10 file trong `src/`**, không chỉ OAI. Phải phân biệt ba loại thông tin:
+Phạm vi rà soát gồm **tất cả 13 file trong `src/`**, không chỉ OAI. Phải phân biệt ba loại thông tin:
 
 - **Tham khảo đặc tả/tài liệu API:** dùng endpoint, response fields, ý nghĩa ngày, contract hoặc cách gọi thư viện theo tài liệu; không đồng nghĩa chép code của trang đó.
 - **Logic riêng của project:** scope/receipts/cache/status/denominators và cách phối hợp được thể hiện bằng code, comment và test; không gán chúng cho tác giả tài liệu thư viện.
@@ -81,6 +81,9 @@ Phạm vi rà soát gồm **tất cả 10 file trong `src/`**, không chỉ OAI.
 | `crawling/pipeline.py` | `typing` introspection, threading/Event, perf_counter, subprocess, filesystem/JSON | `_typed` validator, assignment conversion, shared client, checkpoint, điều kiện success/cache mode và phạm vi benchmark do project viết | [2, 3, 5, 13, 14] |
 | `crawling/metrics.py` | psutil Process RSS/children, stdlib CSV/JSON/statistics/threading/time | Mẫu số, None/0, source coverage/no_tex, các trung bình và xuất report là cách tổng hợp của project | [2, 11, 14] |
 | `notebooks/milestone1.ipynb` | Colab runtime/Secrets/files.download; pandas DataFrame/Styler; Matplotlib pyplot; IPython display; stdlib Git/process/package/filesystem APIs | Configuration, guards, tables/audits/charts layout, benchmark checks và report bundle là notebook của project; chi tiết từng nhóm cells ở mục 7.2 | [1, 2, 12, 14, 15, 16, 17, 18] |
+| `crawling/assignments.py` | Ảnh phân công TA do user cung cấp; OAI đối chiếu mốc tháng [3,4] | Bốn full ranges, verified month boundaries; thứ tự member tương thích queue | [2,3,4] |
+| `crawling/checkpoints.py` | concurrent.futures ThreadPoolExecutor/Future, threading, ZIP/hash/copy [14,23–26] | Immutable snapshots, bounded2 in-flight, artifact audit/ack, flush + staged disk/RSS + final report stub | [14,18,23,24,25,26] |
+| `crawling/reports.py` | CSV/JSON/ZIP/hash [14,23,24] | new/retry roles, chosen corpus/run dedup, actual prefix/final labels và portable member tree | [14,23,24] |
 | `crawling/sessions.py` | JSON/filesystem/UUID, ZIP/hash [14, 23, 24], Colab Drive [18] | Queue theo member; register trước crawl, seed source/cache từ ZIP verified, acknowledge sau backup/audit; ticket, scope và provenance [mục 12] | [14, 18, 23, 24] |
 | `crawling/backup.py` | ZIP/CRC, SHA-256 theo chunks, strict os.walk inventory, file copy/rename, Google Drive do notebook mount | Đối chiếu run_id; output ngoài input; hai archive local, attempt riêng, receipt ghi cuối; bảo toàn source/backup cũ khi lỗi | [14, 18, 23, 24] |
 | `requirements.txt` | Cú pháp requirements `package==version`; các distribution dependencies của pipeline/notebook | Danh sách/version pins là cấu hình environment, không phải block thuật toán sao chép; đồng bộ `environment.yml`, không phải transitive lockfile | [8, 11, 15, 16, 17, 19, 20, 21, 22] |
@@ -103,7 +106,7 @@ Nguồn stdlib [14] bao gồm các API hỗ trợ xuất hiện trong imports: `
 
 ### 7.3. Kết luận về code sao chép và mức bằng chứng
 
-Rà source hiện tại, comment attribution, imports/calls của cả 10 file và lịch sử commit có sẵn chưa xác định được một block code cụ thể mang attribution copy/adapt từ repository hoặc bài viết ngoài project. **Đây không phải chứng nhận rằng mọi dòng code lịch sử đều nguyên bản**: repository không lưu đầy đủ lịch sử các nguồn mà từng thành viên có thể đã đọc.
+Rà source hiện tại, comment attribution, imports/calls của cả 13 file và lịch sử commit có sẵn chưa xác định được một block code cụ thể mang attribution copy/adapt từ repository hoặc bài viết ngoài project. **Đây không phải chứng nhận rằng mọi dòng code lịch sử đều nguyên bản**: repository không lưu đầy đủ lịch sử các nguồn mà từng thành viên có thể đã đọc.
 
 Các đoạn triển khai/chỉnh sửa trong phiên làm việc hiện tại được viết theo yêu cầu project và đặc tả/API đã đối chiếu; không có block ngoài nào được nhận diện để khai báo là copy nguyên văn. Các citations bổ sung trong lần rà soát toàn `/src` là **tài liệu đối chiếu API đang dùng**, không phải bằng chứng code đã được chép từ những trang đó. Nếu thành viên xác nhận một đoạn cũ từng copy/adapt, bổ sung attribution đúng nguồn và license vào ngay hàm/đoạn đó và mục này.
 
@@ -159,9 +162,12 @@ Ngày truy cập/đối chiếu: **17/10/2026**. `n.d.` là trang không ghi ng�
 23. Python Software Foundation. (n.d.). *zipfile — Work with ZIP archives*. [Python documentation](https://docs.python.org/3/library/zipfile.html). Đối chiếu tạo/đọc ZIP và testzip CRC cho hai archives; không dùng CRC thay tính đúng của corpus. Truy cập 18/10/2026.
 24. Python Software Foundation. (n.d.). *hashlib — Secure hashes and message digests*. [Python documentation](https://docs.python.org/3/library/hashlib.html). Đối chiếu SHA-256 incremental/chunks để kiểm bản sao mà không nạp cả ZIP vào RAM. Truy cập 18/10/2026.
 
+25. Python Software Foundation. (n.d.). *concurrent.futures — Launching parallel tasks*. [API chính thức](https://docs.python.org/3/library/concurrent.futures.html). ThreadPoolExecutor(max_workers=1), Future.result, shutdown(wait=True); project tự giới hạn2 snapshot chờ, không dùng map buffersize của Python mới. Truy cập18/10/2026.
+26. Python Software Foundation. (n.d.). *threading — Thread-based parallelism*. [API chính thức](https://docs.python.org/3/library/threading.html). Resource sampler và worker lifecycle/join; không xem thread là bảo đảm thực thi nếu VM bị thu hồi. Truy cập18/10/2026.
+
 Khi tham khảo thêm hoặc thay đổi cách làm, bổ sung tác giả/tổ chức, tên tài liệu, ngày/phiên bản nếu có, URL, ngày truy cập và nội dung đã áp dụng vào mục này; đồng bộ comment liên quan trong code và phần References của Book.
 
-## 11. Bổ sung sao lưu Drive — 18/10/2026
+## 11. Bổ sung sao lưu Drive — 18/10/2026 (lịch sử, được mở rộng ở mục13)
 
 **Mục tiêu:** sau khi Collection/report hoàn tất, notebook Colab tự đề nghị mount Drive và sao lưu cả corpus lẫn report, kiểm SHA-256 trước khi báo thành công. User đã yêu cầu tích hợp bước sao lưu đã mô tả vào code.
 
@@ -180,7 +186,7 @@ Khi tham khảo thêm hoặc thay đổi cách làm, bổ sung tác giả/tổ c
 **Review:** đã tái hiện và sửa P2 silent omission của shutil.make_archive bằng inventory traversal có onerror=raise, zip từng entry và giữ thư mục no_tex rỗng. Không báo backup hoàn tất nếu không đọc được subtree.
 
 
-## 12. Drive đầu phiên và retry qua phiên — 18/10/2026
+## 12. Drive đầu phiên và retry qua phiên — 18/10/2026 (lịch sử, được mở rộng ở mục13)
 
 **Yêu cầu đã được user chốt:** cấp quyền Drive trước crawl; bài/file lỗi tự được thử lại ở phiên sau. Triển khai trực tiếp trong checkout hiện tại, giữ docs phân công/kế hoạch; test và dữ liệu tạm được dọn trước commit.
 
@@ -201,3 +207,34 @@ Khi tham khảo thêm hoặc thay đổi cách làm, bổ sung tác giả/tổ c
 **Kết quả kiểm:** 17 behavioral checks đạt. Có hai lượt pipeline thật với HTTP fixture (v1 tốt, v2 lỗi rồi thành công), sau đó chạy các cell notebook thật từ Drive connect/environment/session prepare qua collection, coverage, integrity audit, PNG/SVG, benchmark, report ZIP, Drive backup/queue và browser-download giả lập trong hai phiên. Đã kiểm analyze không đổi queue, resume configuration nhận lại combined scope, backup lỗi vẫn giữ pending và browser fallback, queue read I/O lỗi không reset dữ liệu. Lần đầu fixture bật REQUIRE_COLAB_CPU trên máy có accelerator bị guard chặn đúng; fixture đổi sang development và không dùng kết quả đó làm Colab benchmark. Lỗi import NumPy do fixture restore sys.modules đã sửa trong test bằng preload, không sửa production để né guard. Nguồn/network và mount boundary giả lập; chưa cấp quyền Google Drive thật trên máy này. Rà soát độc lập không có finding cần sửa. Không đổi dependencies runtime; môi trường kiểm tạm và tests/data được dọn trước commit.
 
 **Attribution:** sessions.py và các cell mới do project triển khai theo chính sách trên, dùng stdlib/Colab API đã cite ở [14, 18, 23, 24]; không có block ngoài được nhận diện là copy/adapt. Không thêm dịch vụ queue hoặc lưu credential. Phiên này sửa thêm lỗi tồn tại/đọc queue: chỉ FileNotFoundError mới được coi là queue mới, không dùng exists() để nuốt lỗi permission/I/O.
+
+
+## 13. Chạy linh hoạt, tiến độ và backup nền — 18/10/2026
+
+**User đã yêu cầu triển khai/thử:** nhập đủ phạm vi 4 người theo ảnh TA, mở phiên thấy tiến độ, chọn 100/200 bài mới, không đếm trùng, backup nền mỗi 40 bài trong khi crawl tiếp. Giữ docs hiện có; triển khai trực tiếp, tự kiểm rồi commit/push.
+
+**Phạm vi chính xác từ ảnh:** Danh 2606.15734–2606.20733; Khánh 2602.19870–2603.00579; Khang 2609.02834–2609.07833; Nguyên 2601.23156–2602.04869. OAI GetRecord arXivRaw đã xác minh 2601.23286 và 2602.24290 tồn tại, ID kế tiếp mỗi tháng trả idDoesNotExist (nghỉ 3,1 giây/request); MONTH_END_IDS tương ứng 23286/24290. Mỗi phạm vi 5.000 ID, bốn phạm vi không giao nhau. Giữ thứ tự member cũ để không lẫn retry-state.
+
+**Thiết kế:** planner gắn queue với assignment đầy đủ, dùng completion ledger đã backup verified để chọn ID chưa đăng ký, retry riêng có giới hạn, no-work an toàn. Migrate queue v1 từ receipts cũ, không tự đánh dấu source chưa có receipt là hoàn tất. Preview hiển thị tổng/đã lưu/pending/chưa tới/ID tiếp theo và new/retry của lượt. Report đánh dấu vai trò theo ID; corpus/count cuối dùng ID duy nhất, thời gian retry không bị giấu.
+
+Pipeline gọi checkpoint sau mỗi bài đã xử lý (gồm lỗi). Main thread chốt snapshot local bất biến của tối đa 40 bài cùng receipts/cache/metadata/samples; worker đơn nén/copy/hash/commit queue, crawl tiếp. Giới hạn 2 snapshot đang chờ, worker chậm thì backpressure. Flush nhóm cuối và đợi worker trước khi kết thúc đo toàn pipeline. Stage nằm trong measured root để tính disk overhead, xóa stage sau upload verified; snapshot lỗi giữ local và queue chưa ack. Chỉ các ID có đủ kết quả/artifacts đạt kiểm tra mới được ghi completed. Progress được cập nhật ngay từ checkpoint, không cần chờ cell cuối hoặc browser download. Mất runtime vẫn có thể mất nhóm chưa verified. Không hứa chạy nền liên tục khi đóng tab/tắt máy.
+
+Giữ final report ZIP mỗi lượt; thêm dữ liệu tiến độ/new/retry và khả năng tổng hợp CSV/JSON sau từ receipts, chọn một kết quả hoàn tất cho mỗi ID, không cộng trùng checkpoint/final report. Raw resource samples/time phải được lưu trong lúc chạy; snapshot prefix bị ngắt không được giả là benchmark cuối đủ phiên. Không giảm pacing hoặc bỏ version/reference.
+
+**Thực hiện theo writing-plans + test-driven-development, một review độc lập cuối:**
+
+- [x] RED/GREEN: bốn assignment đúng và disjoint; preview/plan 100 rồi 200, retry-only, no-work, migrate, không chọn lại completed hoặc pending như new, assignment/member mismatch fail.
+- [x] RED/GREEN: callback pipeline; background immutable snapshot/reuse receipts; crawl tiếp khi worker đang upload; queue đầy chờ; copy/audit lỗi không ack; flush cuối; stale ticket không ghi; resource/backup overhead được ghi rõ.
+- [x] RED/GREEN: report new/retry tags và dedup aggregation theo ID/receipt, checkpoint vs final không đếm trùng, report prefix đo thật có nhãn giới hạn.
+- [x] Cập nhật notebook preview/config/member/startup, docs/citations; chạy fixture nhiều phiên qua pipeline/notebook thật; rà soát độc lập; dọn test/data/env rồi commit/push.
+
+**Ràng buộc:** một runtime/member, không reset queue khi I/O lỗi, giữ receipts/ZIP trên Drive; actual Colab auth/user browser chưa thể kiểm ở local. Dùng Python stdlib threading/concurrent.futures/JSON/ZIP/hash/shutil theo [14,23,24], Colab mount [18]; bổ sung citations futures/threading khi triển khai.
+
+
+**Kiểm chứng cuối:** 16 behavioral checks đạt qua unittest discovery; thêm2 regression stdlib đạt cho manual resume được gắn retry (không new) và auto planner vẫn bỏ qua completed. Bao gồm đủ4x5000 ID/disjoint; thay đổi new count; legacy completion/progress; retry-only/no-work; assignment/member mismatch; retry rotation; background upload bị giữ bằng Event nhưng crawl vẫn sang bài mới; giới hạn2 snapshot/backpressure; source root thay đổi sau freeze không thay bytes ZIP; upload lỗi giữ stage/pending; sampler chỉ bỏ qua FileNotFound khi stage bị dọn (permission vẫn lỗi); final report giữ audit failure; aggregate không đếm checkpoint+final+retry trùng, kiểm ZIP source/report và portable folder sau khi copy.
+
+Fixture notebook chạy các cell thật (imports/configuration/mount/environment/prepare/collection/coverage/audit/charts/benchmark/export/backup) qua nhiều visit trong runtime mới/cùng runtime: source v1 tốt được reuse, v2 lỗi được tải lại, ID mới tăng đúng, retry-only không có pending không gọi mạng, thay new count không sửa endpoints, analyze không ghi queue hoặc gọi API. Mount/auth và HTTP được giả lập; test dùng local Windows Python3.14 với dependency pins project. Không coi fixture là benchmark Colab thật, chưa test OAuth/DriveFS thật trên tài khoản user. AST11 module +32 cell, outputs sạch; source/download/reference contracts/dependency pins không đổi.
+
+**Review/fix:** reviewer độc lập phát hiện3 P2; đã tái hiện RED rồi sửa GREEN: lỗi retry đứng đầu làm starvation → chuyển lỗi xuống cuối; final raw report override audit fail → lưu audit verdict và truyền vào counts/aggregate; aggregate chỉ kiểm report mà thiếu source → kiểm source ZIP tồn tại/size/hash trước tính completed. Bổ sung regression cho portable member tree và opt-out retry không làm bỏ qua new-limit; bật/tắt retry không tự crawl toàn5.000. Tất cả checks cuối đạt.
+
+**Giới hạn/cách bàn giao:** có thể mất nhóm chưa commit khi VM mất; không hứa chạy tiếp lúc tắt máy. Checkpoint/report upload overhead thực đo trong pipeline, final raw-report export nằm ngoài benchmark và được ghi provenance. session-reports/corpus.zip chỉ manifest stub, không phải source M2; completed ledger không bao giờ trỏ stub. Giữ nguyên cây từng member khi tổng hợp (helper rebase layout runUUID/attempt có kiểm); aggregate trả unique completed/new registered/retry attempts, không tự viết/publish Book. Tests/data/output và môi trường tạm được dọn trước commit theo yêu cầu user; docs phân công/kế hoạch được giữ/cập nhật.
