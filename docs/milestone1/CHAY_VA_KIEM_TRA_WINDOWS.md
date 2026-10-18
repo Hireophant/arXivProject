@@ -1,97 +1,198 @@
-# Chạy và kiểm tra Milestone 1 trên Windows/Colab
+# Hướng dẫn sử dụng notebook cào dữ liệu Milestone 1
 
-Cập nhật 18/10/2026: planner chọn đoạn tiếp theo, retry riêng và background checkpoint. Các phần code/chính sách/citations nằm trong [kế hoạch](./KE_HOACH_MILESTONE_1.md), mục 13. Giữ tài liệu này cùng docs phân công.
+Cập nhật **18/10/2026**. Hướng dẫn cho [milestone1.ipynb](../../src/notebooks/milestone1.ipynb), chạy nhiều lượt trên **Google Colab CPU**, lưu tiến độ và dữ liệu vào Drive cá nhân. Xem [kế hoạch/phương pháp và nguồn tham khảo](./KE_HOACH_MILESTONE_1.md), [phân công](./PHAN_CONG_MILESTONE_1_4_NGUOI.md).
 
-## 1. Môi trường Windows
+Mỗi lần rảnh, chọn tên mình và số **ID mới** muốn xử lý, rồi chạy notebook. Planner tự chọn ID tiếp theo và thêm phần cần retry; không cần tự nhập khoảng ID cho từng lượt.
 
-Python >=3.11. Từ repository: `conda env create -f environment.yml`, `conda activate arxiv-project`, `python -m jupyterlab`; hoặc cài `python -m pip install -r src/requirements.txt`. Chọn đúng kernel. Không commit corpus, key hoặc notebook outputs. Không bật automatic planning trên local nếu chưa có Drive tiến độ; local kiểm offline/analyze hoặc cấu hình manual chủ động.
+## 1. Mở notebook và chạy lần đầu
 
-## 2. Cấu hình lượt Colab
+1. Mở [notebook trên Colab](https://colab.research.google.com/github/Hireophant/arXivProject/blob/master/src/notebooks/milestone1.ipynb), lưu một bản sao vào Drive cá nhân để giữ cấu hình của mình.
+2. Chọn loại runtime **CPU**, accelerator **None**, rồi **Connect**. Code chạy trên máy Colab; máy cá nhân dùng để điều khiển và xem kết quả.
+3. Tìm cell cấu hình có `SELECTED_MEMBER` và `NEW_PAPERS_PER_SESSION`, sửa theo mục 2.
+4. Chọn **Runtime → Run all**. Các cell đầu tự lấy code từ GitHub và cài thư viện.
+5. Khi cell **Connect Drive before collection** hỏi quyền, chọn tài khoản Drive của mình và cấp quyền. Bước này nằm **trước khi crawl**; notebook kiểm khả năng ghi Drive rồi mới đăng ký công việc.
+6. Xem bảng tiến độ và dòng `This session` theo mục 4. Đợi các cell chạy đến cuối, kiểm thông báo lưu theo mục 5.
 
-Phạm vi TA đã điền đủ, không sửa endpoints mỗi lượt:
+Lần đầu có thể đặt số ID mới bằng `1` để kiểm kết nối, audit và bản sao lưu, rồi tăng ở lượt kế tiếp. ID đã hoàn tất vẫn được ghi nhận trong phạm vi 5.000 ID của mình.
 
-| Người | Bắt đầu | Kết thúc | ID |
-|---|---|---|---:|
-| Danh | 2606.15734 | 2606.20733 | 5.000 |
-| Khánh | 2602.19870 | 2603.00579 | 5.000 |
-| Khang | 2609.02834 | 2609.07833 | 5.000 |
-| Nguyên | 2601.23156 | 2602.04869 | 5.000 |
+**Khi lấy phiên bản code mới:** mở lại notebook từ liên kết GitHub trên và dùng runtime mới sau khi dữ liệu cũ đã được lưu. Notebook bản sao và checkout trong runtime đang dùng không tự cập nhật theo GitHub; cell setup dùng lại checkout đã tồn tại.
 
-Giữ thứ tự bốn thành viên. MONTH_END_IDS đã xác minh: 2026-01=23286, 2026-02=24290. Mỗi range đủ 5.000, không giao nhau.
+## 2. Hai biến cần chọn cho lượt chạy thông thường
 
 ```python
-SELECTED_MEMBER = 'Danh'       # đổi đúng tên mình
-NEW_PAPERS_PER_SESSION = 100   # có thể đổi thành 200 mỗi lượt
-RUN_MODE = 'cold'
-EXISTING_ROOT = None
-SCOPE_PURPOSE = 'assigned'
-AUTO_PLAN_SESSIONS = True
-AUTO_RETRY_FROM_DRIVE = True
-MAX_RETRY_PAPERS = 40
-RETRY_ONLY = False
-BACKGROUND_CHECKPOINTS = True
-CHECKPOINT_EVERY_PAPERS = 40
-DOWNLOAD_REPORT_ZIP = False
+SELECTED_MEMBER = 'Danh'
+NEW_PAPERS_PER_SESSION = 300
 ```
 
-100 là số ID mới, chưa gồm retry (tối đa 40). Muốn chạy thử một bài: đặt new count=1, không thu hẹp full assignment vì queue gắn với assignment đầy đủ. API chậm/retry/source size làm thời gian biến động. Không giảm delay 3,1 giây để chạy nhanh hơn.
+| Biến | Cách điền |
+|---|---|
+| `SELECTED_MEMBER` | Một trong `'Danh'`, `'Khánh'`, `'Khang'`, `'Nguyên'`; giữ đúng tên và dấu |
+| `NEW_PAPERS_PER_SESSION` | Số nguyên dương: `1`, `100`, `200`, `300`, `400`… tùy thời gian rảnh; mặc định `100` |
 
-## 3. Bảng đầu phiên và lúc đang chạy
+**300 hoặc 400 đều được.** Đây là giới hạn ID mới của một lượt, không phải giới hạn cả dự án. Lượt sau có thể đổi từ 300 xuống 100 hoặc lên 400; gần cuối phạm vi thì planner chỉ lấy số còn lại.
 
-Sau cấu hình: cấp quyền Drive của mình ở **Connect Drive before collection**. Mount/write check lỗi thì dừng trước crawl. Preview hiển thị total=5000, completed (đã đủ dữ liệu/audit và backup), pending, unseen, next_new_id và last_saved_id. Planner chọn ID mới tiếp theo cộng retry; không chọn completed thành new. IDs mới được đăng ký trước crawl, nên ngắt runtime không làm mất danh sách việc.
+| Chọn tên | Bắt đầu | Kết thúc | Tổng ID | File tiến độ |
+|---|---|---|---:|---|
+| Danh | 2606.15734 | 2606.20733 | 5.000 | `member-1.json` |
+| Khánh | 2602.19870 | 2603.00579 | 5.000 | `member-2.json` |
+| Khang | 2609.02834 | 2609.07833 | 5.000 | `member-3.json` |
+| Nguyên | 2601.23156 | 2602.04869 | 5.000 | `member-4.json` |
 
-Ví dụ 100 mới + 8 retry =108 ID thực tế. Xem `session_plan.json`, `session_counts.json`, `attempts.csv`; không coi 108 là 108 bài mới. no_tex đã xác minh là trạng thái xử lý hợp lệ, khác lỗi mạng; metadata/ref upstream thiếu vẫn pending. Retry lỗi quay xuống cuối queue để không chặn ID khác.
+Giữ nguyên `ASSIGNMENTS`, thứ tự thành viên và `MONTH_END_IDS`. Không sửa đầu/cuối phạm vi thành 100/300/400 ID: planner cần toàn bộ phạm vi để theo dõi tiến độ lâu dài. Các phạm vi không giao nhau; mốc cuối tháng đã xác minh trong code.
 
-Trong pipeline: mỗi 40 bài đã xử lý (kể cả còn lỗi), main chốt snapshot và worker nén/upload/hash/ack, crawl tiếp. Log **Checkpoint queued** chưa phải đã lưu. **Checkpoint VERIFIED** chỉ xuất sau commit. Tối đa 2 snapshot chờ; Drive chậm thì crawl có thể phải đợi. Nhóm cuối ít hơn 40 được lưu khi kết thúc bình thường. Resource sampling bao gồm worker/staging/upload wait; file staging đã verified được dọn.
+## 3. Các biến giữ nguyên và tùy chọn khi cần
 
-## 4. Phiên sau, resume và analyze
+Với việc chia lượt tự động trên Colab, giữ cấu hình sau:
 
-Nếu đang cùng runtime: đợi lượt hiện tại kết thúc/backup xong, đổi số bài mới nếu muốn rồi Run All (hoặc configuration và tất cả cells dưới). Không cần reset mỗi lượt. Nếu runtime đã mất: Connect lại, dùng notebook mới, cùng member và Drive root rồi Run All; planner đọc tiến độ Drive và nhận lại pending. Không chạy song song hai phiên cùng member.
+| Biến | Giá trị | Ý nghĩa |
+|---|---|---|
+| `ALLOW_NETWORK` | `True` | Cho phép tải dữ liệu; nằm ở cell setup đầu notebook |
+| `RUN_MODE` | `'cold'` | Tạo thư mục lượt mới; vẫn dùng tiến độ cũ trên Drive |
+| `EXISTING_ROOT` | `None` | Planner tự chuẩn bị lượt mới |
+| `SCOPE_PURPOSE` | `'assigned'` | Cào trong phân công chính thức |
+| `AUTO_PLAN_SESSIONS` | `True` | Tự chọn đoạn mới, tránh chọn lại ID đã hoàn tất |
+| `SAVE_TO_DRIVE` | `IN_COLAB` | Tự bật lưu Drive khi chạy Colab |
+| `AUTO_RETRY_FROM_DRIVE` | `IN_COLAB` | Tự thêm phần chưa hoàn tất vào lượt sau |
+| `MAX_RETRY_PAPERS` | `40` | Tối đa 40 ID retry ngoài số ID mới mỗi lượt |
+| `RETRY_ONLY` | `False` | Chạy mới và retry; đổi `True` khi chỉ muốn xử lý phần tồn đọng |
+| `BACKGROUND_CHECKPOINTS` | `True` | Lưu từng nhóm trong lúc crawl |
+| `CHECKPOINT_EVERY_PAPERS` | `40` | Chốt bản lưu sau mỗi 40 ID đã xử lý, gồm cả ID còn lỗi |
+| `CREATE_REPORT_ZIP` | `True` | Xuất gói report cuối lượt |
+| `DOWNLOAD_REPORT_ZIP` | `False` | Giữ report trên Drive; đổi `True` nếu muốn thêm bản tải qua trình duyệt |
 
-Muốn chỉ sửa phần còn lỗi: đặt RETRY_ONLY=True; không chọn thêm ID mới. Khi không còn pending, notebook báo không có việc và không crawl. Muốn quay lại ID mới thì đặt False. Khi assignment hoàn tất, chạy lại không tự crawl lại 5.000 ID.
+Giữ đường dẫn mặc định:
 
-`resume`: khôi phục **full session corpus ZIP** hoặc cùng root local cũ; đặt RUN_MODE='resume', EXISTING_ROOT đúng root, giữ member. Scope lấy chính xác từ manifest và phải nằm trong full assignment. Không dùng manifest-only ZIP trong session-reports để resume. Checkpoint group scope nhỏ cũng có thể restore/resume riêng khi cần; auto planner bình thường tự restore pending.
+```python
+DRIVE_BACKUP_DIR = DRIVE_MOUNT_POINT / 'MyDrive/arXivProject/Milestone1'
+```
 
-`analyze`: RUN_MODE='analyze', EXISTING_ROOT đúng corpus root có metrics/run_summary.json; ALLOW_NETWORK=False để không mount/crawl/sửa queue. Root bị ngắt chưa có summary tương ứng cần resume trước. Analyze không đo lại crawl hoặc làm mới cache.
+Mỗi người cấp quyền **Drive của chính mình**. Các phiên sau phải dùng cùng tài khoản, cùng tên thành viên và cùng thư mục này để đọc đúng tiến độ. Chỉ chạy **một runtime cho mỗi thành viên tại một thời điểm**.
 
-## 5. Report và benchmark
+Giữ delay arXiv/S2 mặc định **3,1 giây** và các thiết lập retry API. Không giảm delay để tăng tốc; cả nhóm cần điều phối truy cập theo chính sách trong kế hoạch. Không cần API key để bắt đầu; nếu dùng S2 key thì dùng secret, không ghi vào notebook/code.
 
-Giữ mọi report của các lượt. Breakdown tách new/retry/unclassified và complete/incomplete; unique corpus đếm base ID một lần. Retry time phải giữ, không giấu như không có chi phí. Thông số benchmark gồm wall toàn pipeline (discovery/crawl/background checkpoint/wait), samples RSS process tree, peak disk gồm staging, final corpus size. Snapshot checkpoint là cumulative session prefix, không phải benchmark cuối phiên. Final raw report ghi số đo toàn phiên; nén/upload final report và final UI export nằm ngoài benchmark crawl. CPU-only Colab và cold eligibility vẫn kiểm; retry/cache không thành cold benchmark đoạn mới.
+## 4. Đọc tiến độ và số bài thực tế của lượt
 
-Book repo riêng, tiếng Anh/GitHub Pages, bảng/hình sinh lúc build. Người làm Book dùng `aggregate_reports` theo mục 9; không cộng trực tiếp số rows của từng ZIP hoặc cộng thời gian checkpoint với final cùng run_id. Giữ cả source corpus để M2/M3; report ZIP không thay corpus.
+Cell cấu hình có thể in toàn bộ scope 5.000 ID. Đó là phân công đầy đủ; **dòng `This session` ở cell chuẩn bị phiên mới cho biết số ID thực sự được chọn**.
 
-## 6. Kiểm lỗi và điều kiện hoàn tất
+| Trường ở bảng đầu phiên | Cách hiểu |
+|---|---|
+| `total` | 5.000 ID được giao |
+| `completed` | ID đạt điều kiện dữ liệu/audit và đã xác nhận lưu trên Drive |
+| `pending` | ID đã đăng ký nhưng chưa hoàn tất an toàn: lỗi, bị ngắt hoặc chưa kịp xử lý |
+| `unseen` | ID chưa được đăng ký vào lượt nào |
+| `next_new_id` | ID mới tiếp theo sẽ được chọn |
+| `last_saved_id` | ID trong nhóm lưu gần nhất; vẫn xem pending vì phía trước có thể còn bài lỗi |
 
-- Operational success chưa thay cho audit. Kiểm discovery đủ scope, mọi version success/no_tex, refs đủ trang/trường bắt buộc, artifact audit và pending ledger.
-- Final cell báo DRIVE BACKUP FAILED: source/report local còn; sửa quyền/dung lượng, chạy lại riêng cell backup.
-- Background worker lỗi: collection dừng, stage local được giữ, ID chưa commit vẫn pending. Sửa Drive rồi chọn một lượt cold mới tự nhận pending hoặc resume rõ root; không xóa queue để né lỗi.
-- Final raw-report upload lỗi không xóa checkpoint đã verified; queue vẫn giữ completion thật. Nếu còn phiên và metrics đã lưu, dùng analyze đúng root để xuất/lưu final UI report; nếu không, lần sau planner nhận phần chưa commit.
-- Không bấm Stop/reset/xóa runtime khi đang muốn giữ nhóm chưa upload. Nếu buộc ngắt, chỉ các nhóm đã commit trên Drive được bảo vệ.
+Đây là tiến độ **trước khi chọn công việc mới của lượt hiện tại**. Ví dụ:
 
-## 7. Chạy lại Colab từ bản GitHub vừa push
+```text
+Saved complete: 280/5000; pending: 20; unseen: 4700
+This session: new = 300 retry = 20 actual unique IDs = 320
+```
 
-1. Mở notebook GitHub mới, lưu bản sao vào Drive cá nhân. Bản notebook cũ/checkout đang mở không tự cập nhật code mới; giữ dữ liệu phiên cũ tới khi backup đã verified.
-2. Chọn accelerator **None**, Connect. Setup clone/cài dependency; không lưu API key trong source.
-3. Chọn member và NEW_PAPERS_PER_SESSION=1 để kiểm lượt đầu, hoặc 100/200 khi sẵn sàng. Giữ full assignment/Drive folder và các flags tự động như mục 2.
-4. Run All; chọn tài khoản Drive, cấp quyền **ở đầu**, xem preview rồi tiến độ checkpoint.
-5. Khi xong xem status, audits, counts, final raw report và full backup. DOWNLOAD_REPORT_ZIP=False không tải về máy nhưng report vẫn trên Drive; bật True nếu muốn bản phụ.
-6. Lượt sau không đổi ID, chỉ đổi new count nếu cần. Dùng retry-only khi muốn xử lý riêng phần lỗi. Lượt cũ chưa có queue cần restore/resume một lần để đăng ký.
+Lượt này chọn 300 ID mới và 20 ID retry, tổng 320 ID khác nhau. Retry **vẫn có trong report và thời gian đo**, được gắn vai trò riêng; không tính thành bài mới lần nữa. `session_counts.json` tách số mới/retry và số hoàn tất; `attempts.csv` ghi từng ID của từng lượt.
 
-## 8. Phạm vi của bản sao lưu tự động
+Planner đăng ký ID trước khi crawl, tránh bỏ sót khi runtime mất. ID hoàn tất không được chọn lại; ID lỗi vẫn ở queue và được retry có giới hạn. Nếu còn hơn 40 pending, phần vượt giới hạn chờ lượt khác; retry tiếp tục lỗi được đưa về cuối hàng đợi.
 
-Drive **MyDrive/arXivProject/Milestone1** có retry-state (tiến độ/member), checkpoints (source thật theo nhóm), session-reports (raw final report và corpus manifest stub), và thư mục run_id của full session backup cuối notebook.
+## 5. Trong lúc chạy và khi kết thúc
 
-Receipt ghi run_id/thời điểm/tên ZIP/size/SHA-256; ZIP CRC và hash được kiểm trước ack. Source đã tải tốt + hidden receipts + OAI cache của bài pending được restore và validate; TTL metadata/ref vẫn24 giờ. Lỗi/partial không được biến thành success, hash không chứng minh chất lượng nguồn.
+Đầu lượt cần lấy metadata qua OAI-PMH nên có thể phải đợi trước khi xuất hiện bản lưu source đầu tiên. Crawler lấy metadata, source các phiên bản và references; lỗi mạng có retry/backoff nên số ID không quyết định chính xác thời lượng.
 
-Đóng tab/tắt máy không đảm bảo Colab chạy tới hết; kernel/VM có thể bị thu hồi. Checkpoint ở trong pipeline giảm phụ thuộc cell cuối. Mất runtime có thể phải tải lại nhóm đang crawl/upload/đang chờ; không hứa chỉ mất 39 bài. Dữ liệu đã commit trên Drive tồn tại độc lập runtime. Sao lưu không làm quota/runtime Colab vô hạn.
+Sau mỗi 40 ID xử lý, notebook chốt snapshot rồi cho worker nén/lưu/kiểm trên Drive, trong khi crawl có thể tiếp tục. Tối đa hai snapshot chờ; Drive chậm thì crawl có thể phải đợi. Nhóm cuối dưới 40 ID được chốt khi pipeline kết thúc bình thường.
 
-## 9. Tổng hợp dữ liệu các phiên và cả nhóm
+| Thông báo | Ý nghĩa |
+|---|---|
+| `Checkpoint queued` | Đã xếp hàng lưu, **chưa xác nhận lưu xong** |
+| `Checkpoint VERIFIED` | Nhóm đã được kiểm và ghi nhận trên Drive; trong nhóm vẫn có thể có ID lỗi đang pending |
+| `Final session measurements saved on Drive` | Đã lưu report số đo cuối pipeline; source khôi phục từ checkpoints đã xác nhận |
+| `Completed: success/partial/failed` | Trạng thái lượt; đọc audit và phần tồn đọng để biết còn thiếu gì |
+| `Drive backup VERIFIED: ...` | Đã lưu và kiểm full backup cuối notebook; đường dẫn in ngay sau thông báo |
+| `Retry queue saved: N pending IDs ...` | Tiến độ đã cập nhật; N ID còn chờ ở lượt sau |
 
-Mỗi người chia sẻ/copy **nguyên cây Milestone1** vào folder riêng (ví dụ exports/Danh, exports/Khang), giữ retry-state/checkpoints/session-reports/full backups. Không đổi cấu trúc bên trong. Helper rebases layout receipt theo folder member mới, kiểm hash ZIP report và corpus được chọn, không âm thầm bỏ file thiếu/hỏng.
+Khi kết thúc, xem `integrity_audit.csv`, `outstanding_tasks.csv` và thống kê mới/retry. Có report không đồng nghĩa cả 5.000 ID đã hoàn tất. `no_tex` đã xác minh là trường hợp nguồn không có TeX hợp lệ; lỗi tải/thiếu metadata hoặc references vẫn cần xử lý.
+
+## 6. Notebook trả ra gì và lưu ở đâu?
+
+Notebook hiển thị tiến độ, bảng thống kê, audit, biểu đồ và đường dẫn kết quả. File làm việc nằm trong `/content/arxiv-data/`; corpus cụ thể được in ở dòng `Root:`. Đây là ổ runtime Colab, có thể mất khi runtime bị thu hồi; việc lưu lâu dài dựa vào Drive.
+
+Trên Drive cá nhân, mở **MyDrive/arXivProject/Milestone1**:
+
+```text
+Milestone1/
+  retry-state/
+    member-1.json                 # tiến độ Danh; tên khác xem mục 2
+  checkpoints/<run_id>/<lần_lưu>/
+    corpus.zip                   # source thật của nhóm checkpoint
+    report.zip                   # report tại thời điểm checkpoint
+    backup_receipt.json          # thông tin kiểm bản lưu
+  session-reports/<run_id>/<lần_lưu>/
+    corpus.zip                   # chỉ manifest, không chứa source cho M2/M3
+    report.zip                   # report số đo cuối pipeline
+    backup_receipt.json
+  <run_id>/<lần_lưu>/
+    corpus.zip                   # đầy đủ corpus của lượt, từ cell backup cuối
+    report.zip                   # report cuối notebook, gồm bảng/hình/audit
+    backup_receipt.json
+```
+
+`run_id` nhận diện lượt chạy; mỗi lần lưu có thư mục riêng, không ghi đè lần trước. Nếu runtime ngắt giữa chừng thì có thể mới có checkpoints, chưa có full backup cuối lượt.
+
+| Dữ liệu | Dùng để làm gì? | Cần giữ gì? |
+|---|---|---|
+| **Corpus** | Metadata, các source `.tex`/`.bib`, references, receipts/cache; dùng tiếp cho M2/M3 | Corpus ZIP thật trong checkpoints/full backups của **mọi lượt** |
+| **Report** | Thống kê, thời gian/tài nguyên, bảng/hình, audit và new/retry để viết báo cáo | Report các lượt và thông tin run tương ứng |
+| **Tiến độ + receipts** | Biết ID nào xong/còn lỗi, bản lưu nào chứa dữ liệu; phục hồi và tổng hợp | `retry-state`, `backup_receipt.json` cùng cấu trúc thư mục |
+
+**Cách lưu đơn giản nhất: giữ nguyên cả cây `Milestone1` trên Drive**, chưa xóa ZIP cũ dù đã có phiên mới. Chỉ lấy `report.zip` thì thiếu source cho M2/M3. `corpus.zip` trong `session-reports` là manifest stub nên không thay corpus thật.
+
+Mặc định `DOWNLOAD_REPORT_ZIP=False`: lưu Drive, **không tự tải file về máy**. Bạn có thể tải bản sao từ Drive khi cần. Không cần chờ bấm xác nhận lưu Drive ở cuối lượt vì đã cấp quyền đầu phiên; quyền ghi và dung lượng Drive vẫn phải còn hợp lệ.
+
+Nếu đặt `DOWNLOAD_REPORT_ZIP=True` trước khi chạy, cell cuối gọi trình duyệt tải thêm **report ZIP** về máy. Trình duyệt có thể cần cho phép tải; tùy chọn này không tự tải corpus. Khi muốn lưu offline/đưa cho người khác, tải hoặc copy cả cây Drive để giữ đủ corpus, reports và tiến độ.
+
+## 7. Chạy lượt tiếp theo
+
+**Còn cùng runtime:**
+
+1. Đợi lượt hiện tại và backup kết thúc; kiểm các thông báo VERIFIED và lỗi.
+2. Giữ tên mình, `RUN_MODE='cold'`, `RETRY_ONLY=False`. Chỉ đổi `NEW_PAPERS_PER_SESSION` nếu muốn, ví dụ 300 xuống 100 hoặc lên 400.
+3. Chạy **Run all** lại, hoặc chạy cell cấu hình và **tất cả cell phía dưới theo thứ tự**. Chỉ sửa chữ trong cell mà chưa chạy cell thì giá trị chưa đổi.
+4. Xem bảng tiến độ mới và `This session`; planner tự lấy ID chưa làm cùng pending cần retry. Không cần reset runtime cho mỗi lượt.
+
+**Ngày khác/runtime đã mất:** mở notebook hiện hành, Connect CPU, chọn cùng thành viên và Drive cũ, đặt số ID mới, Run all rồi cấp quyền Drive nếu được hỏi. Planner đọc tiến độ và phục hồi phần pending từ bản lưu đã kiểm; không cần nhập điểm bắt đầu thủ công.
+
+Các thư mục làm việc nhiều lượt vẫn chiếm ổ Colab. Nếu cần runtime mới vì ổ gần đầy, chỉ chuyển sau khi đã kiểm dữ liệu cần giữ trên Drive.
+
+**Ví dụ:** lượt đầu chọn 300, hoàn tất 280 và còn 20 pending. Lượt sau đặt 400 thì planner chọn tối đa 400 ID mới + 20 retry. Không đổi khoảng phân công thành “bắt đầu từ bài 301”, cũng không cộng 20 retry thành 20 bài mới.
+
+Lượt cũ được tạo trước khi có queue chưa tự được nhập chỉ vì ZIP nằm trên Drive. Cần restore/resume một lần bằng code hiện hành để đăng ký tiến độ; xem mục 10.
+
+## 8. Chỉ retry, tắt tab và xử lý lỗi lưu
+
+**Chỉ xử lý tồn đọng:** đặt `RETRY_ONLY=True`, giữ `MAX_RETRY_PAPERS=40`, rồi chạy lượt mới. Không chọn ID mới; tối đa 40 retry/lượt. Có thể sửa giới hạn retry thành số nguyên không âm. Giữ số ID mới là số nguyên dương dù chế độ này không lấy ID mới.
+
+Muốn cào tiếp phần chưa làm, đặt `RETRY_ONLY=False`. `No work selected` khi chỉ retry có thể chỉ nghĩa không còn pending; vẫn xem `unseen`. Khi hết ID mới, tiếp tục xử lý pending. Bảng cần đạt `completed=5000`, `pending=0`, `unseen=0`, kèm kiểm audit và yêu cầu đề.
+
+**Đóng tab/tắt máy:** Colab có thể tiếp tục một thời gian nhưng không đảm bảo chạy hết. Chỉ các nhóm đã xác nhận lưu Drive được bảo vệ; có thể phải tải lại nhóm đang crawl, đang upload hoặc đang chờ. Không coi `Checkpoint queued` là đã lưu, cũng không hứa tối đa chỉ mất 39 ID. Lần sau Run all theo mục 7 để nhận việc pending.
+
+**Nếu có lỗi:**
+
+- Lỗi cấp quyền/kiểm ghi Drive đầu phiên: sửa tài khoản/quyền/dung lượng rồi nối Drive lại; notebook dừng trước crawl.
+- `DRIVE BACKUP FAILED` hoặc `RETRY QUEUE UPDATE FAILED` ở cuối: giữ runtime và dữ liệu local, sửa kết nối/dung lượng, chạy lại **riêng cell backup cuối**. Nếu mount mất thì chạy cell nối Drive trước. Không chạy lại cấu hình/collection chỉ để thử lưu lại lượt này.
+- Worker checkpoint lỗi: collection dừng, staging local được giữ, ID chưa xác nhận vẫn pending. Sau khi sửa Drive, có thể bắt đầu lượt cold mới để planner nhận pending hoặc resume root cũ có chủ đích.
+- Upload raw final report lỗi: checkpoints đã xác nhận vẫn còn. Nếu runtime còn và metrics đã ghi, có thể analyze root đó để xuất/lưu report; nếu runtime mất, giữ checkpoints và tiếp tục pending ở lượt sau.
+
+Không xóa queue để bỏ qua lỗi. Bản lưu được kiểm CRC/hash; kiểm byte vẫn cần đi cùng audit và đối chiếu vài mẫu dữ liệu nguồn.
+
+## 9. Giữ kết quả để viết Book và làm M2/M3
+
+Nhiều report ZIP vì chia nhiều lượt là bình thường. Có thể thu thập xong rồi tổng hợp viết Book một lần; không cần crawl lại 5.000 ID trong một lượt. Retry giữ thành lịch sử xử lý, còn corpus tổng hợp đếm mỗi base arXiv ID hoàn tất một lần.
+
+Mỗi người bàn giao **nguyên cây Milestone1** vào thư mục riêng, ví dụ `exports/Danh`, `exports/Khanh`, `exports/Khang`, `exports/Nguyen`; giữ cấu trúc bên trong. Người làm báo cáo có thể dùng helper:
 
 ```python
 from pathlib import Path
 from crawling.reports import aggregate_reports
+
 result = aggregate_reports([
     Path('/content/exports/Danh/retry-state/member-1.json'),
     Path('/content/exports/Khanh/retry-state/member-2.json'),
@@ -100,4 +201,15 @@ result = aggregate_reports([
 ], Path('/content/book-data'))
 ```
 
-papers_unique.csv có một row/ID hoàn tất và đường dẫn corpus ZIP thực; attempts.csv giữ từng run/ID với vai trò new/retry; benchmark_runs.csv có một record/run (prefix thiếu được gắn complete_measurement=False); summary.json có unique completed/new registered/retry attempts/pending. Stub final report không được chọn làm nguồn M2. Từ các bảng này người phụ trách viết Book sau, sinh thống kê/hình lúc build. Helper chưa tạo/publish Book hoặc thay việc kiểm tay/nghiệm thu.
+Ví dụ cần source repo đã setup và bốn cây dữ liệu thực sự nằm ở các đường dẫn đó; sửa theo nơi mình copy. Helper kiểm bản lưu và tạo `papers_unique.csv`, `attempts.csv`, `benchmark_runs.csv`, `summary.json`. Nó chưa tự viết/publish Book hoặc gộp source thành một thư mục M2; bảng papers chỉ đến ZIP corpus thật cần dùng.
+
+Giữ report gốc để đọc chi tiết versions/references và sinh thống kê/hình lúc build Book. Không cộng report checkpoint với report cuối cùng của cùng `run_id`: checkpoint là số đo tích lũy tại thời điểm lưu. Không cộng số dòng mọi report thành tổng bài duy nhất. Book theo đề dùng tiếng Anh, repo công khai riêng/GitHub Pages; report ZIP là đầu vào, không phải Book hoàn chỉnh.
+
+## 10. Nâng cao: resume/analyze và notebook trên Windows
+
+**Lượt mới bình thường dùng `cold` và planner như trên.** Hai chế độ sau dành cho một corpus đã lưu cụ thể:
+
+- `resume`: giải nén **full session corpus ZIP** hoặc dùng root local cũ; đặt `RUN_MODE='resume'`, `EXISTING_ROOT` là thư mục chứa `manifest.json`, giữ đúng member. Scope lấy từ manifest và phải thuộc phân công. Không dùng ZIP manifest stub trong `session-reports` để phục hồi source. Planner thông thường tự phục hồi pending nên không cần tự resume mỗi ngày.
+- `analyze`: đặt `RUN_MODE='analyze'`, `EXISTING_ROOT` trỏ corpus có `metrics/run_summary.json`, `ALLOW_NETWORK=False`. Đọc số đo sẵn có, không đo lại crawl hoặc cập nhật queue; root bị ngắt chưa có summary tương ứng cần resume trước. Lưu/export mới lên Drive cần kết nối và bật mạng theo cấu hình notebook.
+
+**Mở notebook trên Windows để đọc/analyze:** dùng Python >=3.11, cài môi trường từ `environment.yml` hoặc `src/requirements.txt`, mở Jupyter và chọn đúng kernel. Với corpus đã giải nén, cấu hình analyze như trên và dùng đường dẫn Windows cho `EXISTING_ROOT`. Quy trình cào nhiều phiên tự động và nối Drive trong hướng dẫn này dùng Colab.

@@ -40,7 +40,7 @@ Giữ `.tex`/`.bib` nguyên byte cho từng version; version không có TeX ghi 
 
 ## Cấu hình và kiểm chứng
 
-Notebook chính: [milestone1.ipynb](../../src/notebooks/milestone1.ipynb). Danh có phạm vi `2606.15734`–`2606.20733` (5.000 ID); preset trial là 100 ID đến `2606.15833`. Ba người còn lại điền phạm vi được giao thật. Đọc [hướng dẫn chạy](./CHAY_VA_KIEM_TRA_WINDOWS.md) để chọn cold/resume/analyze và sao lưu corpus/report bundle.
+Notebook chính: [milestone1.ipynb](../../src/notebooks/milestone1.ipynb). Cả bốn phạm vi đã điền sẵn, mỗi người 5.000 ID. Chọn `SELECTED_MEMBER` và `NEW_PAPERS_PER_SESSION` (100, 200, 300, 400…); planner tự lấy ID mới và retry riêng, không cần nhập lại phạm vi mỗi lượt. Đọc [hướng dẫn sử dụng notebook](./CHAY_VA_KIEM_TRA_WINDOWS.md) để chạy, đọc tiến độ và giữ corpus/report trên Drive.
 
 Trước đợt dọn cuối: **27 tests đạt**, notebook offline và integration chạy đạt bằng hai kernel mới. Sau đó toàn bộ tests/data/output và environment kiểm thử local đã xóa theo yêu cầu; số liệu lịch sử vẫn được giữ trong kế hoạch. Lần chạy Colab tiếp theo cần có corpus/audit mới riêng.
 
@@ -106,7 +106,7 @@ Giữ README, đề tổng, doc kế hoạch, phân công, hướng dẫn thành
 
 ## Sao lưu Drive sau lượt chạy — 18/10/2026
 
-Notebook hiện cấp quyền/mount Drive trước collection và tự bật SAVE_TO_DRIVE trên Colab, nén corpus/report local và copy hai ZIP lên MyDrive/arXivProject/Milestone1 theo run/lần sao lưu. Chỉ xuất receipt/VERIFIED sau kiểm CRC/hash; không ghi đè bản cũ hoặc xóa source khi lỗi. Xem [hướng dẫn Drive](./CHAY_VA_KIEM_TRA_WINDOWS.md#8-phạm-vi-của-bản-sao-lưu-tự-động). Full backup cuối notebook nằm ngoài benchmark; background checkpoints đã thêm trong pipeline và được tính overhead. Crawl OAI/pacing/cache không đổi.
+Notebook hiện cấp quyền/mount Drive trước collection và tự bật SAVE_TO_DRIVE trên Colab, nén corpus/report local và copy hai ZIP lên MyDrive/arXivProject/Milestone1 theo run/lần sao lưu. Chỉ xuất receipt/VERIFIED sau kiểm CRC/hash; không ghi đè bản cũ hoặc xóa source khi lỗi. Xem [hướng dẫn Drive](./CHAY_VA_KIEM_TRA_WINDOWS.md#6-notebook-trả-ra-gì-và-lưu-ở-đâu). Full backup cuối notebook nằm ngoài benchmark; background checkpoints đã thêm trong pipeline và được tính overhead. Crawl OAI/pacing/cache không đổi.
 
 
 ## Retry qua runtime mới

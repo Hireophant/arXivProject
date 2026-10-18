@@ -50,7 +50,7 @@ On Colab choose **Hardware accelerator: None**. Setup can clone the repository a
 
 Colab Secrets or the `S2_API_KEY` environment variable can provide an optional Semantic Scholar key; never store keys in the notebook.
 
-See the [run guide](docs/milestone1/CHAY_VA_KIEM_TRA_WINDOWS.md), [method and M1 checklist](docs/milestone1/OAI_RAW_HIEN_TAI.md), [plan and full citations](docs/milestone1/KE_HOACH_MILESTONE_1.md), [four-member responsibilities](docs/milestone1/PHAN_CONG_MILESTONE_1_4_NGUOI.md) and [member handoff guide](docs/milestone1/HUONG_DAN_THANH_VIEN_MILESTONE_1.md).
+See the [notebook usage guide](docs/milestone1/CHAY_VA_KIEM_TRA_WINDOWS.md), [method and M1 checklist](docs/milestone1/OAI_RAW_HIEN_TAI.md), [plan and full citations](docs/milestone1/KE_HOACH_MILESTONE_1.md), [four-member responsibilities](docs/milestone1/PHAN_CONG_MILESTONE_1_4_NGUOI.md) and [member handoff guide](docs/milestone1/HUONG_DAN_THANH_VIEN_MILESTONE_1.md).
 
 ## Modules and local outputs
 
