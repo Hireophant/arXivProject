@@ -64,7 +64,7 @@ Jupyter Book tiếng Anh nằm trong public repo riêng, hosted GitHub Pages. D�
 
 ## 7. Comment và truy nguyên nguồn cho toàn bộ /src
 
-Phạm vi rà soát gồm **tất cả 9 file trong `src/`**, không chỉ OAI. Phải phân biệt ba loại thông tin:
+Phạm vi rà soát gồm **tất cả 10 file trong `src/`**, không chỉ OAI. Phải phân biệt ba loại thông tin:
 
 - **Tham khảo đặc tả/tài liệu API:** dùng endpoint, response fields, ý nghĩa ngày, contract hoặc cách gọi thư viện theo tài liệu; không đồng nghĩa chép code của trang đó.
 - **Logic riêng của project:** scope/receipts/cache/status/denominators và cách phối hợp được thể hiện bằng code, comment và test; không gán chúng cho tác giả tài liệu thư viện.
@@ -81,6 +81,7 @@ Phạm vi rà soát gồm **tất cả 9 file trong `src/`**, không chỉ OAI. 
 | `crawling/pipeline.py` | `typing` introspection, threading/Event, perf_counter, subprocess, filesystem/JSON | `_typed` validator, assignment conversion, shared client, checkpoint, điều kiện success/cache mode và phạm vi benchmark do project viết | [2, 3, 5, 13, 14] |
 | `crawling/metrics.py` | psutil Process RSS/children, stdlib CSV/JSON/statistics/threading/time | Mẫu số, None/0, source coverage/no_tex, các trung bình và xuất report là cách tổng hợp của project | [2, 11, 14] |
 | `notebooks/milestone1.ipynb` | Colab runtime/Secrets/files.download; pandas DataFrame/Styler; Matplotlib pyplot; IPython display; stdlib Git/process/package/filesystem APIs | Configuration, guards, tables/audits/charts layout, benchmark checks và report bundle là notebook của project; chi tiết từng nhóm cells ở mục 7.2 | [1, 2, 12, 14, 15, 16, 17, 18] |
+| `crawling/sessions.py` | JSON/filesystem/UUID, ZIP/hash [14, 23, 24], Colab Drive [18] | Queue theo member; register trước crawl, seed source/cache từ ZIP verified, acknowledge sau backup/audit; ticket, scope và provenance [mục 12] | [14, 18, 23, 24] |
 | `crawling/backup.py` | ZIP/CRC, SHA-256 theo chunks, strict os.walk inventory, file copy/rename, Google Drive do notebook mount | Đối chiếu run_id; output ngoài input; hai archive local, attempt riêng, receipt ghi cuối; bảo toàn source/backup cũ khi lỗi | [14, 18, 23, 24] |
 | `requirements.txt` | Cú pháp requirements `package==version`; các distribution dependencies của pipeline/notebook | Danh sách/version pins là cấu hình environment, không phải block thuật toán sao chép; đồng bộ `environment.yml`, không phải transitive lockfile | [8, 11, 15, 16, 17, 19, 20, 21, 22] |
 
@@ -96,12 +97,13 @@ Nguồn stdlib [14] bao gồm các API hỗ trợ xuất hiện trong imports: `
 | `coverage-tables`, `integrity-audit` | pandas/Styler [15], hash/file I/O [14], OAI identity/version semantics [3, 4] | Các bảng coverage, kiểm metadata/source/hai stores/raw checkpoints và outstanding tasks |
 | `corpus-charts`, `resource-charts` | Matplotlib [16], pandas [15] | Chọn dữ liệu, axes/labels/layout, PNG/SVG; không có số liệu hardcode thay kết quả crawl |
 | `benchmark-tables` | Yêu cầu benchmark [2, 12], pandas [15] | Điều kiện nghiệm thu, units, mẫu số và phân biệt local/Colab/cold/cache |
+| `drive-connect`, `session-prepare` | Colab drive.mount [18], JSON/UUID/filesystem/ZIP/hash [14, 23, 24] | Mount/write check trước crawl; queue/member, retry-first union, seed/manifest và resume scope |
 | `drive-backup`, `browser-download` | Google Colab drive.mount/files.download [18], ZIP/hash/filesystem [14, 23, 24] | Mount guard/offline skip, gọi helper backup hai archive, lỗi hiển thị và retry riêng cell; browser download chạy sau backup |
 | `report-export`, markdown methods/submission | shutil/archive [14], IPython [17], Colab files API [18], đề [1, 2] | Report README/ZIP và hướng dẫn interpret/backup/nộp Book |
 
 ### 7.3. Kết luận về code sao chép và mức bằng chứng
 
-Rà source hiện tại, comment attribution, imports/calls của cả 9 file và lịch sử commit có sẵn chưa xác định được một block code cụ thể mang attribution copy/adapt từ repository hoặc bài viết ngoài project. **Đây không phải chứng nhận rằng mọi dòng code lịch sử đều nguyên bản**: repository không lưu đầy đủ lịch sử các nguồn mà từng thành viên có thể đã đọc.
+Rà source hiện tại, comment attribution, imports/calls của cả 10 file và lịch sử commit có sẵn chưa xác định được một block code cụ thể mang attribution copy/adapt từ repository hoặc bài viết ngoài project. **Đây không phải chứng nhận rằng mọi dòng code lịch sử đều nguyên bản**: repository không lưu đầy đủ lịch sử các nguồn mà từng thành viên có thể đã đọc.
 
 Các đoạn triển khai/chỉnh sửa trong phiên làm việc hiện tại được viết theo yêu cầu project và đặc tả/API đã đối chiếu; không có block ngoài nào được nhận diện để khai báo là copy nguyên văn. Các citations bổ sung trong lần rà soát toàn `/src` là **tài liệu đối chiếu API đang dùng**, không phải bằng chứng code đã được chép từ những trang đó. Nếu thành viên xác nhận một đoạn cũ từng copy/adapt, bổ sung attribution đúng nguồn và license vào ngay hàm/đoạn đó và mục này.
 
@@ -171,8 +173,31 @@ Khi tham khảo thêm hoặc thay đổi cách làm, bổ sung tác giả/tổ c
 
 - [x] Test trước: ZIP có đủ file, hash/receipt đúng; reject run lệch và path lồng; lỗi copy/hash không tạo receipt hoàn tất, không ảnh hưởng backup cũ.
 - [x] Thêm helper + cấu hình/cell Drive trong notebook, giữ browser download sau backup và thông báo lỗi có thể retry riêng cell.
-- [x] Rà soát độc lập; kiểm notebook local/offline/mount thành công và mount lỗi bằng fixture; cập nhật hướng dẫn/citations, dọn test tạm rồi commit/push.
+- [x] Rà soát độc lập; kiểm notebook local/offline/mount thành công và mount lỗi bằng fixture; cập nhật hướng dẫn/citations, dọn test tạm rồi commit/push. Hành vi hỏi quyền cuối lượt của phiên bản này đã được thay bằng cấp quyền đầu phiên ở mục 12.
 
 **Kết quả kiểm 18/10/2026:** 13 checks đạt: archive/file bytes/CRC/hash/receipt; run mismatch; output nested; retry độc lập; lỗi copy/hash; thư mục nguồn không đọc được phải fail, no_tex rỗng vẫn giữ; Colab thành công và auth lỗi; local và network-off không mount, mount chưa xác nhận không báo thành công. Test dùng filesystem thật ở thư mục tạm và giả lập biên Colab, chưa thay kiểm cấp quyền/mount Drive thật của người dùng. Test/data tạm đã được dọn trước commit theo yêu cầu. Không cần cài dependency mới.
 
 **Review:** đã tái hiện và sửa P2 silent omission của shutil.make_archive bằng inventory traversal có onerror=raise, zip từng entry và giữ thư mục no_tex rỗng. Không báo backup hoàn tất nếu không đọc được subtree.
+
+
+## 12. Drive đầu phiên và retry qua phiên — 18/10/2026
+
+**Yêu cầu đã được user chốt:** cấp quyền Drive trước crawl; bài/file lỗi tự được thử lại ở phiên sau. Triển khai trực tiếp trong checkout hiện tại, giữ docs phân công/kế hoạch; test và dữ liệu tạm được dọn trước commit.
+
+**Thiết kế:** thêm `crawling/sessions.py` dùng stdlib, queue riêng theo member trên Drive. Cold session hợp scope mới với ID còn pending (retry trước, không trùng); đăng ký toàn scope trước crawl. Sao chép có kiểm hash các source/receipts/cache của bài pending từ corpus ZIP đã verified sang root local mới, rồi dùng cache validators hiện tại; `resume` giữ nguyên scope đã lưu. Chỉ xác nhận ID hoàn tất sau backup verified + trạng thái metadata/all versions/references + integrity audit. Nếu chết giữa crawl/backup thì queue vẫn còn toàn ID đã đăng ký. Không có backup corpus định kỳ giữa crawl; cache OAI/S2 vẫn TTL 24 giờ. Retry có thể gồm bài not_found hoặc thiếu metadata upstream, không cam kết lần sau sẽ hết lỗi. Mỗi member chạy tuần tự; ticket phát hiện phiên cũ cố xác nhận sau khi phiên mới bắt đầu, không phải hỗ trợ chạy song song cùng member.
+
+**Files:** thêm sessions.py; sửa notebook (drive-connect trước environment/collection; session-prepare trước collection; backup không hỏi quyền muộn; session metadata trong report). Không thay đổi 3,1 giây pacing, OAI arXivRaw, source bytes hay schema corpus. Report retry/cached không được coi là cold benchmark của riêng đoạn mới. Đồng bộ README và năm docs hiện có; citations Python filesystem/JSON/UUID/ZIP/hash và Colab drive.mount.
+
+**Kế hoạch kiểm thử — dùng writing-plans và test-driven-development:**
+
+- [x] Viết test RED cho prepare_session/finish_session/seed_pending: pending hợp scope, retry trước, dedup, member isolation, resume exact-scope, queue corrupt/concurrent ticket; không bỏ pending trước verified backup; discovery/source/reference/audit lỗi còn pending; no_tex hợp lệ; idempotent finish.
+- [x] Thêm API `prepare_session(state_path, member, scope, extend=True)`, `seed_pending(plan, root)`, `finish_session(state_path, plan, manifest, backup, invalid_ids=())`; snapshot/hash/paths an toàn, không tự xóa source hoặc backup cũ.
+- [x] Test notebook mount trước crawl, auth fail dừng trước network crawl, local/offline/analyze không sửa queue; fixture hai phiên thật qua ZIP/Drive giả lập; cache source đúng được tái sử dụng, phần lỗi được gọi lại.
+- [x] Rà soát độc lập toàn thay đổi; kiểm source/notebook, docs, dọn test/cache/data, commit và push bản đã xác minh.
+
+**Review focus:** state/ZIP hỏng phải fail và giữ queue; không lẫn member; completion cũ không xóa queue phiên mới; Drive backup lỗi không làm mất ID thành công chưa lưu; restore giữ hidden receipt và thư mục no_tex rỗng. Chuẩn bị/restore/backup nằm ngoài benchmark pipeline; report ghi scope thực tế và retry origin. Tổng hợp Book toàn nhóm vẫn là công việc riêng.
+
+
+**Kết quả kiểm:** 17 behavioral checks đạt. Có hai lượt pipeline thật với HTTP fixture (v1 tốt, v2 lỗi rồi thành công), sau đó chạy các cell notebook thật từ Drive connect/environment/session prepare qua collection, coverage, integrity audit, PNG/SVG, benchmark, report ZIP, Drive backup/queue và browser-download giả lập trong hai phiên. Đã kiểm analyze không đổi queue, resume configuration nhận lại combined scope, backup lỗi vẫn giữ pending và browser fallback, queue read I/O lỗi không reset dữ liệu. Lần đầu fixture bật REQUIRE_COLAB_CPU trên máy có accelerator bị guard chặn đúng; fixture đổi sang development và không dùng kết quả đó làm Colab benchmark. Lỗi import NumPy do fixture restore sys.modules đã sửa trong test bằng preload, không sửa production để né guard. Nguồn/network và mount boundary giả lập; chưa cấp quyền Google Drive thật trên máy này. Rà soát độc lập không có finding cần sửa. Không đổi dependencies runtime; môi trường kiểm tạm và tests/data được dọn trước commit.
+
+**Attribution:** sessions.py và các cell mới do project triển khai theo chính sách trên, dùng stdlib/Colab API đã cite ở [14, 18, 23, 24]; không có block ngoài được nhận diện là copy/adapt. Không thêm dịch vụ queue hoặc lưu credential. Phiên này sửa thêm lỗi tồn tại/đọc queue: chỉ FileNotFoundError mới được coi là queue mới, không dùng exists() để nuốt lỗi permission/I/O.

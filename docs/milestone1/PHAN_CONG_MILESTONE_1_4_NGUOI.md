@@ -80,7 +80,7 @@ ID gốc giữ dot/slash; version là int riêng. Ngày YYYY-MM-DD theo UTC; ret
 
 ## 6. Danh — Pipeline, số đo và báo cáo
 
-**Files:** `pipeline.py`, `metrics.py`, `backup.py`, notebook chung, README/requirements và phối hợp Book repo.
+**Files:** `pipeline.py`, `metrics.py`, `backup.py`, `sessions.py`, notebook chung, README/requirements và phối hợp Book repo.
 
 1. Xác minh assignment/scope, cold root mới hoặc resume cùng scope. Chỉ một OAI client cho discovery/ngày references.
 2. Ghi metadata/manifest sau mỗi task; gọi source từng version, references theo publication; không che pending/failed/partial.
@@ -119,3 +119,6 @@ Mỗi người bàn giao code diff, lệnh kiểm, output thực, lỗi còn l�
 - [ ] Public code repo + Book repo/GitHub Pages, hình/bảng sinh lúc build, nộp hai links Moodle đúng hạn.
 
 Code crawler đã được thử; các checklist nghiệm thu toàn nhóm chưa tự động được đánh dấu chỉ vì một bài chạy success.
+
+
+**Bổ sung Danh — retry qua phiên:** phụ trách sessions.py, mount/write guard đầu notebook, queue member trên Drive, restore source/receipts/cache từ ZIP verified và acknowledge sau backup + audit. Phối hợp Khánh/Khang/Nguyên giữ validators/cache TTL; không đổi quyền sở hữu module gốc. Mỗi thành viên giữ đúng member/thứ tự bốn dòng, chạy tuần tự và giữ queue/ZIP/report mọi lượt; không lẫn report retry với cold benchmark hoặc đếm trùng khi Book tổng hợp.

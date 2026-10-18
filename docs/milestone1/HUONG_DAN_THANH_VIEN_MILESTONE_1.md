@@ -63,4 +63,9 @@ Thử thật một bài đã thành công trước đợt dọn; corpus lịch s
 
 ## 9. Backup cuối lượt trên Colab
 
-SAVE_TO_DRIVE mặc định bật ở Colab. Cấp quyền khi cell Drive hỏi; giữ folder có đủ corpus.zip, report.zip và backup_receipt.json. Chỉ coi copy đã được kiểm toàn vẹn khi thấy Drive backup VERIFIED; vẫn cần đọc status/audit để đánh giá corpus. Lỗi Drive thì chạy lại riêng cell backup; không crawl lại. Backup này chạy cuối lượt, không checkpoint Drive giữa chừng. Tham khảo và implementation được ghi trong kế hoạch.
+SAVE_TO_DRIVE mặc định bật ở Colab. Cấp quyền ở cell Connect Drive đầu phiên, trước collection; giữ folder có đủ corpus.zip, report.zip và backup_receipt.json. Chỉ coi copy đã được kiểm toàn vẹn khi thấy Drive backup VERIFIED; vẫn cần đọc status/audit để đánh giá corpus. Lỗi Drive thì chạy lại riêng cell backup; không crawl lại. Backup này chạy cuối lượt, không checkpoint Drive giữa chừng. Tham khảo và implementation được ghi trong kế hoạch.
+
+
+### Retry qua nhiều phiên
+
+Giữ đúng member, thứ tự bốn dòng và Drive backup root. Mỗi phiên cold nhập đoạn ID mới; AUTO_RETRY_FROM_DRIVE tự thêm ID còn lỗi của chính member vào đầu scope, dùng lại source phiên bản tốt từ ZIP đã verified. Không xóa retry-state hoặc ZIP cũ. Chỉ một runtime/member; phiên sau có thể xử lý hơn số ID mới vì có retry. Source/ref/metadata/audit còn lỗi thì chưa bỏ queue; chỉ acknowledge sau backup VERIFIED. Runtime chết trước backup có thể mất bytes local nhưng ID vẫn pending. M2/M3 cần các corpus ZIP của toàn bộ lượt, không chỉ report. Run cũ phải restore/resume bằng notebook mới một lần để đăng ký queue. Chi tiết thao tác xem mục 9 trong hướng dẫn chạy Windows/Colab.

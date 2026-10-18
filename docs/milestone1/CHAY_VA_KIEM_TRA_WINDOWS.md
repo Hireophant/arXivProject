@@ -110,11 +110,11 @@ Thống kê toàn nhóm phải có mẫu số/cách tổng hợp rõ. Không c�
 2. Nếu còn runtime cũ, sao lưu dữ liệu muốn giữ rồi chọn **Runtime → Disconnect and delete runtime**. Bước này xóa VM cũ; chỉ restart kernel không làm mới checkout đã clone. [Colab FAQ](https://research.google.com/colaboratory/faq.html).
 3. Chọn **Runtime → Change runtime type → Hardware accelerator: None**, lưu và Connect. Dùng runtime CPU.
 4. Ở Setup giữ `ALLOW_NETWORK=True`, `READ_COLAB_SECRET=False` nếu không dùng key. `CLONE_REPOSITORY` và `INSTALL_DEPENDENCIES` tự bật trên Colab. Repository branch là `master`.
-5. Ở Assigned ranges, thử Danh **một ID** bằng `start_id=15734`, `end_id=15734`, hai tháng `2026-06`. Giữ đủ bốn dòng, `SELECTED_MEMBER='Danh'`, `MONTH_END_IDS={}`. Chọn `RUN_MODE='cold'`, `EXISTING_ROOT=None`, `SCOPE_PURPOSE='development'`, `REQUIRE_COLAB_CPU=True`; giữ delay 3,1 giây.
+5. Ở Assigned ranges, thử Danh **một ID** bằng `start_id=15734`, `end_id=15734`, hai tháng `2026-06`. Giữ đủ bốn dòng, `SELECTED_MEMBER='Danh'`, `MONTH_END_IDS={}`. Chọn `RUN_MODE='cold'`, `EXISTING_ROOT=None`, `SCOPE_PURPOSE='development'`, `REQUIRE_COLAB_CPU=True`; giữ delay 3,1 giây. Sau configuration, chạy **Connect Drive before collection**, chọn tài khoản và cấp quyền; cell phải báo Drive ready trước khi collection bắt đầu. Lỗi mount/ghi Drive thì sửa và chạy lại cell, chưa crawl.
 6. Chạy các cells Setup đến Imports trước, chờ clone/install xong. Nếu Colab yêu cầu restart vì cài dependencies, restart session rồi chạy lại Setup/Imports. Kiểm source là `/content/arXivProject`.
 7. **Runtime → Run all**. Kiểm bảng environment có source revision đúng bản push, CPU-only và runtime Colab. Nếu lệch revision thì dừng trước collection, tạo VM mới và mở lại link GitHub; setup không tự pull vào checkout cũ.
 8. Chờ Collection hoàn tất; một bài có hàng chục reference IDs thường cần vài phút. 429/503 có thể làm lâu hơn. Đọc `status`, audit valid và outstanding tasks; không bấm Run All liên tiếp khi đang chạy.
-9. Cell **Save corpus and report to Google Drive** mặc định bật trên Colab. Khi được hỏi, chọn tài khoản Google và cấp quyền. Notebook nén local rồi lưu `corpus.zip`, `report.zip` và `backup_receipt.json` vào `MyDrive/arXivProject/Milestone1/<run_id>/<lần-sao-lưu>/`. Chờ dòng **Drive backup VERIFIED**, mở Drive kiểm thư mục. Browser download report vẫn chạy sau bước này.
+9. Cell **Save corpus/report and update the retry queue** mặc định bật trên Colab. Drive đã được cấp quyền ở cell Connect Drive trước collection. Notebook nén local rồi lưu `corpus.zip`, `report.zip` và `backup_receipt.json` vào `MyDrive/arXivProject/Milestone1/<run_id>/<lần-sao-lưu>/`. Chờ dòng **Drive backup VERIFIED**, mở Drive kiểm thư mục. Browser download report vẫn chạy sau bước này.
 
    Nếu báo **DRIVE BACKUP FAILED**, corpus/report local còn nguyên; kiểm quyền hoặc dung lượng Drive rồi **chỉ chạy lại cell sao lưu**, không Run All/crawl lại. Mỗi lần thử có thư mục riêng; folder thiếu receipt chưa phải backup hoàn tất. Đặt `SAVE_TO_DRIVE=False` nếu muốn tắt. Local hoặc `ALLOW_NETWORK=False` không mount/ghi Drive. Với analyze cần sao lưu Drive, bật ALLOW_NETWORK=True; analyze vẫn chỉ đọc corpus, không crawl lại.
 
@@ -130,3 +130,17 @@ Bản sao lưu chạy **sau** Collection và report export, không phải checkp
 Receipt chứa run_id, thời điểm UTC, tên hai ZIP, kích thước và SHA-256. Helper xác minh corpus/report cùng run, CRC ZIP local và hash bản copy; không xóa source, không ghi đè lần backup cũ. Hash chứng minh tính toàn vẹn bản copy, không chứng minh dữ liệu crawl đã đủ scope. Cần đọc status/audit/outstanding tasks như trước.
 
 Nguồn API/cách làm ở [kế hoạch, mục 10–11](./KE_HOACH_MILESTONE_1.md). Khi đã có backup verified, giữ cả corpus.zip và report.zip cho M2/M3 và báo cáo.
+
+
+## 9. Chạy nhiều phiên và tự retry bài lỗi
+
+1. Giữ cùng `SELECTED_MEMBER`, thứ tự bốn thành viên và `DRIVE_BACKUP_DIR` trong mọi lượt. Mỗi người chạy tuần tự một runtime, có queue riêng `retry-state/member-N.json`. Không xóa queue hay thư mục ZIP mà queue tham chiếu.
+2. Phiên mới: điền đoạn ID mới (khuyên 200–250), `RUN_MODE='cold'`, `EXISTING_ROOT=None`, giữ SAVE_TO_DRIVE/AUTO_RETRY_FROM_DRIVE bật. Cấp quyền Drive ở đầu rồi Run All các cell còn lại; không đợi đến cuối mới cấp quyền.
+3. Session preparation tự thêm ID pending vào đầu phạm vi và đăng ký toàn bộ trước crawl. Ví dụ 200 ID mới + 8 ID lỗi cũ = 208 ID thực tế. Xem số retry/new/actual và session_plan.json, không báo là chỉ crawl 200 ID.
+4. Source/hidden receipts/cache của bài pending được khôi phục từ ZIP đã verified. Pipeline kiểm cache: source version tốt dùng lại, thiếu/hỏng tải lại; no_tex có receipt hợp lệ được coi đã xử lý. Metadata/references quá 24 giờ có thể refresh. Nếu ZIP/queue lỗi thì dừng và giữ bản gốc để sửa, không reset queue rỗng.
+5. Cuối lượt, chờ **Drive backup VERIFIED** rồi **Retry queue saved: N pending IDs**. Bài thiếu metadata/version/reference hoặc audit fail vẫn nằm queue, phiên sau tự nhận. Not_found cũng được giữ để thấy rõ phạm vi chưa giải quyết; retry không bảo đảm upstream đã có dữ liệu.
+6. Backup lỗi: ID vẫn pending, corpus/report local còn nguyên; sửa Drive rồi chạy lại riêng cell backup. Queue update lỗi sau VERIFIED: ZIP đã an toàn, chạy lại cell backup. Runtime mất giữa crawl: ID vẫn pending, nhưng source chưa backup có thể phải tải lại vì chưa có periodic corpus backup.
+7. Nếu muốn tiếp đúng root cũ, khôi phục corpus.zip ra local rồi `resume`; scope được lấy chính xác từ manifest (có thể gồm retry ID của lượt trước). ID pending khác scope sẽ chờ một phiên cold sau. `analyze` không thay đổi queue. Không chạy lại configuration/preparation/collection chỉ để thử lại backup.
+8. Corpus từ notebook cũ chưa đăng ký queue: khôi phục và resume một lần bằng notebook mới để nhập vào cơ chế này. Chỉ có report ZIP không đủ để khôi phục source/cache.
+
+Scope chuẩn bị, khôi phục và backup không nằm trong benchmark pipeline. Report có actual scope/input scope/retry origins; cold eligibility loại lượt carry retry/cached. Giữ report mọi lượt, không cộng trùng bài được retry khi làm Book. Code chưa tự chia assignment hoặc tổng hợp Book toàn nhóm.

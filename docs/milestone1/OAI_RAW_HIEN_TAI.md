@@ -106,4 +106,9 @@ Giữ README, đề tổng, doc kế hoạch, phân công, hướng dẫn thành
 
 ## Sao lưu Drive sau lượt chạy — 18/10/2026
 
-Notebook hiện tự bật SAVE_TO_DRIVE trên Colab, nén corpus/report local và copy hai ZIP lên MyDrive/arXivProject/Milestone1 theo run/lần sao lưu. Chỉ xuất receipt/VERIFIED sau kiểm CRC/hash; không ghi đè bản cũ hoặc xóa source khi lỗi. Xem [hướng dẫn Drive](./CHAY_VA_KIEM_TRA_WINDOWS.md#8-phạm-vi-của-bản-sao-lưu-tự-động). Bước này nằm ngoài benchmark, chạy cuối lượt; crawl OAI/pacing/cache không đổi.
+Notebook hiện cấp quyền/mount Drive trước collection và tự bật SAVE_TO_DRIVE trên Colab, nén corpus/report local và copy hai ZIP lên MyDrive/arXivProject/Milestone1 theo run/lần sao lưu. Chỉ xuất receipt/VERIFIED sau kiểm CRC/hash; không ghi đè bản cũ hoặc xóa source khi lỗi. Xem [hướng dẫn Drive](./CHAY_VA_KIEM_TRA_WINDOWS.md#8-phạm-vi-của-bản-sao-lưu-tự-động). Bước này nằm ngoài benchmark, chạy cuối lượt; crawl OAI/pacing/cache không đổi.
+
+
+## Retry qua runtime mới
+
+Queue riêng cho member trong Drive/retry-state đăng ký scope trước crawl. Cold session hợp pending IDs với đoạn mới, retry trước và dedup; restore source/hidden receipts/OAI cache của bài pending từ ZIP verified, dùng validators hiện tại để quyết định reuse. Chỉ xóa pending khi metadata/all versions/references/audit đạt và corpus/report backup đã verified. Runtime bị ngắt hoặc backup lỗi giữ pending; không có periodic backup corpus nên bytes chưa backup có thể phải tải lại. not_found/metadata upstream thiếu vẫn pending và có thể lỗi tiếp. Resume giữ exact saved scope; local/offline/analyze không đăng ký hay acknowledge. OAI arXivRaw, TTL 24 giờ và pacing 3,1 giây không đổi. Scope/benchmark/citations/provenance xem kế hoạch mục 12 và hướng dẫn chạy mục 9.
