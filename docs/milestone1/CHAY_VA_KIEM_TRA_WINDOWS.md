@@ -114,15 +114,19 @@ Thống kê toàn nhóm phải có mẫu số/cách tổng hợp rõ. Không c�
 6. Chạy các cells Setup đến Imports trước, chờ clone/install xong. Nếu Colab yêu cầu restart vì cài dependencies, restart session rồi chạy lại Setup/Imports. Kiểm source là `/content/arXivProject`.
 7. **Runtime → Run all**. Kiểm bảng environment có source revision đúng bản push, CPU-only và runtime Colab. Nếu lệch revision thì dừng trước collection, tạo VM mới và mở lại link GitHub; setup không tự pull vào checkout cũ.
 8. Chờ Collection hoàn tất; một bài có hàng chục reference IDs thường cần vài phút. 429/503 có thể làm lâu hơn. Đọc `status`, audit valid và outstanding tasks; không bấm Run All liên tiếp khi đang chạy.
-9. Tải report ZIP theo cell cuối. Sao lưu corpus riêng vì ZIP báo cáo không chứa toàn bộ source/cache. Ví dụ cell tùy chọn sau khi pipeline kết thúc:
+9. Cell **Save corpus and report to Google Drive** mặc định bật trên Colab. Khi được hỏi, chọn tài khoản Google và cấp quyền. Notebook nén local rồi lưu `corpus.zip`, `report.zip` và `backup_receipt.json` vào `MyDrive/arXivProject/Milestone1/<run_id>/<lần-sao-lưu>/`. Chờ dòng **Drive backup VERIFIED**, mở Drive kiểm thư mục. Browser download report vẫn chạy sau bước này.
 
-```python
-from google.colab import files
-import shutil
-corpus_zip = shutil.make_archive('/content/m1-corpus-backup', 'zip', root_dir=str(ACTIVE_ROOT))
-files.download(corpus_zip)
-```
+   Nếu báo **DRIVE BACKUP FAILED**, corpus/report local còn nguyên; kiểm quyền hoặc dung lượng Drive rồi **chỉ chạy lại cell sao lưu**, không Run All/crawl lại. Mỗi lần thử có thư mục riêng; folder thiếu receipt chưa phải backup hoàn tất. Đặt `SAVE_TO_DRIVE=False` nếu muốn tắt. Local hoặc `ALLOW_NETWORK=False` không mount/ghi Drive. Với analyze cần sao lưu Drive, bật ALLOW_NETWORK=True; analyze vẫn chỉ đọc corpus, không crawl lại.
 
 10. Nếu partial/failed do dịch vụ, giữ runtime/root, đặt `RUN_MODE='resume'`, `EXISTING_ROOT` bằng **Root đã in**, giữ đúng assignment rồi chạy lại; không dùng cold để tiếp tục. Thử một bài đạt mới nâng lên 100 ID (`end_id=15833`) hoặc assignment đầy đủ (`20733`, scope_purpose assigned) ở cold root mới.
 
 Không chạy hai notebook crawl đồng thời. Report và corpus nằm trong VM Colab tạm thời, cần tải/sao lưu trước khi xóa runtime hoặc phiên kết thúc.
+
+
+## 8. Phạm vi của bản sao lưu tự động
+
+Bản sao lưu chạy **sau** Collection và report export, không phải checkpoint Drive giữa chừng. Nếu VM mất khi đang crawl thì dữ liệu chưa được tự đưa lên Drive bằng bước này. Việc nén/copy/kiểm hash nằm ngoài thời gian benchmark crawl.
+
+Receipt chứa run_id, thời điểm UTC, tên hai ZIP, kích thước và SHA-256. Helper xác minh corpus/report cùng run, CRC ZIP local và hash bản copy; không xóa source, không ghi đè lần backup cũ. Hash chứng minh tính toàn vẹn bản copy, không chứng minh dữ liệu crawl đã đủ scope. Cần đọc status/audit/outstanding tasks như trước.
+
+Nguồn API/cách làm ở [kế hoạch, mục 10–11](./KE_HOACH_MILESTONE_1.md). Khi đã có backup verified, giữ cả corpus.zip và report.zip cho M2/M3 và báo cáo.

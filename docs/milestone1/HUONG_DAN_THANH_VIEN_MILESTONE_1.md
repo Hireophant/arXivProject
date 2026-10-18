@@ -16,7 +16,7 @@ Tạo môi trường theo `environment.yml` hoặc `src/requirements.txt`, Pytho
 
 ## 3. Làm đúng module và hợp đồng
 
-Khánh: OAI; Khang: source; Nguyên: references; Danh: pipeline/metrics/report. Input/output và quyền ghi file ở doc phân công. Khi đổi tên field/status/schema, cập nhật tất cả consumer/test/notebook/docs cùng lúc. Schema hiện tại 3.0.
+Khánh: OAI; Khang: source; Nguyên: references; Danh: pipeline/metrics/report/backup. Input/output và quyền ghi file ở doc phân công. Khi đổi tên field/status/schema, cập nhật tất cả consumer/test/notebook/docs cùng lúc. Schema hiện tại 3.0.
 
 Notebook gọi nghiệp vụ từ `.py`; không chép crawler riêng vào cells. Pipeline dùng shared OAI client cho discovery và ngày gửi references. Các thử nghiệm dùng fake HTTP chỉ nằm trong tests, không tạo corpus chính thức.
 
@@ -60,3 +60,7 @@ Danh tích hợp một pipeline thật, audit hai reference stores/source/raw ch
 Báo cáo là Jupyter Book tiếng Anh repo công khai riêng trên GitHub Pages, bảng/hình sinh khi build từ dữ liệu thật. README code repo hướng dẫn cài/chạy. Kiểm public links và nộp code + report qua Moodle đúng hạn; M1 không nộp data, giữ corpus cho M2/M3.
 
 Thử thật một bài đã thành công trước đợt dọn; corpus lịch sử đã xóa, số liệu được ghi ở [OAI hiện tại](./OAI_RAW_HIEN_TAI.md). Đây là kiểm software/local, không đánh dấu cả milestone đã hoàn thành.
+
+## 9. Backup cuối lượt trên Colab
+
+SAVE_TO_DRIVE mặc định bật ở Colab. Cấp quyền khi cell Drive hỏi; giữ folder có đủ corpus.zip, report.zip và backup_receipt.json. Chỉ coi copy đã được kiểm toàn vẹn khi thấy Drive backup VERIFIED; vẫn cần đọc status/audit để đánh giá corpus. Lỗi Drive thì chạy lại riêng cell backup; không crawl lại. Backup này chạy cuối lượt, không checkpoint Drive giữa chừng. Tham khảo và implementation được ghi trong kế hoạch.

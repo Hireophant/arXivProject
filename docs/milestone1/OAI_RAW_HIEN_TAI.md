@@ -103,3 +103,7 @@ Sau đợt dọn ngày 17/10/2026: **27 regression tests đạt**, hai kernel no
 Toàn bộ corpus, report, XML cache, ZIP, analyzed notebook và verification của lượt này đã được xóa trong đợt dọn cuối theo yêu cầu. Đường dẫn `data/milestone1/one-paper/` là đường dẫn lịch sử, không còn tồn tại. Các số liệu trên ghi lại kết quả đã quan sát; chúng không thay bằng chứng của lần crawl Colab mới.
 
 Giữ README, đề tổng, doc kế hoạch, phân công, hướng dẫn thành viên, phương pháp OAI và hướng dẫn chạy. Doc kế hoạch chứa đầy đủ citations cho toàn `/src`. Notebook trong `src/` sạch outputs; runtime Colab sẽ tạo data mới khi chạy.
+
+## Sao lưu Drive sau lượt chạy — 18/10/2026
+
+Notebook hiện tự bật SAVE_TO_DRIVE trên Colab, nén corpus/report local và copy hai ZIP lên MyDrive/arXivProject/Milestone1 theo run/lần sao lưu. Chỉ xuất receipt/VERIFIED sau kiểm CRC/hash; không ghi đè bản cũ hoặc xóa source khi lỗi. Xem [hướng dẫn Drive](./CHAY_VA_KIEM_TRA_WINDOWS.md#8-phạm-vi-của-bản-sao-lưu-tự-động). Bước này nằm ngoài benchmark, chạy cuối lượt; crawl OAI/pacing/cache không đổi.

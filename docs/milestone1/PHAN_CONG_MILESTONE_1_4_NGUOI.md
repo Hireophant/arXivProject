@@ -80,14 +80,15 @@ ID gốc giữ dot/slash; version là int riêng. Ngày YYYY-MM-DD theo UTC; ret
 
 ## 6. Danh — Pipeline, số đo và báo cáo
 
-**Files:** `pipeline.py`, `metrics.py`, notebook chung, README/requirements và phối hợp Book repo.
+**Files:** `pipeline.py`, `metrics.py`, `backup.py`, notebook chung, README/requirements và phối hợp Book repo.
 
 1. Xác minh assignment/scope, cold root mới hoặc resume cùng scope. Chỉ một OAI client cho discovery/ngày references.
 2. Ghi metadata/manifest sau mỗi task; gọi source từng version, references theo publication; không che pending/failed/partial.
 3. Đo từ trước discovery đến toàn run, gồm nghỉ/retry; sampler RSS process tree/disk, xuất samples/errors/denominators và environment.
 4. Audit metadata, raw OAI checkpoints, source inventory/hash, hai reference stores; xuất CSV/JSON/figures/report ZIP.
-5. Tổng hợp đủ phạm vi bốn người, kiểm tay độc lập, benchmark cold Colab CPU. Sao lưu corpus riêng với ZIP báo cáo.
-6. Book tiếng Anh repo riêng sinh bảng/hình lúc build, GitHub Pages; chuẩn bị links nộp Moodle.
+5. Backup cuối lượt: hai ZIP local rồi copy Drive/kiểm hash, receipt ghi cuối; lỗi không xóa corpus hoặc bản sao cũ.
+6. Tổng hợp đủ phạm vi bốn người, kiểm tay độc lập, benchmark cold Colab CPU. Sao lưu corpus riêng với ZIP báo cáo.
+7. Book tiếng Anh repo riêng sinh bảng/hình lúc build, GitHub Pages; chuẩn bị links nộp Moodle.
 
 **Kiểm đạt:** counts đúng với file, denominators rõ, None khác 0, no_tex không bị bỏ, wall time không phải tổng task times, peak là observed; cold/resume/analyze và notebook môi trường sạch chạy được.
 

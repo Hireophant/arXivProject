@@ -64,7 +64,7 @@ Jupyter Book tiếng Anh nằm trong public repo riêng, hosted GitHub Pages. D�
 
 ## 7. Comment và truy nguyên nguồn cho toàn bộ /src
 
-Phạm vi rà soát gồm **tất cả 8 file trong `src/`**, không chỉ OAI. Phải phân biệt ba loại thông tin:
+Phạm vi rà soát gồm **tất cả 9 file trong `src/`**, không chỉ OAI. Phải phân biệt ba loại thông tin:
 
 - **Tham khảo đặc tả/tài liệu API:** dùng endpoint, response fields, ý nghĩa ngày, contract hoặc cách gọi thư viện theo tài liệu; không đồng nghĩa chép code của trang đó.
 - **Logic riêng của project:** scope/receipts/cache/status/denominators và cách phối hợp được thể hiện bằng code, comment và test; không gán chúng cho tác giả tài liệu thư viện.
@@ -81,9 +81,10 @@ Phạm vi rà soát gồm **tất cả 8 file trong `src/`**, không chỉ OAI. 
 | `crawling/pipeline.py` | `typing` introspection, threading/Event, perf_counter, subprocess, filesystem/JSON | `_typed` validator, assignment conversion, shared client, checkpoint, điều kiện success/cache mode và phạm vi benchmark do project viết | [2, 3, 5, 13, 14] |
 | `crawling/metrics.py` | psutil Process RSS/children, stdlib CSV/JSON/statistics/threading/time | Mẫu số, None/0, source coverage/no_tex, các trung bình và xuất report là cách tổng hợp của project | [2, 11, 14] |
 | `notebooks/milestone1.ipynb` | Colab runtime/Secrets/files.download; pandas DataFrame/Styler; Matplotlib pyplot; IPython display; stdlib Git/process/package/filesystem APIs | Configuration, guards, tables/audits/charts layout, benchmark checks và report bundle là notebook của project; chi tiết từng nhóm cells ở mục 7.2 | [1, 2, 12, 14, 15, 16, 17, 18] |
+| `crawling/backup.py` | ZIP/CRC, SHA-256 theo chunks, strict os.walk inventory, file copy/rename, Google Drive do notebook mount | Đối chiếu run_id; output ngoài input; hai archive local, attempt riêng, receipt ghi cuối; bảo toàn source/backup cũ khi lỗi | [14, 18, 23, 24] |
 | `requirements.txt` | Cú pháp requirements `package==version`; các distribution dependencies của pipeline/notebook | Danh sách/version pins là cấu hình environment, không phải block thuật toán sao chép; đồng bộ `environment.yml`, không phải transitive lockfile | [8, 11, 15, 16, 17, 19, 20, 21, 22] |
 
-Nguồn stdlib [14] bao gồm các API hỗ trợ xuất hiện trong imports: `collections.abc`, copy, csv, datetime/date/timezone, email.utils, gzip, hashlib, importlib, json, logging, math, os, pathlib, platform, re, shutil, statistics, subprocess, sys, tempfile, threading, time, types, uuid và zipfile. XML/tar/typing quan trọng được cite riêng ở [7, 9, 13]. Sử dụng API thư viện không có nghĩa lấy mã nguồn triển khai bên trong thư viện vào project.
+Nguồn stdlib [14] bao gồm các API hỗ trợ xuất hiện trong imports: `collections.abc`, copy, csv, datetime/date/timezone, email.utils, gzip, hashlib, importlib, json, logging, math, os, pathlib, platform, re, shutil, stat, statistics, subprocess, sys, tempfile, threading, time, types, uuid và zipfile. XML/tar/typing quan trọng được cite riêng ở [7, 9, 13]. Sử dụng API thư viện không có nghĩa lấy mã nguồn triển khai bên trong thư viện vào project.
 
 ### 7.2. Notebook: nguồn áp dụng cho từng nhóm cells
 
@@ -95,11 +96,12 @@ Nguồn stdlib [14] bao gồm các API hỗ trợ xuất hiện trong imports: `
 | `coverage-tables`, `integrity-audit` | pandas/Styler [15], hash/file I/O [14], OAI identity/version semantics [3, 4] | Các bảng coverage, kiểm metadata/source/hai stores/raw checkpoints và outstanding tasks |
 | `corpus-charts`, `resource-charts` | Matplotlib [16], pandas [15] | Chọn dữ liệu, axes/labels/layout, PNG/SVG; không có số liệu hardcode thay kết quả crawl |
 | `benchmark-tables` | Yêu cầu benchmark [2, 12], pandas [15] | Điều kiện nghiệm thu, units, mẫu số và phân biệt local/Colab/cold/cache |
+| `drive-backup`, `browser-download` | Google Colab drive.mount/files.download [18], ZIP/hash/filesystem [14, 23, 24] | Mount guard/offline skip, gọi helper backup hai archive, lỗi hiển thị và retry riêng cell; browser download chạy sau backup |
 | `report-export`, markdown methods/submission | shutil/archive [14], IPython [17], Colab files API [18], đề [1, 2] | Report README/ZIP và hướng dẫn interpret/backup/nộp Book |
 
 ### 7.3. Kết luận về code sao chép và mức bằng chứng
 
-Rà source hiện tại, comment attribution, imports/calls của cả 8 file và lịch sử commit có sẵn chưa xác định được một block code cụ thể mang attribution copy/adapt từ repository hoặc bài viết ngoài project. **Đây không phải chứng nhận rằng mọi dòng code lịch sử đều nguyên bản**: repository không lưu đầy đủ lịch sử các nguồn mà từng thành viên có thể đã đọc.
+Rà source hiện tại, comment attribution, imports/calls của cả 9 file và lịch sử commit có sẵn chưa xác định được một block code cụ thể mang attribution copy/adapt từ repository hoặc bài viết ngoài project. **Đây không phải chứng nhận rằng mọi dòng code lịch sử đều nguyên bản**: repository không lưu đầy đủ lịch sử các nguồn mà từng thành viên có thể đã đọc.
 
 Các đoạn triển khai/chỉnh sửa trong phiên làm việc hiện tại được viết theo yêu cầu project và đặc tả/API đã đối chiếu; không có block ngoài nào được nhận diện để khai báo là copy nguyên văn. Các citations bổ sung trong lần rà soát toàn `/src` là **tài liệu đối chiếu API đang dùng**, không phải bằng chứng code đã được chép từ những trang đó. Nếu thành viên xác nhận một đoạn cũ từng copy/adapt, bổ sung attribution đúng nguồn và license vào ngay hàm/đoạn đó và mục này.
 
@@ -146,10 +148,31 @@ Ngày truy cập/đối chiếu: **17/10/2026**. `n.d.` là trang không ghi ng�
 15. pandas development team. (n.d.). *Table Visualization — pandas User Guide*. [Styler documentation](https://pandas.pydata.org/docs/user_guide/style.html). Đối chiếu DataFrame/Styler.format và hiển thị bảng notebook; bảng, chỉ số và dữ liệu do project chọn.
 16. Matplotlib development team. (n.d.). *matplotlib.pyplot — Matplotlib API Reference*. [Pyplot documentation](https://matplotlib.org/stable/api/pyplot_summary.html). Đối chiếu subplots, bar/hist/plot, labels/layout và savefig PNG/SVG; không sử dụng một chart template bên ngoài đã được nhận diện.
 17. IPython development team. (n.d.). *IPython.display — API documentation*. [Display/Markdown documentation](https://ipython.readthedocs.io/en/stable/api/generated/IPython.display.html). Đối chiếu display và Markdown trong notebook; không phải nguồn của nội dung report.
-18. Google Colaboratory contributors. (n.d.). *colabtools: google.colab.userdata and google.colab.files*. [Secrets API source](https://github.com/googlecolab/colabtools/blob/main/google/colab/userdata.py), [files API source](https://github.com/googlecolab/colabtools/blob/main/google/colab/files.py). Đối chiếu gọi userdata.get và files.download từ notebook; project import package, không chép implementation của Google.
+18. Google Colaboratory contributors. (n.d.). *colabtools: google.colab.userdata, google.colab.files and google.colab.drive*. [Secrets API source](https://github.com/googlecolab/colabtools/blob/main/google/colab/userdata.py), [files API source](https://github.com/googlecolab/colabtools/blob/main/google/colab/files.py), [Drive mount API source](https://github.com/googlecolab/colabtools/blob/main/google/colab/drive.py). Đối chiếu gọi userdata.get, drive.mount và files.download từ notebook; project import package, không chép implementation của Google.
 19. Python Packaging Authority. (n.d.). *pip — Requirements File Format*. [Requirements documentation](https://pip.pypa.io/en/stable/reference/requirements-file-format/). Đối chiếu cú pháp version pins trong requirements.txt; không xác nhận environment đã cài mới/chạy đạt.
 20. Project Jupyter contributors. (n.d.). *JupyterLab Documentation*. [Tài liệu chính thức](https://jupyterlab.readthedocs.io/en/stable/). Vai trò JupyterLab trong dependency/setup notebook; không có source JupyterLab được vendored vào `/src`.
 21. IPython/Jupyter contributors. (n.d.). *IPython Kernel for Jupyter*. [ipykernel documentation](https://ipykernel.readthedocs.io/en/stable/). Vai trò kernel trong notebook/environment; project dùng package, không chép implementation kernel.
 22. Pallets Projects. (n.d.). *Jinja Documentation*. [Jinja documentation](https://jinja.palletsprojects.com/en/stable/). Dependency phục vụ pandas Styler; project không có custom Jinja template trong `/src` để gán attribution.
 
+23. Python Software Foundation. (n.d.). *zipfile — Work with ZIP archives*. [Python documentation](https://docs.python.org/3/library/zipfile.html). Đối chiếu tạo/đọc ZIP và testzip CRC cho hai archives; không dùng CRC thay tính đúng của corpus. Truy cập 18/10/2026.
+24. Python Software Foundation. (n.d.). *hashlib — Secure hashes and message digests*. [Python documentation](https://docs.python.org/3/library/hashlib.html). Đối chiếu SHA-256 incremental/chunks để kiểm bản sao mà không nạp cả ZIP vào RAM. Truy cập 18/10/2026.
+
 Khi tham khảo thêm hoặc thay đổi cách làm, bổ sung tác giả/tổ chức, tên tài liệu, ngày/phiên bản nếu có, URL, ngày truy cập và nội dung đã áp dụng vào mục này; đồng bộ comment liên quan trong code và phần References của Book.
+
+## 11. Bổ sung sao lưu Drive — 18/10/2026
+
+**Mục tiêu:** sau khi Collection/report hoàn tất, notebook Colab tự đề nghị mount Drive và sao lưu cả corpus lẫn report, kiểm SHA-256 trước khi báo thành công. User đã yêu cầu tích hợp bước sao lưu đã mô tả vào code.
+
+**Cách làm:** `crawling/backup.py` dùng Python stdlib để tạo hai ZIP trên ổ local, kiểm CRC, copy qua file tạm và đối chiếu hash. Mỗi lần thử có thư mục riêng dưới run_id; receipt được ghi cuối cùng, không ghi đè bản cũ. Notebook mount Drive và gọi helper trước bước browser download report.
+
+**Ràng buộc:** không thêm dependency; không đổi crawl/pacing/benchmark; tắt Drive khi chạy local hoặc ALLOW_NETWORK=False. Xác minh run_id của corpus/report, từ chối output nằm trong input và không xóa source khi backup lỗi. Đây là backup cuối lượt, chưa phải checkpoint Drive giữa chừng. Test/file tạm dùng để kiểm rồi dọn theo yêu cầu hiện tại.
+
+**Các bước:**
+
+- [x] Test trước: ZIP có đủ file, hash/receipt đúng; reject run lệch và path lồng; lỗi copy/hash không tạo receipt hoàn tất, không ảnh hưởng backup cũ.
+- [x] Thêm helper + cấu hình/cell Drive trong notebook, giữ browser download sau backup và thông báo lỗi có thể retry riêng cell.
+- [x] Rà soát độc lập; kiểm notebook local/offline/mount thành công và mount lỗi bằng fixture; cập nhật hướng dẫn/citations, dọn test tạm rồi commit/push.
+
+**Kết quả kiểm 18/10/2026:** 13 checks đạt: archive/file bytes/CRC/hash/receipt; run mismatch; output nested; retry độc lập; lỗi copy/hash; thư mục nguồn không đọc được phải fail, no_tex rỗng vẫn giữ; Colab thành công và auth lỗi; local và network-off không mount, mount chưa xác nhận không báo thành công. Test dùng filesystem thật ở thư mục tạm và giả lập biên Colab, chưa thay kiểm cấp quyền/mount Drive thật của người dùng. Test/data tạm đã được dọn trước commit theo yêu cầu. Không cần cài dependency mới.
+
+**Review:** đã tái hiện và sửa P2 silent omission của shutil.make_archive bằng inventory traversal có onerror=raise, zip từng entry và giữ thư mục no_tex rỗng. Không báo backup hoàn tất nếu không đọc được subtree.
