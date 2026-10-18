@@ -2,7 +2,7 @@
 
 Cập nhật **17/10/2026** theo code hiện tại. Giữ tài liệu này để ghi phương pháp, quyết định kỹ thuật, nguồn tham khảo và tiến độ; cập nhật tại chỗ khi cách làm thay đổi.
 
-Tài liệu liên quan: [đề tổng](../../ARXIV_PROJECT_FULL.md), [phân công bốn người](./PHAN_CONG_MILESTONE_1_4_NGUOI.md), [hướng dẫn thành viên](./HUONG_DAN_THANH_VIEN_MILESTONE_1.md), [cách chạy](./CHAY_VA_KIEM_TRA_WINDOWS.md), [chi tiết OAI và bằng chứng](./OAI_RAW_HIEN_TAI.md).
+Tài liệu liên quan: [đề tổng](../../ARXIV_PROJECT_FULL.md), [phân công bốn người](./PHAN_CONG_MILESTONE_1_4_NGUOI.md), [hướng dẫn sử dụng notebook](./HUONG_DAN_SU_DUNG_NOTEBOOK.md).
 
 ## 1. Mục tiêu và yêu cầu của đề
 
@@ -116,7 +116,7 @@ Quyết định scope, checkpoint, receipts, TTL, tách stores và điều kiệ
 
 Khánh phụ trách discovery/OAI, Khang source, Nguyên S2 references, Danh pipeline/metrics/notebook/báo cáo. Input/output và checklist từng người nằm ở [doc phân công](./PHAN_CONG_MILESTONE_1_4_NGUOI.md).
 
-Danh có assignment `2606.15734`–`2606.20733` (5.000 ID); preset notebook thử 100 ID đến `15833`. Thử một ID thì `end_id=15734`. Ba phạm vi còn lại cần TA/nhóm cung cấp, không suy đoán. Ranges gồm cả hai đầu; qua tháng cần ID cuối tháng đã xác minh.
+Cả bốn assignment đã điền sẵn, mỗi người 5.000 ID; mốc cuối tháng đã xác minh (xem mục 13). Chọn `SELECTED_MEMBER` và `NEW_PAPERS_PER_SESSION`; đặt số ID mới bằng 1 để thử, hoặc 100/200/300/400 tùy lượt. Giữ nguyên phạm vi đầy đủ để planner tự chọn ID mới và retry. Chi tiết thao tác nằm trong [hướng dẫn sử dụng notebook](./HUONG_DAN_SU_DUNG_NOTEBOOK.md).
 
 1. Kiểm requirements/contracts và notebook kernel mới; suite lịch sử đã chạy đạt trước khi dọn.
 2. Thử cold một ID thật, audit và so nguồn độc lập.
@@ -128,7 +128,7 @@ Danh có assignment `2606.15734`–`2606.20733` (5.000 ID); preset notebook th�
 
 Code OAI đã triển khai, không còn là prototype. Lượt cold thật mới sau khi dọn dữ liệu: `2606.15734`, run `59dc98b6-be0c-4c7d-b10f-96bb5606fa5f`, success trong **168,3166 giây**; 46 OAI requests, không cache hits; đủ v1/v2 và 69 reference rows (45 arXiv có ngày v1, 24 non-arXiv). Có 17 non-arXiv rows thiếu metadata nguồn được giữ null/đếm riêng.
 
-27 regression tests và hai kernel notebook offline/integration đã đạt; analyze dữ liệu thật không gọi mạng, 5 audit rows và ZIP CRC đạt. Corpus/report/verification từng ở `data/milestone1/one-paper/`; các artifacts này đã được xóa theo yêu cầu dọn cuối, chỉ còn số liệu lịch sử trong tài liệu. Bộ 27 tests và notebook fixtures cũng đã xóa sau lượt kiểm đạt cuối theo yêu cầu. Đây là kết quả lịch sử đã ghi, không còn script/artifact kèm checkout để chạy lại nguyên suite; khi sửa hành vi phải có kiểm chứng tương ứng mới. [Chi tiết](./OAI_RAW_HIEN_TAI.md).
+27 regression tests và hai kernel notebook offline/integration đã đạt; analyze dữ liệu thật không gọi mạng, 5 audit rows và ZIP CRC đạt. Corpus/report/verification từng ở `data/milestone1/one-paper/`; các artifacts này đã được xóa theo yêu cầu dọn cuối, chỉ còn số liệu lịch sử trong tài liệu. Bộ 27 tests và notebook fixtures cũng đã xóa sau lượt kiểm đạt cuối theo yêu cầu. Đây là kết quả lịch sử đã ghi, không còn script/artifact kèm checkout để chạy lại nguyên suite; khi sửa hành vi phải có kiểm chứng tương ứng mới.
 
 Chưa crawl toàn bộ assignment, chưa benchmark Colab CPU cuối, chưa hoàn thành/publish Book và chưa nộp Moodle. Không dùng kết quả một bài để đánh dấu cả M1 hoàn thành.
 

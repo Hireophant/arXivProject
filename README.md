@@ -50,7 +50,7 @@ On Colab choose **Hardware accelerator: None**. Setup can clone the repository a
 
 Colab Secrets or the `S2_API_KEY` environment variable can provide an optional Semantic Scholar key; never store keys in the notebook.
 
-See the [notebook usage guide](docs/milestone1/CHAY_VA_KIEM_TRA_WINDOWS.md), [method and M1 checklist](docs/milestone1/OAI_RAW_HIEN_TAI.md), [plan and full citations](docs/milestone1/KE_HOACH_MILESTONE_1.md), [four-member responsibilities](docs/milestone1/PHAN_CONG_MILESTONE_1_4_NGUOI.md) and [member handoff guide](docs/milestone1/HUONG_DAN_THANH_VIEN_MILESTONE_1.md).
+See the [notebook usage guide](docs/milestone1/HUONG_DAN_SU_DUNG_NOTEBOOK.md), [plan, method and full citations](docs/milestone1/KE_HOACH_MILESTONE_1.md) and [four-member responsibilities](docs/milestone1/PHAN_CONG_MILESTONE_1_4_NGUOI.md).
 
 ## Modules and local outputs
 
@@ -81,7 +81,7 @@ Notebook report snapshots contain `papers.csv`, `versions.csv`, `references.csv`
 
 ## Verification and submission
 
-Before the final cleanup, **27 regression tests** and fresh offline/integration notebook kernels passed. A real one-paper cold run also passed source/reference/OAI audits and report ZIP checks. The test suite, all local crawl data and generated validation outputs were then removed at the user's request. This source-only checkout does not contain `tests/` or those historical artifacts; the recorded results are described in the [plan](docs/milestone1/KE_HOACH_MILESTONE_1.md) and [M1 checklist](docs/milestone1/OAI_RAW_HIEN_TAI.md).
+Before the final cleanup, **27 regression tests** and fresh offline/integration notebook kernels passed. A real one-paper cold run also passed source/reference/OAI audits and report ZIP checks. The test suite, all local crawl data and generated validation outputs were then removed at the user's request. This source-only checkout does not contain `tests/` or those historical artifacts; the recorded results are described in the [plan](docs/milestone1/KE_HOACH_MILESTONE_1.md).
 
 For the next validation, open the notebook from the pushed GitHub version in a fresh Colab CPU runtime, set NEW_PAPERS_PER_SESSION=1 first, and inspect its actual audits and outstanding tasks. The main notebook stays clear of embedded outputs. The earlier cross-session feature passed 17 checks; current flexible planning/background backup/aggregation verification is recorded in plan section 13, including real pipeline/notebook cells with HTTP and Colab boundaries simulated. Google Drive authorization on a real Colab session still happens in the user's browser.
 

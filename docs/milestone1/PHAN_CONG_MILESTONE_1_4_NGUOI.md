@@ -2,7 +2,7 @@
 
 Cập nhật **18/10/2026** theo implementation hiện tại. Giữ doc phân công này; khi thay đổi phương pháp thì sửa nội dung, không xóa tài liệu.
 
-Đọc [đề tổng](../../ARXIV_PROJECT_FULL.md), [kế hoạch/phương pháp và citations](./KE_HOACH_MILESTONE_1.md), [hướng dẫn thành viên](./HUONG_DAN_THANH_VIEN_MILESTONE_1.md) và [cách chạy](./CHAY_VA_KIEM_TRA_WINDOWS.md).
+Đọc [đề tổng](../../ARXIV_PROJECT_FULL.md), [kế hoạch/phương pháp và citations](./KE_HOACH_MILESTONE_1.md), [hướng dẫn sử dụng notebook](./HUONG_DAN_SU_DUNG_NOTEBOOK.md).
 
 ## 1. Quyết định chung
 
@@ -94,9 +94,9 @@ ID gốc giữ dot/slash; version là int riêng. Ngày YYYY-MM-DD theo UTC; ret
 
 ## 7. Notebook, phạm vi và bằng chứng
 
-Danh: full `2606.15734`–`2606.20733`, preset development 100 ID đến `15833`; thử một ID dùng `end_id=15734`. Ba thành viên khác điền range thật của TA. Không dùng BERT/RoBERTa fixture làm assignment mặc định.
+Cả bốn range của TA đã điền sẵn trong `assignments.py`, mỗi người 5.000 ID. Chọn `SELECTED_MEMBER` và số ID mới qua `NEW_PAPERS_PER_SESSION`; đặt 1 để thử hoặc 100/200/300/400 tùy lượt. Giữ nguyên full assignment để planner tự chọn ID mới và retry; xem [hướng dẫn sử dụng notebook](./HUONG_DAN_SU_DUNG_NOTEBOOK.md).
 
-Bộ kiểm thử đã chạy đạt trước khi xóa theo yêu cầu. Với checkout hiện tại, thử một ID thật trên Colab, audit và kiểm tay rồi tăng scope. Bằng chứng hiện tại: 27 regression tests, notebook offline/integration và cold một bài thật; xem [OAI hiện tại](./OAI_RAW_HIEN_TAI.md). Một bài không chứng minh đủ assignment/Colab benchmark.
+Bộ kiểm thử đã chạy đạt trước khi xóa theo yêu cầu. Với checkout hiện tại, thử một ID thật trên Colab, audit và kiểm tay rồi tăng scope. Bằng chứng hiện tại: 27 regression tests, notebook offline/integration và cold một bài thật; xem mục 9 của [kế hoạch](./KE_HOACH_MILESTONE_1.md). Một bài không chứng minh đủ assignment/Colab benchmark.
 
 ## 8. Kiểm tra tay và bàn giao
 
