@@ -158,7 +158,15 @@ Nếu đặt `DOWNLOAD_REPORT_ZIP=True` trước khi chạy, cell cuối gọi t
 3. Chạy **Run all** lại, hoặc chạy cell cấu hình và **tất cả cell phía dưới theo thứ tự**. Chỉ sửa chữ trong cell mà chưa chạy cell thì giá trị chưa đổi.
 4. Xem bảng tiến độ mới và `This session`; planner tự lấy ID chưa làm cùng pending cần retry. Không cần reset runtime cho mỗi lượt.
 
-**Ngày khác/runtime đã mất:** mở notebook hiện hành, Connect CPU, chọn cùng thành viên và Drive cũ, đặt số ID mới, Run all rồi cấp quyền Drive nếu được hỏi. Planner đọc tiến độ và phục hồi phần pending từ bản lưu đã kiểm; không cần nhập điểm bắt đầu thủ công.
+**Ngày khác hoặc runtime đã mất:**
+
+1. Mở notebook đang dùng bản code hiện hành và **Connect** runtime CPU.
+2. Kiểm tra `SELECTED_MEMBER` đúng tên mình. Nếu bản sao notebook đã lưu đúng tên thì giữ nguyên.
+3. Chỉ đổi `NEW_PAPERS_PER_SESSION` nếu muốn thay **số lượng ID mới xử lý trong lượt này**, ví dụ `300` hoặc `400`. Muốn chạy số lượng như lần trước thì giữ nguyên; đây không phải ID bắt đầu.
+4. Chọn **Run all**. Nếu được hỏi quyền Drive, chọn **cùng tài khoản Google Drive đã lưu các lượt trước**. Giữ đường dẫn thư mục mặc định trong code, không cần nhập lại hoặc chọn thư mục mỗi lượt.
+5. Notebook tự đọc tiến độ trên Drive, chọn các ID mới chưa làm và thêm phần pending cần retry từ bản lưu đã kiểm. Xem bảng tiến độ và dòng `This session` để biết lượt này xử lý bao nhiêu ID.
+
+Thông thường, bạn chỉ cần kiểm đúng tên mình rồi chạy; thay số lượng bài là tùy chọn. Không cần tự nhớ đã chạy tới ID nào hoặc sửa khoảng ID bắt đầu/kết thúc.
 
 Các thư mục làm việc nhiều lượt vẫn chiếm ổ Colab. Nếu cần runtime mới vì ổ gần đầy, chỉ chuyển sau khi đã kiểm dữ liệu cần giữ trên Drive.
 
