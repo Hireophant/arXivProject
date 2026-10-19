@@ -103,34 +103,48 @@ def completed_sources(state: dict) -> dict[str, str]:
     return result
 
 
-def progress(state_path: Path, *, member: str, assignment_scope: dict) -> dict:
-    """Read-only startup overview: saved completion, pending and next unseen ID."""
+def progress(state_path: Path, *, member: str, assignment_scope: dict,
+             previous_assignment_scope: dict | None = None) -> dict:
+    """Read progress for the current segment without dropping older queue work.
+
+    An explicit previous scope permits splitting an existing assignment. Its
+    receipts and pending IDs remain in the same queue; only the current segment
+    contributes to the overview and automatic work selection.
+    """
     assigned = scope_ids(assignment_scope)
+    allowed = scope_ids(previous_assignment_scope) if previous_assignment_scope is not None else assigned
+    assigned_set = set(assigned)
+    if not assigned_set.issubset(allowed):
+        raise ValueError('Current assignment must belong to the previous member range.')
     state = _read(Path(state_path), member)
-    if state.get('assignment_ids', assigned) != assigned:
+    if state.get('assignment_ids', assigned) not in (assigned, allowed):
         raise ValueError('Full assignment changed; keep the saved member range.')
     seen = set(state['pending_ids'])
     for entry in state['backups']:
         seen.update(entry['requested_ids'])
-    if not seen.issubset(assigned):
+        seen.update(entry['completed_ids'])
+    if not seen.issubset(allowed):
         raise ValueError('Saved work contains IDs outside this member assignment.')
     completed = completed_sources(state)
-    pending = [i for i in state['pending_ids'] if i not in completed]
+    pending = [i for i in state['pending_ids'] if i in assigned_set and i not in completed]
     unseen = [i for i in assigned if i not in seen]
     return dict(member=member, total=len(assigned), completed=len(set(assigned) & completed.keys()),
                 pending=len(pending), unseen=len(unseen),
                 next_new_id=unseen[0] if unseen else None,
                 pending_ids=pending, unseen_ids=unseen,
-                last_saved_id=next((b['completed_ids'][-1] for b in reversed(state['backups']) if b['completed_ids']), None))
+                last_saved_id=next((i for b in reversed(state['backups'])
+                                    for i in reversed(b['completed_ids']) if i in assigned_set), None))
 
 
 def plan_session(state_path: Path, *, member: str, assignment_scope: dict,
-                 new_limit: int, retry_limit: int = 40, retry_only: bool = False) -> dict:
+                 new_limit: int, retry_limit: int = 40, retry_only: bool = False,
+                 previous_assignment_scope: dict | None = None) -> dict:
     """Select N unseen IDs plus bounded retry work; never reschedule saved success."""
     if (type(new_limit) is not int or new_limit < 1 or type(retry_limit) is not int
             or retry_limit < 0 or type(retry_only) is not bool):
         raise ValueError('New limit must be positive and retry limit nonnegative.')
-    info = progress(state_path, member=member, assignment_scope=assignment_scope)
+    info = progress(state_path, member=member, assignment_scope=assignment_scope,
+                    previous_assignment_scope=previous_assignment_scope)
     retries = info['pending_ids'][:retry_limit]
     new = [] if retry_only else info['unseen_ids'][:new_limit]
     selected = list(dict.fromkeys([*retries, *new]))
@@ -139,7 +153,10 @@ def plan_session(state_path: Path, *, member: str, assignment_scope: dict,
                     retry_ids=[], deferred_ids=info['pending_ids'], sources={}, progress_before=info)
     path = Path(state_path)
     state = _read(path, member)
-    state['assignment_ids'] = scope_ids(assignment_scope)
+    # Preserve the original range and all out-of-segment pending/history. Old
+    # v1 ledgers had no assignment_ids; pin their explicitly supplied old scope.
+    state.setdefault('assignment_ids', scope_ids(previous_assignment_scope)
+                     if previous_assignment_scope is not None else scope_ids(assignment_scope))
     _write(path, state)
     plan = prepare_session(path, member=member,
                            scope=dict(mode='ids', ids=selected, start_id=None, end_id=None), extend=False)

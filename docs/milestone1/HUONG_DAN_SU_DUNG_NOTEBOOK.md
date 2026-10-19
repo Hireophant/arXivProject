@@ -33,18 +33,18 @@ NEW_PAPERS_PER_SESSION = 300
 
 | Acc | Bắt đầu | Kết thúc | Tổng ID | File tiến độ |
 |---|---|---|---:|---|
-| Danh | 2606.15734 | 2606.17400 | 1,667 | `accounts-v2/member-1.json` |
-| Khánh | 2602.19870 | 2602.21536 | 1,667 | `accounts-v2/member-2.json` |
-| Khang | 2609.02834 | 2609.04500 | 1,667 | `accounts-v2/member-3.json` |
-| Nguyên | 2601.23156 | 2602.01536 | 1,667 | `accounts-v2/member-4.json` |
-| Danh1 | 2606.17401 | 2606.19067 | 1,667 | `accounts-v2/member-5.json` |
-| Danh2 | 2606.19068 | 2606.20733 | 1,666 | `accounts-v2/member-6.json` |
-| Khánh1 | 2602.21537 | 2602.23203 | 1,667 | `accounts-v2/member-7.json` |
-| Khánh2 | 2602.23204 | 2603.00579 | 1,666 | `accounts-v2/member-8.json` |
-| Khang1 | 2609.04501 | 2609.06167 | 1,667 | `accounts-v2/member-9.json` |
-| Khang2 | 2609.06168 | 2609.07833 | 1,666 | `accounts-v2/member-10.json` |
-| Nguyên1 | 2602.01537 | 2602.03203 | 1,667 | `accounts-v2/member-11.json` |
-| Nguyên2 | 2602.03204 | 2602.04869 | 1,666 | `accounts-v2/member-12.json` |
+| Danh | 2606.15734 | 2606.17400 | 1,667 | `member-1.json` |
+| Khánh | 2602.19870 | 2602.21536 | 1,667 | `member-2.json` |
+| Khang | 2609.02834 | 2609.04500 | 1,667 | `member-3.json` |
+| Nguyên | 2601.23156 | 2602.01536 | 1,667 | `member-4.json` |
+| Danh1 | 2606.17401 | 2606.19067 | 1,667 | `member-5.json` |
+| Danh2 | 2606.19068 | 2606.20733 | 1,666 | `member-6.json` |
+| Khánh1 | 2602.21537 | 2602.23203 | 1,667 | `member-7.json` |
+| Khánh2 | 2602.23204 | 2603.00579 | 1,666 | `member-8.json` |
+| Khang1 | 2609.04501 | 2609.06167 | 1,667 | `member-9.json` |
+| Khang2 | 2609.06168 | 2609.07833 | 1,666 | `member-10.json` |
+| Nguyên1 | 2602.01537 | 2602.03203 | 1,667 | `member-11.json` |
+| Nguyên2 | 2602.03204 | 2602.04869 | 1,666 | `member-12.json` |
 
 Giữ nguyên `ASSIGNMENTS`, thứ tự thành viên và `MONTH_END_IDS`. Không sửa đầu/cuối phạm vi thành 100/300/400 ID: planner cần toàn bộ phạm vi để theo dõi tiến độ lâu dài. Các phạm vi không giao nhau; mốc cuối tháng đã xác minh trong code.
 
@@ -74,7 +74,7 @@ Giữ đường dẫn mặc định:
 DRIVE_BACKUP_DIR = DRIVE_MOUNT_POINT / 'MyDrive/arXivProject/Milestone1'
 ```
 
-Mỗi acc cấp quyền **Drive tương ứng**. Mỗi người có 3 acc, tổng vẫn 5.000 ID. Queue nằm trong `retry-state/accounts-v2/`; queue cũ ở `retry-state/member-N.json` được giữ nguyên và chưa tự chuyển tiến độ. Nếu đã crawl trước khi chia, giữ dữ liệu cũ để đối chiếu khi tổng hợp; queue mới chưa biết các ID đã hoàn tất trước đây. Các phiên sau phải dùng cùng tài khoản, cùng tên thành viên và cùng thư mục này để đọc đúng tiến độ. Chỉ chạy **một runtime cho mỗi acc tại một thời điểm**.
+Mỗi acc cấp quyền **Drive tương ứng**. Mỗi người có 3 acc, tổng vẫn 5.000 ID. Queue vẫn ở `retry-state/member-N.json`, không thêm thư mục mới. Danh/Khánh/Khang/Nguyên giữ member-1/2/3/4 và đọc lại completed/pending từ queue cũ. Ví dụ Danh đã lưu hoàn tất 500 ID đầu thì tiếp tục từ ID chưa làm, không về 0. Tiến độ và planner chỉ tính/chọn ID trong đoạn acc hiện tại; lịch sử, receipt và pending ngoài đoạn vẫn được giữ. Các acc thêm dùng member-5 đến member-12 theo bảng. Khi tổng hợp, cần giữ cả backup cũ; acc ở Drive khác không tự biết dữ liệu đã tải trên Drive trước đó. Các phiên sau phải dùng cùng tài khoản, cùng tên thành viên và cùng thư mục này để đọc đúng tiến độ. Chỉ chạy **một runtime cho mỗi acc tại một thời điểm**.
 
 Giữ delay arXiv/S2 mặc định **3,1 giây** và các thiết lập retry API. Không giảm delay để tăng tốc; cả nhóm cần điều phối truy cập theo chính sách trong kế hoạch. Không cần API key để bắt đầu; nếu dùng S2 key thì dùng secret, không ghi vào notebook/code.
 
