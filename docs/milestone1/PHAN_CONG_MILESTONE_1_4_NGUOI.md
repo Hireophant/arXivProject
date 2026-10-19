@@ -12,6 +12,7 @@ Cập nhật **18/10/2026** theo implementation hiện tại. Giữ doc phân c�
 - Danh: điều phối, checkpoints, statistics, resources, notebook, tổng hợp Book.
 - Một notebook chung: [milestone1.ipynb](../../src/notebooks/milestone1.ipynb); nghiệp vụ nằm trong các module `.py`.
 - Code đã triển khai và thử thật một bài; data/test local đã dọn sau kiểm chứng, số liệu lịch sử được giữ trong kế hoạch. Cả4 phạm vi đã nhập từ ảnh TA; assignments.py và kế hoạch mục13 ghi đủ endpoints/mốc tháng, mỗi người5.000 ID không giao nhau.
+- Mỗi người dùng 3 acc: tên gốc, tên thêm `1`, tên thêm `2`. Chia 5.000 ID thành 1.667/1.667/1.666 ID; bảng chi tiết và queue riêng xem hướng dẫn notebook. Tiến độ cũ được giữ, chưa tự chuyển sang 12 acc.
 - Chú thích rõ input/output, quyết định khó và giới hạn. Tài liệu tham khảo ghi đầy đủ trong [kế hoạch, mục 10](./KE_HOACH_MILESTONE_1.md#10-tài-liệu-tham-khảo).
 
 ## 2. Hợp đồng kỹ thuật chung

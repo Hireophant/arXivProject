@@ -1,6 +1,6 @@
 # Hướng dẫn sử dụng notebook cào dữ liệu Milestone 1
 
-Cập nhật **18/10/2026**. Hướng dẫn cho [milestone1.ipynb](../../src/notebooks/milestone1.ipynb), chạy nhiều lượt trên **Google Colab CPU**, lưu tiến độ và dữ liệu vào Drive cá nhân. Xem [kế hoạch/phương pháp và nguồn tham khảo](./KE_HOACH_MILESTONE_1.md), [phân công](./PHAN_CONG_MILESTONE_1_4_NGUOI.md).
+Cập nhật **19/10/2026**. Hướng dẫn cho [milestone1.ipynb](../../src/notebooks/milestone1.ipynb), chạy nhiều lượt trên **Google Colab CPU**, lưu tiến độ và dữ liệu vào Drive cá nhân. Xem [kế hoạch/phương pháp và nguồn tham khảo](./KE_HOACH_MILESTONE_1.md), [phân công](./PHAN_CONG_MILESTONE_1_4_NGUOI.md).
 
 Mỗi lần rảnh, chọn tên mình và số **ID mới** muốn xử lý, rồi chạy notebook. Planner tự chọn ID tiếp theo và thêm phần cần retry; không cần tự nhập khoảng ID cho từng lượt.
 
@@ -13,7 +13,7 @@ Mỗi lần rảnh, chọn tên mình và số **ID mới** muốn xử lý, r�
 5. Khi cell **Connect Drive before collection** hỏi quyền, chọn tài khoản Drive của mình và cấp quyền. Bước này nằm **trước khi crawl**; notebook kiểm khả năng ghi Drive rồi mới đăng ký công việc.
 6. Xem bảng tiến độ và dòng `This session` theo mục 4. Đợi các cell chạy đến cuối, kiểm thông báo lưu theo mục 5.
 
-Lần đầu có thể đặt số ID mới bằng `1` để kiểm kết nối, audit và bản sao lưu, rồi tăng ở lượt kế tiếp. ID đã hoàn tất vẫn được ghi nhận trong phạm vi 5.000 ID của mình.
+Lần đầu có thể đặt số ID mới bằng `1` để kiểm kết nối, audit và bản sao lưu, rồi tăng ở lượt kế tiếp. ID đã hoàn tất vẫn được ghi nhận trong đoạn ID của acc đã chọn.
 
 **Khi lấy phiên bản code mới:** mở lại notebook từ liên kết GitHub trên và dùng runtime mới sau khi dữ liệu cũ đã được lưu. Notebook bản sao và checkout trong runtime đang dùng không tự cập nhật theo GitHub; cell setup dùng lại checkout đã tồn tại.
 
@@ -26,17 +26,25 @@ NEW_PAPERS_PER_SESSION = 300
 
 | Biến | Cách điền |
 |---|---|
-| `SELECTED_MEMBER` | Một trong `'Danh'`, `'Khánh'`, `'Khang'`, `'Nguyên'`; giữ đúng tên và dấu |
+| `SELECTED_MEMBER` | Tên gốc hoặc thêm `1`, `2`: `Danh`, `Danh1`, `Danh2`, `Khánh`, `Khánh1`, `Khánh2`, `Khang`, `Khang1`, `Khang2`, `Nguyên`, `Nguyên1`, `Nguyên2`; giữ đúng dấu |
 | `NEW_PAPERS_PER_SESSION` | Số nguyên dương: `1`, `100`, `200`, `300`, `400`… tùy thời gian rảnh; mặc định `100` |
 
 **300 hoặc 400 đều được.** Đây là giới hạn ID mới của một lượt, không phải giới hạn cả dự án. Lượt sau có thể đổi từ 300 xuống 100 hoặc lên 400; gần cuối phạm vi thì planner chỉ lấy số còn lại.
 
-| Chọn tên | Bắt đầu | Kết thúc | Tổng ID | File tiến độ |
+| Acc | Bắt đầu | Kết thúc | Tổng ID | File tiến độ |
 |---|---|---|---:|---|
-| Danh | 2606.15734 | 2606.20733 | 5.000 | `member-1.json` |
-| Khánh | 2602.19870 | 2603.00579 | 5.000 | `member-2.json` |
-| Khang | 2609.02834 | 2609.07833 | 5.000 | `member-3.json` |
-| Nguyên | 2601.23156 | 2602.04869 | 5.000 | `member-4.json` |
+| Danh | 2606.15734 | 2606.17400 | 1,667 | `accounts-v2/member-1.json` |
+| Khánh | 2602.19870 | 2602.21536 | 1,667 | `accounts-v2/member-2.json` |
+| Khang | 2609.02834 | 2609.04500 | 1,667 | `accounts-v2/member-3.json` |
+| Nguyên | 2601.23156 | 2602.01536 | 1,667 | `accounts-v2/member-4.json` |
+| Danh1 | 2606.17401 | 2606.19067 | 1,667 | `accounts-v2/member-5.json` |
+| Danh2 | 2606.19068 | 2606.20733 | 1,666 | `accounts-v2/member-6.json` |
+| Khánh1 | 2602.21537 | 2602.23203 | 1,667 | `accounts-v2/member-7.json` |
+| Khánh2 | 2602.23204 | 2603.00579 | 1,666 | `accounts-v2/member-8.json` |
+| Khang1 | 2609.04501 | 2609.06167 | 1,667 | `accounts-v2/member-9.json` |
+| Khang2 | 2609.06168 | 2609.07833 | 1,666 | `accounts-v2/member-10.json` |
+| Nguyên1 | 2602.01537 | 2602.03203 | 1,667 | `accounts-v2/member-11.json` |
+| Nguyên2 | 2602.03204 | 2602.04869 | 1,666 | `accounts-v2/member-12.json` |
 
 Giữ nguyên `ASSIGNMENTS`, thứ tự thành viên và `MONTH_END_IDS`. Không sửa đầu/cuối phạm vi thành 100/300/400 ID: planner cần toàn bộ phạm vi để theo dõi tiến độ lâu dài. Các phạm vi không giao nhau; mốc cuối tháng đã xác minh trong code.
 
@@ -66,17 +74,17 @@ Giữ đường dẫn mặc định:
 DRIVE_BACKUP_DIR = DRIVE_MOUNT_POINT / 'MyDrive/arXivProject/Milestone1'
 ```
 
-Mỗi người cấp quyền **Drive của chính mình**. Các phiên sau phải dùng cùng tài khoản, cùng tên thành viên và cùng thư mục này để đọc đúng tiến độ. Chỉ chạy **một runtime cho mỗi thành viên tại một thời điểm**.
+Mỗi acc cấp quyền **Drive tương ứng**. Mỗi người có 3 acc, tổng vẫn 5.000 ID. Queue nằm trong `retry-state/accounts-v2/`; queue cũ ở `retry-state/member-N.json` được giữ nguyên và chưa tự chuyển tiến độ. Nếu đã crawl trước khi chia, giữ dữ liệu cũ để đối chiếu khi tổng hợp; queue mới chưa biết các ID đã hoàn tất trước đây. Các phiên sau phải dùng cùng tài khoản, cùng tên thành viên và cùng thư mục này để đọc đúng tiến độ. Chỉ chạy **một runtime cho mỗi acc tại một thời điểm**.
 
 Giữ delay arXiv/S2 mặc định **3,1 giây** và các thiết lập retry API. Không giảm delay để tăng tốc; cả nhóm cần điều phối truy cập theo chính sách trong kế hoạch. Không cần API key để bắt đầu; nếu dùng S2 key thì dùng secret, không ghi vào notebook/code.
 
 ## 4. Đọc tiến độ và số bài thực tế của lượt
 
-Cell cấu hình có thể in toàn bộ scope 5.000 ID. Đó là phân công đầy đủ; **dòng `This session` ở cell chuẩn bị phiên mới cho biết số ID thực sự được chọn**.
+Cell cấu hình hiển thị toàn bộ scope 1.667 hoặc 1.666 ID của acc. Đó là phân công đầy đủ; **dòng `This session` ở cell chuẩn bị phiên mới cho biết số ID thực sự được chọn**.
 
 | Trường ở bảng đầu phiên | Cách hiểu |
 |---|---|
-| `total` | 5.000 ID được giao |
+| `total` | 1.667 hoặc 1.666 ID được giao cho acc |
 | `completed` | ID đạt điều kiện dữ liệu/audit và đã xác nhận lưu trên Drive |
 | `pending` | ID đã đăng ký nhưng chưa hoàn tất an toàn: lỗi, bị ngắt hoặc chưa kịp xử lý |
 | `unseen` | ID chưa được đăng ký vào lượt nào |
@@ -86,7 +94,7 @@ Cell cấu hình có thể in toàn bộ scope 5.000 ID. Đó là phân công đ
 Đây là tiến độ **trước khi chọn công việc mới của lượt hiện tại**. Ví dụ:
 
 ```text
-Saved complete: 280/5000; pending: 20; unseen: 4700
+Saved complete: 280/1667; pending: 20; unseen: 1367
 This session: new = 300 retry = 20 actual unique IDs = 320
 ```
 

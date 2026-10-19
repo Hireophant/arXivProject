@@ -35,7 +35,7 @@ For an existing environment, use `conda env update -f environment.yml --prune`. 
 
 Open [src/notebooks/milestone1.ipynb](src/notebooks/milestone1.ipynb), choose the correct Python kernel and configure before Run All:
 
-- All four full assignments are recorded in `crawling/assignments.py` from the instructor sheet. Choose `SELECTED_MEMBER`; do not edit the assigned endpoints each visit.
+- All twelve account assignments (three per person) are recorded in `crawling/assignments.py` from the instructor sheet. Choose `SELECTED_MEMBER`; do not edit the assigned endpoints each visit.
 - Set `NEW_PAPERS_PER_SESSION=100` or `200`. Startup progress shows saved complete/pending/unseen/next new ID; planner adds up to `MAX_RETRY_PAPERS=40` retries without counting them as new. `RETRY_ONLY=True` selects only pending work. Empty selection safely skips collection.
 - Keep `RUN_MODE='cold'`, `EXISTING_ROOT=None`, `SCOPE_PURPOSE='assigned'`, automatic planning/retry/Drive enabled. One-paper smoke test: set the new-paper count to 1, not the assignment endpoint. Cross-month boundaries were verified by paced OAI GetRecord (Jan 23286, Feb 24290).
 - `ALLOW_NETWORK=False` skips collection. `RUN_MODE='analyze'` reads an existing corpus without network.
@@ -46,7 +46,7 @@ Open [src/notebooks/milestone1.ipynb](src/notebooks/milestone1.ipynb), choose th
 | `resume` | Existing corpus root, exactly the same scope | Verify cached artifacts, refresh expired metadata/references and retry incomplete work |
 | `analyze` | Existing corpus root | Rebuild audits, tables, figures and ZIP from the stored run |
 
-On Colab choose **Hardware accelerator: None**. Setup can clone the repository and install dependencies automatically. Upload the current source or push it before cloning: uncommitted local changes are not available from GitHub. `SAVE_TO_DRIVE=IN_COLAB` enables the final Drive backup. Authorize Drive at the beginning, before collection. The mount/write check stops collection on failure. `AUTO_RETRY_FROM_DRIVE=True` carries this member's pending IDs into the next cold segment; successful source versions are restored from verified backups and revalidated. Both ZIPs are compressed locally, copied and hash-verified in `MyDrive/arXivProject/Milestone1/<run_id>/<backup-attempt>/`; `backup_receipt.json` marks a completed backup. Each attempt is independent. The member queue at `retry-state/member-N.json` registers all planned IDs before collection and acknowledges complete, audited IDs only after a verified backup. Keep this queue and its referenced ZIP folders; run only one runtime per member. Background checkpoints now save every 40 processed IDs, including partial outcomes, during collection. One worker uploads immutable snapshots while crawling continues; a two-snapshot bound provides backpressure. Pipeline measurements include checkpoint CPU/RAM/disk/upload wait. The additional final notebook export/backup remains outside the crawl benchmark. Set `SAVE_TO_DRIVE=False` to opt out; local or `ALLOW_NETWORK=False` skips Drive. On a Drive failure, keep the local corpus and rerun only the backup cell; the report browser download remains available.
+On Colab choose **Hardware accelerator: None**. Setup can clone the repository and install dependencies automatically. Upload the current source or push it before cloning: uncommitted local changes are not available from GitHub. `SAVE_TO_DRIVE=IN_COLAB` enables the final Drive backup. Authorize Drive at the beginning, before collection. The mount/write check stops collection on failure. `AUTO_RETRY_FROM_DRIVE=True` carries this member's pending IDs into the next cold segment; successful source versions are restored from verified backups and revalidated. Both ZIPs are compressed locally, copied and hash-verified in `MyDrive/arXivProject/Milestone1/<run_id>/<backup-attempt>/`; `backup_receipt.json` marks a completed backup. Each attempt is independent. The account queue at `retry-state/accounts-v2/member-N.json` registers all planned IDs before collection and acknowledges complete, audited IDs only after a verified backup. Keep this queue and its referenced ZIP folders; run only one runtime per member. Background checkpoints now save every 40 processed IDs, including partial outcomes, during collection. One worker uploads immutable snapshots while crawling continues; a two-snapshot bound provides backpressure. Pipeline measurements include checkpoint CPU/RAM/disk/upload wait. The additional final notebook export/backup remains outside the crawl benchmark. Set `SAVE_TO_DRIVE=False` to opt out; local or `ALLOW_NETWORK=False` skips Drive. On a Drive failure, keep the local corpus and rerun only the backup cell; the report browser download remains available.
 
 Colab Secrets or the `S2_API_KEY` environment variable can provide an optional Semantic Scholar key; never store keys in the notebook.
 
@@ -92,12 +92,22 @@ M1 defines the `papers` and `references` dataset tables but submits no corpus. P
 
 ## Multiple Colab sessions and retry
 
-| Member | Assigned inclusive range | IDs |
-|---|---|---:|
-| Danh | 2606.15734–2606.20733 | 5,000 |
-| Khánh | 2602.19870–2603.00579 | 5,000 |
-| Khang | 2609.02834–2609.07833 | 5,000 |
-| Nguyên | 2601.23156–2602.04869 | 5,000 |
+| Acc | Bắt đầu | Kết thúc | Tổng ID | File tiến độ |
+|---|---|---|---:|---|
+| Danh | 2606.15734 | 2606.17400 | 1,667 | `accounts-v2/member-1.json` |
+| Khánh | 2602.19870 | 2602.21536 | 1,667 | `accounts-v2/member-2.json` |
+| Khang | 2609.02834 | 2609.04500 | 1,667 | `accounts-v2/member-3.json` |
+| Nguyên | 2601.23156 | 2602.01536 | 1,667 | `accounts-v2/member-4.json` |
+| Danh1 | 2606.17401 | 2606.19067 | 1,667 | `accounts-v2/member-5.json` |
+| Danh2 | 2606.19068 | 2606.20733 | 1,666 | `accounts-v2/member-6.json` |
+| Khánh1 | 2602.21537 | 2602.23203 | 1,667 | `accounts-v2/member-7.json` |
+| Khánh2 | 2602.23204 | 2603.00579 | 1,666 | `accounts-v2/member-8.json` |
+| Khang1 | 2609.04501 | 2609.06167 | 1,667 | `accounts-v2/member-9.json` |
+| Khang2 | 2609.06168 | 2609.07833 | 1,666 | `accounts-v2/member-10.json` |
+| Nguyên1 | 2602.01537 | 2602.03203 | 1,667 | `accounts-v2/member-11.json` |
+| Nguyên2 | 2602.03204 | 2602.04869 | 1,666 | `accounts-v2/member-12.json` |
+
+Each person now has three accounts (base name, `1`, `2`), with 1,667 / 1,667 / 1,666 IDs. Select the account with `SELECTED_MEMBER`. Account queues use `retry-state/accounts-v2/member-N.json`; old queues/backups remain intact and are not automatically migrated. Previously completed IDs are not known to the new queues.
 
 Choose only the member and new-paper count each visit, authorize that person's own Drive BEFORE collection, and Run All. Maintain the member-row order and Drive root; one runtime per member. A completed ID is not selected again. Queues migrate existing receipt ledgers; old unregistered runs need one restore/resume to register. Retry failures rotate behind deferred IDs, so a permanent upstream not_found cannot block other pending work. Assignment changes or unreadable state stop instead of resetting progress.
 
