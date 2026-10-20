@@ -35,19 +35,30 @@ def _disk_bytes(root: Path) -> int:
     return total
 
 
-def sample_resources(pid: int, data_root: Path, *, elapsed_seconds: float) -> ResourceSample:
+def disk_bytes_with_extras(data_root: Path, extra_roots=()) -> int:
+    """Count corpus plus local index/download/cache work without double counting."""
+    roots = sorted({Path(p).resolve() for p in (data_root, *extra_roots)}, key=lambda p: len(p.parts))
+    selected = []
+    for root in roots:
+        if not any(root.is_relative_to(parent) for parent in selected):
+            selected.append(root)
+    return sum(root.stat().st_size if root.is_file() else _disk_bytes(root) for root in selected)
+
+
+def sample_resources(pid: int, data_root: Path, *, elapsed_seconds: float, extra_roots=()) -> ResourceSample:
     """Measure RSS of unique live processes and regular file bytes under root."""
     import psutil
     process = psutil.Process(pid)
     processes = {p.pid: p for p in [process, *process.children(recursive=True)]}
     ram = sum(p.memory_info().rss for p in processes.values())
     return dict(elapsed_seconds=elapsed_seconds, ram_bytes=ram,
-                disk_bytes=_disk_bytes(data_root))
+                disk_bytes=disk_bytes_with_extras(data_root, extra_roots))
 
 
 def collect_resource_samples(
     pid: int, data_root: Path, stop_event: Event, *,
     interval_seconds: float, samples: list[ResourceSample], errors: list[str],
+    extra_roots=(),
 ) -> None:
     """Sample immediately, periodically, and at stop; retain measurement failures."""
     if interval_seconds <= 0:
@@ -55,7 +66,7 @@ def collect_resource_samples(
     start = time.perf_counter()
     def capture():
         try:
-            samples.append(sample_resources(pid, data_root, elapsed_seconds=time.perf_counter() - start))
+            samples.append(sample_resources(pid, data_root, elapsed_seconds=time.perf_counter() - start, extra_roots=extra_roots))
         except Exception as exc:
             # Do not persist exception contents (may contain sensitive paths/data).
             errors.append(f'Resource sample failed: {type(exc).__name__}')

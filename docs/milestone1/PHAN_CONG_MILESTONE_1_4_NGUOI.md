@@ -126,3 +126,6 @@ Code crawler đã được thử; các checklist nghiệm thu toàn nhóm chưa 
 
 
 **Bổ sung planner/background/aggregate:** Danh sở hữu assignments.py, sessions.py (preview/plan/new/retry/rotation), checkpoints.py (immutable group + single worker + bounded queue + flush/measured overhead), reports.py (role tags/unique corpus/run dedup). Khánh/Khang/Nguyên giữ module nguồn và phối hợp cache/artifact audit. Mỗi người chỉ chọn tên/new count, giữ queue/ZIP, cấp quyền Drive đầu. Book dùng aggregate CSV tại build; kiểm nguồn được chọn có ZIP thật/hash đúng, không dùng manifest stub làm corpus.
+
+
+**Cập nhật 20/10/2026 — ngày references:** discovery của Khánh vẫn OAI arXivRaw; `dates.py` bổ sung cache/Kaggle/OAI resolver, `DateLookupResult` có bằng chứng tùy chọn và nguồn hybrid. Nguyên nhận resolver mới qua cùng callback, giữ nguyên S2 pagination/hai stores; receipt hybrid tự chứa evidence. Danh cập nhật audit/backup/restore/notebook/benchmark để đọc cả receipt OAI cũ và hybrid. Các mô tả OAI-only cho ngày references ở trên là phương pháp trước nâng cấp; xem [thiết kế hiện tại](./TOI_UU_REFERENCE_DATES.md).

@@ -19,7 +19,7 @@ docs/milestone1/KE_HOACH_MILESTONE_1.md (full citations in section 10).
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import Literal, Protocol, TypedDict
+from typing import Literal, Protocol, TypedDict, NotRequired
 
 
 class Scope(TypedDict):
@@ -111,7 +111,8 @@ class DateLookupResult(TypedDict):
 
     dates: dict[str, str | None]
     errors: dict[str, str]
-    metadata_source: Literal["oai-pmh/arXivRaw"]
+    metadata_source: Literal["oai-pmh/arXivRaw", "kaggle-cache/oai-v1"]
+    evidence: NotRequired[dict[str, dict]]
 
 
 DateLookup = Callable[[list[str]], DateLookupResult]
@@ -182,7 +183,7 @@ class ReferenceResult(TypedDict):
     """
 
     arxiv_id: str
-    metadata_source: Literal["oai-pmh/arXivRaw"]
+    metadata_source: Literal["oai-pmh/arXivRaw", "kaggle-cache/oai-v1"]
     status: Literal["success", "partial", "not_found", "failed"]
     references: dict[str, ReferenceMetadata]
     all_references: list[CrawledReference]
@@ -225,13 +226,15 @@ class ReferenceReceipt(TypedDict):
     """
 
     schema_version: Literal["3.0"]
-    metadata_source: Literal["oai-pmh/arXivRaw"]
-    endpoint: Literal["https://oaipmh.arxiv.org/oai"]
-    metadata_prefix: Literal["arXivRaw"]
+    metadata_source: Literal["oai-pmh/arXivRaw", "kaggle-cache/oai-v1"]
+    endpoint: Literal["https://oaipmh.arxiv.org/oai", "https://api.semanticscholar.org/graph/v1/paper"]
+    metadata_prefix: Literal["arXivRaw"] | None
     arxiv_id: str
     result: ReferenceResult
     references_sha256: str
     all_references_sha256: str
+    date_evidence: NotRequired[dict[str, dict]]
+    date_evidence_sha256: NotRequired[str]
 
 
 class PaperState(TypedDict):

@@ -31,7 +31,8 @@ from . import (
 from .discover import METADATA_SOURCE, OaiClient
 from .download import download_version
 from .references import collect_references
-from .metrics import collect_resource_samples, summarize_corpus, summarize_benchmark, _disk_bytes
+from .dates import ReferenceDates, prepare_index
+from .metrics import collect_resource_samples, summarize_corpus, summarize_benchmark, _disk_bytes, disk_bytes_with_extras
 
 _ID = re.compile(r'(?:\d{4}\.\d{4,5}|[a-zA-Z][a-zA-Z0-9.-]*/\d{7})\Z')
 
@@ -45,7 +46,8 @@ def _typed(value, annotation):
     origin, args = get_origin(annotation), get_args(annotation)
     if is_typeddict(annotation):
         fields = get_type_hints(annotation)
-        return isinstance(value, dict) and value.keys() == fields.keys() and all(_typed(value[k], t) for k, t in fields.items())
+        return (isinstance(value, dict) and annotation.__required_keys__ <= value.keys() <= fields.keys()
+                and all(_typed(value[k], fields[k]) for k in value))
     if origin in (Union, types.UnionType):
         return any(_typed(value, t) for t in args)
     if origin is Literal:
@@ -326,10 +328,11 @@ def run_pipeline(
     download_fn: DownloadCallable = download_version,
     reference_fn: ReferencesCallable = collect_references,
     checkpoint=None,
+    reference_dates_config=None,
 ) -> RunResult:
     """Collect one scope, checkpoint each task and measure the whole run.
 
-    Discovery and reference-date lookups share an OAI client; sources and S2
+    Discovery uses OAI; optional evidenced date cache/Kaggle reduces OAI calls. Sources and S2
     references retain their separate endpoints. Resource sampling starts before
     discovery, so benchmark wall time includes metadata requests and cooldowns.
     See docs/milestone1/KE_HOACH_MILESTONE_1.md for design and citations.
@@ -358,18 +361,40 @@ def run_pipeline(
     if not (root / 'metrics').resolve().is_relative_to(root):
         raise ValueError('Metrics directory escapes root')
     root.mkdir(parents=True, exist_ok=True)
+    date_config = dict(reference_dates_config or {})
+    date_work = Path(date_config['local_dir']) if date_config.get('local_dir') else None
+    extra_roots = tuple(Path(p) for p in (date_work, date_config.get('cache_dir'), date_config.get('snapshot')) if p)
+    if any(p.resolve() == root or p.resolve().is_relative_to(root) for p in extra_roots):
+        raise ValueError('Shared reference-date work/cache must live outside corpus backups.')
+    def disk_size():
+        return disk_bytes_with_extras(root, extra_roots)
     started = time.perf_counter()
     samples, errors = [], []
     interval = 0.25
     stop = Event()
     worker = Thread(target=collect_resource_samples, args=(os.getpid(), root, stop),
-                    kwargs=dict(interval_seconds=interval, samples=samples, errors=errors),
+                    kwargs=dict(interval_seconds=interval, samples=samples, errors=errors, extra_roots=extra_roots),
                     name='arxiv-resource-sampler', daemon=True)
     worker.start()
+    date_resolver = None
     try:
         save_manifest(manifest, path)
         # Repeated references across assigned papers reuse this client's cache.
         metadata_client = OaiClient(policy=policy, cache_dir=root / 'metadata_cache', use_cache=resume)
+        date_preparation = dict(enabled=bool(date_config), kaggle_enabled=bool(date_config.get('use_kaggle')),
+                                measured_extra_roots=[str(p.resolve()) for p in extra_roots])
+        if date_config:
+            index = snapshot_receipt = None
+            if date_config.get('use_kaggle'):
+                index, snapshot_receipt, preparation = prepare_index(
+                    Path(date_config['index_store']), date_work, policy=policy,
+                    snapshot=date_config.get('snapshot'), auto_download=date_config.get('auto_download', False),
+                    refresh=date_config.get('refresh', False))
+                date_preparation.update(preparation)
+            date_resolver = ReferenceDates(metadata_client, index=index, snapshot=snapshot_receipt,
+                cache_dir=date_work/'v1-cache' if date_work else date_config.get('cache_dir'),
+                cache_store=date_config.get('cache_dir') if date_work else None,
+                max_age_days=date_config.get('max_age_days', 365))
         discovery = metadata_client.discover(deepcopy(scope))
         _discovery(discovery, scope)
         manifest['discovery'] = deepcopy(discovery)
@@ -378,7 +403,7 @@ def run_pipeline(
             if checkpoint is not None:
                 checkpoint.paper_done(manifest,issue['arxiv_id'],samples=samples,errors=errors,
                                       elapsed_seconds=time.perf_counter()-started)
-        for record in discovery['papers']:
+        for paper_position, record in enumerate(discovery['papers'], 1):
             identifier = record['arxiv_id']
             directory = paper_directory(identifier, root)
             state = dict(record=deepcopy(record), metadata_path=(directory / 'metadata.json').relative_to(root).as_posix(),
@@ -407,7 +432,7 @@ def run_pipeline(
                 save_manifest(manifest, path)
             task_started = time.perf_counter()
             try:
-                date_lookup = metadata_client.submission_dates
+                date_lookup = date_resolver if date_resolver is not None else metadata_client.submission_dates
                 refs = reference_fn(identifier, directory, date_lookup, policy=policy, use_cache=resume)
             except (ValueError, NotImplementedError):
                 raise
@@ -420,9 +445,13 @@ def run_pipeline(
             state['references'] = deepcopy(refs)
             state['elapsed_seconds'] = time.perf_counter() - paper_started
             save_manifest(manifest, path)
+            if date_resolver and paper_position % getattr(checkpoint, 'every', 40) == 0:
+                date_resolver.flush()
             if checkpoint is not None:
                 checkpoint.paper_done(manifest,identifier,samples=samples,errors=errors,
                                       elapsed_seconds=time.perf_counter()-started)
+        if date_resolver:
+            date_resolver.flush()
         summary = summarize_corpus(manifest)
         complete = (discovery['status'] == 'success' and discovery['scope_complete'] and not discovery['issues']
                     and not any(summary[k] for k in ('versions_failed', 'versions_pending', 'reference_jobs_partial',
@@ -432,18 +461,25 @@ def run_pipeline(
         status = 'success' if complete else ('failed' if not progressed and (operational_failure or discovery['status'] == 'failed') else 'partial')
         cache_results = [d for s in manifest['papers'].values() for d in [*s['downloads'].values(), s['references']] if d]
         cache_mode = 'mixed' if any(d['used_cache'] for d in cache_results) and any(not d['used_cache'] for d in cache_results) else ('resume' if had_manifest or any(d['used_cache'] for d in cache_results) else 'cold')
+        if date_preparation.get('reused_index') or (date_resolver and date_resolver.counts['persistent_hits']):
+            cache_mode = 'mixed'
         cpu_only = _cpu_only_environment()
-        benchmark = summarize_benchmark(samples, wall_seconds=time.perf_counter() - started, final_disk_bytes=_disk_bytes(root),
+        benchmark = summarize_benchmark(samples, wall_seconds=time.perf_counter() - started, final_disk_bytes=disk_size(),
                                         environment=f'{platform.system()} {platform.machine()}; Python {platform.python_version()}; ' + ('Colab' if 'COLAB_RELEASE_TAG' in os.environ or 'google.colab' in sys.modules else 'local development'),
                                         cpu_only=cpu_only, cache_mode=cache_mode, sampling_interval_seconds=interval)
         output = dict(status=status, run_id=manifest['run_id'], manifest_path='manifest.json', metrics_path='metrics/run_summary.json',
                       summary=summary, benchmark=benchmark, metadata_stats=metadata_client.stats())
         _atomic_json(root / 'metrics' / 'run_summary.json', output)
+        _atomic_json(root / 'metrics' / 'reference_date_stats.json', dict(date_preparation,
+                     lookups=date_resolver.counts if date_resolver else {},
+                     discovery_source=METADATA_SOURCE, preparation_included_in_benchmark=True))
     finally:
         try:
             if checkpoint is not None:
                 checkpoint.close()  # Flush last group and measure upload wait/RSS.
         finally:
+            if date_resolver is not None:
+                date_resolver.close()
             stop.set()
             worker.join()
             _atomic_json(root / 'metrics' / 'resource_errors.json', errors)
@@ -452,11 +488,11 @@ def run_pipeline(
     # initial summary was persisted with the sampler still running. Wall time
     # includes that write and worker shutdown; final rewrite is bookkeeping.
     benchmark.update(summarize_benchmark(samples, wall_seconds=time.perf_counter() - started,
-        final_disk_bytes=_disk_bytes(root), environment=benchmark['environment'], cpu_only=cpu_only,
+        final_disk_bytes=disk_size(), environment=benchmark['environment'], cpu_only=cpu_only,
         cache_mode=cache_mode, sampling_interval_seconds=interval))
     for _ in range(8):
         _atomic_json(root / 'metrics' / 'run_summary.json', output)
-        size = _disk_bytes(root)
+        size = disk_size()
         if size == benchmark['final_disk_bytes']:
             break
         benchmark['final_disk_bytes'] = size

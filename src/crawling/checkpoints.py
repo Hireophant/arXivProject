@@ -18,7 +18,7 @@ import sys
 from uuid import uuid4
 
 from .backup import backup_run, _inventory
-from .discover import OaiClient
+from .discover import OaiClient, METADATA_SOURCE
 from .download import _cached as cached_source
 from .references import _cached_result as cached_references
 from .metrics import export_report_data, summarize_benchmark, _disk_bytes
@@ -68,9 +68,9 @@ def _artifact_audit(manifest, root, policy):
                     valid = valid and cached_source(identifier, int(version), directory/'sources'/f'v{version}') is not None
             refs = paper['references']
             if refs and refs['status']=='success':
-                cached = cached_references(identifier,directory)
+                cached = cached_references(identifier,directory,require_fresh=False)
                 valid = valid and cached is not None and cached['references']==refs['references'] and cached['all_references']==refs['all_references']
-                for key, value in refs['references'].items():
+                for key, value in (refs['references'].items() if refs['metadata_source']==METADATA_SOURCE else []):
                     ref_id = key if '/' in key else key.replace('-','.')
                     record = checker._cached(ref_id,require_fresh=False)
                     valid = valid and record is not None and record['metadata']['submission_date']==value['submission_date']
@@ -196,7 +196,7 @@ class BackgroundCheckpoints:
         invalid = [r['arxiv_id'] for r in self.audit_rows if not r['valid']]
         write_session_breakdown(report,self.plan,manifest,invalid)
         _write_audit(report,self.audit_rows)
-        for filename in ('resource_samples.json','resource_errors.json'):
+        for filename in ('resource_samples.json','resource_errors.json','reference_date_stats.json'):
             shutil.copy2(self.root/'metrics'/filename,report/filename)
         _json(report/'report_provenance.json',dict(kind='final_report',source_corpus='per-paper checkpoint receipts',
             benchmark_includes_background_checkpoint_uploads=True,final_report_export_outside_benchmark=True))

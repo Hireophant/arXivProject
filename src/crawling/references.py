@@ -1,6 +1,6 @@
 """Nguyên: retain all S2 references and a separate arXiv matching pool.
 
-Reference submission dates come from the shared OAI arXivRaw DateLookup.
+Reference dates use an injected OAI or evidenced cache/Kaggle/OAI DateLookup.
 API: https://api.semanticscholar.org/api-docs/graph
 Full citations and field/pagination choices:
 docs/milestone1/KE_HOACH_MILESTONE_1.md.
@@ -24,6 +24,7 @@ import requests
 
 from . import CrawledReference, DateLookup, HttpPolicy, ReferenceResult
 from .discover import METADATA_PREFIX, METADATA_SOURCE, OAI_ENDPOINT
+from .dates import HYBRID_SOURCE, validate_evidence, _digest
 
 _API = "https://api.semanticscholar.org/graph/v1/paper"
 # This /references endpoint accepts flat fields. citedPaper is a response
@@ -114,7 +115,7 @@ def _atomic_json(path: Path, value: Any) -> bytes:
     return content
 
 
-def _cached_result(arxiv_id: str, paper_dir: Path) -> ReferenceResult | None:
+def _cached_result(arxiv_id: str, paper_dir: Path, *, require_fresh=True) -> ReferenceResult | None:
     data_path = paper_dir / "references.json"
     all_path = paper_dir / "references_all.json"
     receipt_path = paper_dir / ".references_receipt.json"
@@ -128,13 +129,24 @@ def _cached_result(arxiv_id: str, paper_dir: Path) -> ReferenceResult | None:
         references = json.loads(data_bytes)
         all_references = json.loads(all_bytes)
         timestamp = datetime.fromisoformat(result['retrieved_at'].replace('Z', '+00:00'))
-        if timestamp.tzinfo is None or not 0 <= (datetime.now(timezone.utc) - timestamp).total_seconds() <= 86400:
+        if timestamp.tzinfo is None or (require_fresh and not 0 <= (datetime.now(timezone.utc) - timestamp).total_seconds() <= 86400):
+            return None
+        source = receipt.get('metadata_source')
+        if source == HYBRID_SOURCE:
+            evidence = receipt.get('date_evidence', {})
+            expected_ids = {key if '/' in key else key.replace('-', '.') for key in references}
+            if (receipt.get('endpoint') != _API or receipt.get('metadata_prefix') is not None
+                    or not isinstance(evidence, dict) or set(evidence) != expected_ids
+                    or receipt.get('date_evidence_sha256') != _digest(evidence)
+                    or not all(validate_evidence(evidence[key if '/' in key else key.replace('-', '.')],
+                        key if '/' in key else key.replace('-', '.'), value['submission_date'])
+                        for key, value in references.items())):
+                return None
+        elif source != METADATA_SOURCE or receipt.get('endpoint') != OAI_ENDPOINT or receipt.get('metadata_prefix') != METADATA_PREFIX:
             return None
         if (
             receipt.get("schema_version") != "3.0"
-            or receipt.get('metadata_source') != METADATA_SOURCE
-            or receipt.get('endpoint') != OAI_ENDPOINT
-            or receipt.get('metadata_prefix') != METADATA_PREFIX
+            or result.get('metadata_source') != source
             or receipt.get("arxiv_id") != arxiv_id
             or result.get("arxiv_id") != arxiv_id
             or result.get("status") != "success"
@@ -283,11 +295,15 @@ def collect_references(
 
     dates: dict[str, str | None] = {}
     date_errors: dict[str, str] = {}
+    date_source = METADATA_SOURCE
+    date_evidence = {}
     if requested_ids:
         try:
             looked_up = date_lookup(list(requested_ids))
-            if not isinstance(looked_up, dict) or looked_up.get('metadata_source') != METADATA_SOURCE:
-                raise ValueError('Reference dates must originate from OAI-PMH arXivRaw.')
+            if not isinstance(looked_up, dict) or looked_up.get('metadata_source') not in (METADATA_SOURCE, HYBRID_SOURCE):
+                raise ValueError('Unsupported reference-date source.')
+            date_source = looked_up['metadata_source']
+            date_evidence = looked_up.get('evidence', {})
             dates = looked_up.get("dates", {}) if isinstance(looked_up, dict) else {}
             date_errors = looked_up.get("errors", {}) if isinstance(looked_up, dict) else {}
             if not isinstance(dates, dict):
@@ -311,6 +327,10 @@ def collect_references(
                 submission_date = None
         if not submission_date and cited_id not in date_errors:
             date_errors[cited_id] = "DateLookup did not return a submission date."
+        if submission_date and date_source == HYBRID_SOURCE:
+            if not isinstance(date_evidence, dict) or not validate_evidence(date_evidence.get(cited_id), cited_id, submission_date):
+                date_errors[cited_id] = 'Missing or invalid v1 evidence.'
+                submission_date = None
         item["submission_date"] = submission_date
         references[key] = item
         if not submission_date:
@@ -346,7 +366,7 @@ def collect_references(
         partial_reasons.append(f"date lookup failed for {len(date_errors)} IDs")
     result: ReferenceResult = {
         "arxiv_id": arxiv_id,
-        "metadata_source": METADATA_SOURCE,
+        "metadata_source": date_source,
         "status": status,
         "references": references,
         "all_references": all_references,
@@ -369,18 +389,21 @@ def collect_references(
         all_bytes = _atomic_json(paper_dir / "references_all.json", all_references)
         receipt = {
             "schema_version": "3.0",
-            "metadata_source": METADATA_SOURCE,
-            "endpoint": OAI_ENDPOINT,
-            "metadata_prefix": METADATA_PREFIX,
+            "metadata_source": date_source,
+            "endpoint": _API if date_source == HYBRID_SOURCE else OAI_ENDPOINT,
+            "metadata_prefix": None if date_source == HYBRID_SOURCE else METADATA_PREFIX,
             "arxiv_id": arxiv_id,
             "result": result,
             "references_sha256": hashlib.sha256(data_bytes).hexdigest(),
             "all_references_sha256": hashlib.sha256(all_bytes).hexdigest(),
         }
+        if date_source == HYBRID_SOURCE:
+            evidence = {identifier: date_evidence[identifier] for identifier in requested_ids}
+            receipt.update(date_evidence=evidence, date_evidence_sha256=_digest(evidence))
         _atomic_json(paper_dir / ".references_receipt.json", receipt)
     elif status == "partial":
         # Preserve any previous complete files; partial attempts remain inspectable.
-        has_complete = _cached_result(arxiv_id, paper_dir) is not None
+        has_complete = _cached_result(arxiv_id, paper_dir, require_fresh=False) is not None
         suffix = ".partial" if has_complete else ""
         _atomic_json(paper_dir / f"references{suffix}.json", references)
         _atomic_json(paper_dir / f"references_all{suffix}.json", all_references)

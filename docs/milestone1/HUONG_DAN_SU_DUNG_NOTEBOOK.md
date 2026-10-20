@@ -1,8 +1,10 @@
 # Hướng dẫn sử dụng notebook cào dữ liệu Milestone 1
 
-Cập nhật **19/10/2026**. Hướng dẫn cho [milestone1.ipynb](../../src/notebooks/milestone1.ipynb), chạy nhiều lượt trên **Google Colab CPU**, lưu tiến độ và dữ liệu vào Drive cá nhân. Xem [kế hoạch/phương pháp và nguồn tham khảo](./KE_HOACH_MILESTONE_1.md), [phân công](./PHAN_CONG_MILESTONE_1_4_NGUOI.md).
+Cập nhật **20/10/2026**. Hướng dẫn cho [milestone1.ipynb](../../src/notebooks/milestone1.ipynb), chạy nhiều lượt trên **Google Colab CPU**, lưu tiến độ và dữ liệu vào Drive cá nhân. Xem [kế hoạch/phương pháp và nguồn tham khảo](./KE_HOACH_MILESTONE_1.md), [phân công](./PHAN_CONG_MILESTONE_1_4_NGUOI.md).
 
 Mỗi lần rảnh, chọn tên mình và số **ID mới** muốn xử lý, rồi chạy notebook. Planner tự chọn ID tiếp theo và thêm phần cần retry; không cần tự nhập khoảng ID cho từng lượt.
+
+Bản tối ưu dùng Kaggle/cache để tra ngày v1 references; discovery/mọi versions vẫn dùng OAI. Giữ nguyên cây backup và tiến độ cũ. Lần đầu tự tải/xây index, lần sau dùng lại. Đọc [hướng dẫn chuyển đổi và cấu hình Kaggle](./TOI_UU_REFERENCE_DATES.md) trước khi đổi phiên bản; chỉ đổi ở runtime mới sau khi phiên đang cào đã lưu xong. Không dùng nhiều Colab để nhân quota arXiv.
 
 ## 1. Mở notebook và chạy lần đầu
 

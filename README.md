@@ -4,22 +4,15 @@ Resolve assigned arXiv IDs, collect **every source version**, retain TeX/BibTeX 
 
 ## Current implementation
 
-All arXiv discovery, paper metadata, version histories and reference submission dates use **OAI-PMH `arXivRaw` only**:
+Assigned-paper discovery, metadata and complete version histories still use **OAI-PMH `arXivRaw`** at `https://oaipmh.arxiv.org/oai`. All available source versions are downloaded separately from `https://export.arxiv.org/src/{id}vN`. References still come from the fully paginated Semantic Scholar endpoint.
 
-```text
-https://oaipmh.arxiv.org/oai
-verb=GetRecord
-metadataPrefix=arXivRaw
-identifier=oai:arXiv.org:{base_id}
-```
+Reference submission dates now use **verified v1 cache → Cornell Kaggle metadata index → OAI fallback**. A current OAI discovery record takes priority. The notebook builds the compact SQLite index once, stores a verified immutable copy in Drive `metadata-index/`, then queries a local copy. Per-member v1 cache batches persist across sessions in `v1-cache/member-N/`. Each hybrid reference receipt carries its own date evidence, so corpus ZIPs/checkpoints remain independently auditable without the shared index. Source/manifest schema 3.0 and all existing Drive progress/backup paths are preserved; the updated reader supports both old OAI and new hybrid receipts.
 
-Submission dates come from v1; revision dates come from v2..vN. OAI `datestamp` is a metadata modification date and must not replace a submission date. There is no Query API, Atom, HTML metadata fallback or Kaggle metadata implementation.
+Use a **new notebook/runtime after the current run finishes**; keep the same member, Drive root, queues and old ZIPs. Start with one new ID. Do not mix old reader modules with hybrid outputs. Kaggle setup failures stop explicitly; supply a local snapshot or disable Kaggle to continue with cache + OAI. See the [optimization and migration guide](docs/milestone1/TOI_UU_REFERENCE_DATES.md) for configuration, folder layout and validation.
 
-Source downloads use `https://export.arxiv.org/src/{id}vN`. References come from the paginated Semantic Scholar `/paper/ARXIV:{id}/references` endpoint; these are separate required collection tasks. Source files are downloaded only for assigned papers.
+Requests remain sequential, with arXiv pacing at least 3 seconds (default 3.1) and Retry-After respected. The limit applies across machines under the group's control: multiple accounts do not multiply arXiv quota. Schedule arXiv collection sequentially; one runtime per member also protects the Drive queue. OAI/S2 live caches expire after 24 hours; the separate verified v1 cache defaults to 365 days. Historical audits verify integrity without imposing the live freshness TTL.
 
-Requests run sequentially. arXiv requests wait at least **3 seconds**; the default is **3.1 seconds**, including retries. `Retry-After` is respected. This limit applies across all machines controlled by the group, so schedule collection runs sequentially. Metadata/reference caches expire after 24 hours; raw XML checkpoints survive an interrupted discovery. Failed requests remain visible and do not trigger another metadata method.
-
-Official sources: [arXiv OAI](https://info.arxiv.org/help/oa/index.html), [rate limits](https://info.arxiv.org/help/api/tou.html), [course statement](https://hcmus-cs-ta.github.io/lab-book/intro-ds/statement/). The copied statement is [ARXIV_PROJECT_FULL.md](ARXIV_PROJECT_FULL.md); its examples describe available tools, while this repository implements the OAI method above.
+Index preparation/download/copy/verification is included in pipeline wall/RAM/disk measurements; `reference_date_stats.json` identifies snapshot, cache hits, OAI fallback and cold versus reused index. No full-corpus speedup has been measured yet. Official sources: [Cornell metadata](https://www.kaggle.com/datasets/Cornell-University/arxiv), [OAI](https://info.arxiv.org/help/oa/index.html), [rate limits](https://info.arxiv.org/help/api/tou.html), [course statement](https://hcmus-cs-ta.github.io/lab-book/intro-ds/statement/).
 
 ## Setup and execution
 
@@ -72,16 +65,16 @@ Shared contracts are in `src/crawling/__init__.py`; manifest/receipt schema is *
 <corpus>/<paper>/references_all.json
 <corpus>/<paper>/references.json
 <corpus>/<paper>/.references_receipt.json
-<corpus>/metrics/run_summary.json, resource_samples.json, resource_errors.json
+<corpus>/metrics/run_summary.json, resource_samples.json, resource_errors.json, reference_date_stats.json
 ```
 
-Only `.tex`/`.bib` are retained, byte-for-byte, including original figure/table commands. A valid version without TeX has an empty `no_tex` record. `references_all.json` retains **every returned reference**, including non-arXiv and unresolved rows. `references.json` is the unique arXiv matching pool; reference submission dates come from the same OAI client. Missing non-arXiv metadata is reported separately. Missing pages or required arXiv fields/dates make the job partial. A partial retry cannot overwrite a previous complete reference store.
+Only `.tex`/`.bib` are retained, byte-for-byte, including original figure/table commands. A valid version without TeX has an empty `no_tex` record. `references_all.json` retains **every returned reference**, including non-arXiv and unresolved rows. `references.json` is the unique arXiv matching pool; reference submission dates come from the verified hybrid resolver (legacy OAI receipts remain readable). Missing non-arXiv metadata is reported separately. Missing pages or required arXiv fields/dates make the job partial. A partial retry cannot overwrite a previous complete reference store.
 
 Notebook report snapshots contain `papers.csv`, `versions.csv`, `references.csv`, `references_all.csv`, summary/benchmark/configuration/environment JSON, `metadata_stats.json`, integrity audits, outstanding tasks and PNG/SVG figures. The report ZIP contains report outputs; the separate **corpus.zip** contains sources, metadata, references, raw XML checkpoints and metrics. The Drive backup cell saves both. Only a folder with `backup_receipt.json` is a verified completed backup; integrity verification does not replace the corpus quality audit.
 
 ## Verification and submission
 
-Before the final cleanup, **27 regression tests** and fresh offline/integration notebook kernels passed. A real one-paper cold run also passed source/reference/OAI audits and report ZIP checks. The test suite, all local crawl data and generated validation outputs were then removed at the user's request. This source-only checkout does not contain `tests/` or those historical artifacts; the recorded results are described in the [plan](docs/milestone1/KE_HOACH_MILESTONE_1.md).
+Before the final cleanup, **27 regression tests** and fresh offline/integration notebook kernels passed. A real one-paper cold run also passed source/reference/OAI audits and report ZIP checks. The test suite, all local crawl data and generated validation outputs were then removed at the user's request. Those historical artifacts are absent; current regression tests are in `tests/` and cover the hybrid migration; the recorded results are described in the [plan](docs/milestone1/KE_HOACH_MILESTONE_1.md).
 
 For the next validation, open the notebook from the pushed GitHub version in a fresh Colab CPU runtime, set NEW_PAPERS_PER_SESSION=1 first, and inspect its actual audits and outstanding tasks. The main notebook stays clear of embedded outputs. The earlier cross-session feature passed 17 checks; current flexible planning/background backup/aggregation verification is recorded in plan section 13, including real pipeline/notebook cells with HTTP and Colab boundaries simulated. Google Drive authorization on a real Colab session still happens in the user's browser.
 

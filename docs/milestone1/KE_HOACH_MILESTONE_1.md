@@ -1,8 +1,12 @@
 # Kế hoạch Milestone 1 — Thu thập dữ liệu bài báo arXiv
 
-Cập nhật **17/10/2026** theo code hiện tại. Giữ tài liệu này để ghi phương pháp, quyết định kỹ thuật, nguồn tham khảo và tiến độ; cập nhật tại chỗ khi cách làm thay đổi.
+Cập nhật **20/10/2026**. Giữ tài liệu này để ghi phương pháp, quyết định kỹ thuật, nguồn tham khảo và tiến độ; cập nhật tại chỗ khi cách làm thay đổi.
 
 Tài liệu liên quan: [đề tổng](../../ARXIV_PROJECT_FULL.md), [phân công bốn người](./PHAN_CONG_MILESTONE_1_4_NGUOI.md), [hướng dẫn sử dụng notebook](./HUONG_DAN_SU_DUNG_NOTEBOOK.md).
+
+## Cập nhật phương pháp ngày 20/10/2026
+
+[Thiết kế tối ưu và chuyển đổi](./TOI_UU_REFERENCE_DATES.md) thay thế quyết định OAI-only cho **ngày v1 references** trong các phần lịch sử bên dưới: cache bằng chứng + Kaggle local + OAI fallback, có ưu tiên discovery OAI mới. Discovery/mọi versions của bài được giao vẫn OAI, source và S2 pagination giữ nguyên. Schema 3.0/queue/backup cũ được đọc tiếp; receipt hybrid tự chứa bằng chứng. Code mới: `dates.py`, tích hợp pipeline/references/checkpoints/metrics/notebook. Benchmark bao gồm chuẩn bị index; kết quả kiểm thử và citations nằm trong tài liệu tối ưu.
 
 ## 1. Mục tiêu và yêu cầu của đề
 

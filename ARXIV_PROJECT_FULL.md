@@ -27,9 +27,9 @@ Phần này là tóm tắt đối chiếu của nhóm tài liệu, không phải
 
 Các yêu cầu cốt lõi vẫn giữ: crawl tất cả versions, một code repository chung, Jupyter Book riêng cho M1/M2 với hình/bảng sinh lúc build, không nộp data trung gian, benchmark CPU-only trên Colab, split theo publication (Test và Validation mỗi tập gồm 1 bài manual + 1 bài automatic), và poster một trang A2 dọc trong file PPTX.
 
-## Ghi chú triển khai của nhóm — OAI-PMH arXivRaw
+## Ghi chú triển khai của nhóm — OAI-PMH arXivRaw và cache/Kaggle cho ngày references
 
-Theo lựa chọn hiện tại của nhóm, code M1 chỉ dùng `GetRecord` tại `https://oaipmh.arxiv.org/oai` với `metadataPrefix=arXivRaw` để lấy metadata, mọi versions và ngày gửi v1 của references. Ví dụ `arXiv`/Sickle trong đề bên dưới là minh họa tổng quát; tài liệu chính thức xác nhận `arXivRaw` chứa lịch sử versions. `datestamp` của OAI là ngày metadata thay đổi, không phải ngày gửi bài.
+Cập nhật triển khai 20/10/2026: code M1 dùng `GetRecord` tại `https://oaipmh.arxiv.org/oai` với `metadataPrefix=arXivRaw` cho metadata và mọi versions của bài được giao. Ngày v1 references dùng cache có bằng chứng, index Cornell Kaggle local và OAI fallback; chi tiết và chuyển đổi dữ liệu cũ ở [thiết kế tối ưu](docs/milestone1/TOI_UU_REFERENCE_DATES.md). Ví dụ `arXiv`/Sickle trong đề bên dưới là minh họa tổng quát; tài liệu chính thức xác nhận `arXivRaw` chứa lịch sử versions. `datestamp` của OAI là ngày metadata thay đổi, không phải ngày gửi bài.
 
 Nhịp hiện hành: tối thiểu 3 giây/request, một kết nối tại một thời điểm; code mặc định 3,1 giây và tôn trọng Retry-After. Nguồn kiểm tra ngày 17/10/2026: [OAI-PMH chính thức](https://info.arxiv.org/help/oa/index.html), [quy định rate limit](https://info.arxiv.org/help/api/tou.html). Đây là ghi chú của nhóm; phần tiếng Anh bên dưới vẫn giữ nội dung đề được tải.
 
