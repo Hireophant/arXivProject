@@ -66,17 +66,26 @@ Shared contracts are in `src/crawling/__init__.py`; manifest/receipt schema is *
 <corpus>/<paper>/references.json
 <corpus>/<paper>/.references_receipt.json
 <corpus>/metrics/run_summary.json, resource_samples.json, resource_errors.json, reference_date_stats.json
+<corpus>/permanent_tasks.json  # preserved failed-task decisions for interrupted/restored retries
 ```
 
 Only `.tex`/`.bib` are retained, byte-for-byte, including original figure/table commands. A valid version without TeX has an empty `no_tex` record. `references_all.json` retains **every returned reference**, including non-arXiv and unresolved rows. `references.json` is the unique arXiv matching pool; reference submission dates come from the verified hybrid resolver (legacy OAI receipts remain readable). Missing non-arXiv metadata is reported separately. Missing pages or required arXiv fields/dates make the job partial. A partial retry cannot overwrite a previous complete reference store.
 
-Notebook report snapshots contain `papers.csv`, `versions.csv`, `references.csv`, `references_all.csv`, summary/benchmark/configuration/environment JSON, `metadata_stats.json`, integrity audits, outstanding tasks and PNG/SVG figures. The report ZIP contains report outputs; the separate **corpus.zip** contains sources, metadata, references, raw XML checkpoints and metrics. The Drive backup cell saves both. Only a folder with `backup_receipt.json` is a verified completed backup; integrity verification does not replace the corpus quality audit.
+Notebook shows a summary dashboard after collection and final backup. Tables preview at most five data rows; grouped diagnostics preview at most ten groups. Display units are MiB/GiB and min:sec; CSV/JSON keep numeric bytes/seconds for reproducibility. Drive size is the actual size of verified ZIPs/receipts for the current run, including checkpoint duplicates, and stays unknown without committed backup evidence.
+
+Notebook report snapshots contain `permanent_failures.csv`, `papers.csv`, `versions.csv`, `references.csv`, `references_all.csv`, summary/benchmark/configuration/environment JSON, `metadata_stats.json`, integrity audits, outstanding tasks and PNG/SVG figures. The report ZIP contains report outputs; the separate **corpus.zip** contains sources, metadata, references, raw XML checkpoints and metrics. The Drive backup cell saves both. Only a folder with `backup_receipt.json` is a verified completed backup; integrity verification does not replace the corpus quality audit.
 
 ## Verification and submission
 
-Before the final cleanup, **27 regression tests** and fresh offline/integration notebook kernels passed. A real one-paper cold run also passed source/reference/OAI audits and report ZIP checks. The test suite, all local crawl data and generated validation outputs were then removed at the user's request. Those historical artifacts are absent; current regression tests are in `tests/` and cover the hybrid migration; the recorded results are described in the [plan](docs/milestone1/KE_HOACH_MILESTONE_1.md).
+Run the current offline regression suite from the project root:
 
-For the next validation, open the notebook from the pushed GitHub version in a fresh Colab CPU runtime, set NEW_PAPERS_PER_SESSION=1 first, and inspect its actual audits and outstanding tasks. The main notebook stays clear of embedded outputs. The earlier cross-session feature passed 17 checks; current flexible planning/background backup/aggregation verification is recorded in plan section 13, including real pipeline/notebook cells with HTTP and Colab boundaries simulated. Google Drive authorization on a real Colab session still happens in the user's browser.
+```bash
+python -m unittest discover -s tests -v
+# Optional: execute all notebook cells with fake HTTP/Drive, writing under data/validation.
+python tests/validate_notebook.py
+```
+
+The suite exercises source/reference receipts, reference-date provenance, backup restoration, old queue migration, permanent/transient retries, interrupted resumes, notebook syntax and compact presentation. HTTP and Drive storage are simulated in tests; this does not replace a real Colab CPU benchmark or browser Drive authorization. The source notebook is delivered without embedded outputs.
 
 To complete the actual milestone, collect all assigned ranges and versions, resolve/report outstanding issues, compare samples with independent sources, run the final **cold Colab CPU benchmark**, and maintain a **separate public English Jupyter Book repository hosted on GitHub Pages**. Its tables/figures must be generated during book compilation from real results. Submit the public code and report links through Moodle before the deadline. Local one-paper verification does not establish full coverage or the final benchmark.
 
@@ -102,7 +111,7 @@ M1 defines the `papers` and `references` dataset tables but submits no corpus. P
 
 Each person now has three accounts (base name, `1`, `2`), with 1,667 / 1,667 / 1,666 IDs. Select the account with `SELECTED_MEMBER`. Account queues use `retry-state/member-N.json`; Danh/Khánh/Khang/Nguyên retain member-1/2/3/4 and read their existing completion receipts. The planner counts/selects only IDs in the current segment while preserving all older history and pending work. Extra accounts use member-5 through member-12 as listed above.
 
-Choose only the member and new-paper count each visit, authorize that person's own Drive BEFORE collection, and Run All. Maintain the member-row order and Drive root; one runtime per member. A completed ID is not selected again. Queues migrate existing receipt ledgers; old unregistered runs need one restore/resume to register. Retry failures rotate behind deferred IDs, so a permanent upstream not_found cannot block other pending work. Assignment changes or unreadable state stop instead of resetting progress.
+Choose only the member and new-paper count each visit, authorize that person's own Drive BEFORE collection, and Run All. Maintain the member-row order and Drive root; one runtime per member. A completed ID is not selected again. Queues migrate existing receipt ledgers; old unregistered runs need one restore/resume to register. Transient/unknown failures rotate behind deferred IDs. Confirmed terminal failures are kept in `permanent_failures` and excluded from automatic selection; they are never counted as completed. Assignment changes or unreadable state stop instead of resetting progress.
 
 `BACKGROUND_CHECKPOINTS=True`, `CHECKPOINT_EVERY_PAPERS=40` saves processed groups to `Milestone1/checkpoints/`. Source/receipts/cache snapshots are frozen locally before background ZIP/copy/hash/queue acknowledgement. Good source versions are restored for retries; OAI/reference caches still expire after 24 hours. Groups that fail validation remain pending. The last group (<40) is flushed and the worker joined before pipeline measurement ends. Do not assume only 39 papers can be lost: an uploading or queued group is not protected until its receipt/state commit completes.
 
@@ -111,3 +120,13 @@ Final raw measurements are also saved from inside the running pipeline to `Miles
 Closing a tab or powering off the client does not guarantee that Colab will keep executing. A lost runtime can require redownloading work without a committed checkpoint. Open a new session later to read Drive progress. If continuing in the same runtime, wait for the current pipeline/backup to finish, change the new-paper count if desired, then rerun configuration and all later cells (or Run All); each cold visit gets a new root. When only the final backup fails, retry that cell rather than starting another collection. A background-worker error stops collection and preserves local stage/pending IDs; use a new planned visit or explicit resume after fixing Drive.
 
 For the Book, preserve each member's entire `Milestone1` tree (including `retry-state`, `checkpoints`, `session-reports`, and full backups). Copy each tree under a different member folder. `aggregate_reports([state_paths...], output_dir)` in `crawling.reports` rebases known receipt layouts to those copied trees, verifies source/report ZIP hashes, and generates `papers_unique.csv`, `attempts.csv`, `benchmark_runs.csv`, `summary.json`. One base ID is counted once; new/retry roles and all run timing remain available. Interrupted cumulative-prefix measurements stay marked incomplete; do not sum checkpoint and final measurements of one run. Book tables/plots should read these outputs during build; this helper does not create/publish the Book itself.
+
+## Permanent failure policy
+
+Source HTTP 404/410, S2 not_found/404/410 and missing OAI records are excluded from automatic task retries. HTTP 429, 408, 5xx and transport timeouts remain retryable; unfamiliar errors stay visible for review. A source 404 does **not** prove a PDF-only submission. Only validated source payloads can produce `no_tex`, which keeps its empty version directory and receipt and is not counted as TeX success. Invalid scope IDs fail validation before any request rather than entering a malformed queue.
+
+Decisions are per task. A paper with source 404 and S2 429 stays pending until the S2 task is resolved; the source 404 is not requested again after resume or restoration. A paper is quarantined only when every remaining unresolved task is permanent. `no_tex` is already a resolved source outcome, so references can still be recovered. Integrity failures always stay pending for repair. A completed operational paper can include verified `no_tex`; full-TeX coverage is reported separately.
+
+Verified checkpoints/final backups retain the failure evidence before queue acknowledgement. Existing queues are migrated once per referenced report archive after checking its receipt hash, preserving completion history and assignments. Missing/corrupt evidence stops migration without deleting pending IDs. No Drive data is modified by merely upgrading local source; the new notebook applies migration on the next planned session.
+
+“Permanent” is an automatic retry policy, not a claim that an upstream resource can never appear. For a deliberate recheck, use `RUN_MODE='resume'`, set `EXISTING_ROOT` to that saved corpus and `RETRY_PERMANENT_FAILURES=True`. Restore the actual corpus first if it is only on Drive; report-only stubs are insufficient. This option is rejected for automatic cold planning. Keep it false for normal sessions and do not delete queue/receipt files to force retries.

@@ -69,7 +69,7 @@ def _request_s2(
         except requests.HTTPError as exc:
             last_error = exc
             status = exc.response.status_code if exc.response is not None else None
-            if status == 404 or (status is not None and status < 500 and status != 429):
+            if status is not None and status < 500 and status not in {408, 429}:
                 exc._attempts = attempt
                 raise
             retry_after = exc.response.headers.get("Retry-After") if exc.response is not None else None
@@ -227,11 +227,11 @@ def collect_references(
             attempts += getattr(exc, "_attempts", 1)
             status_code = exc.response.status_code if exc.response is not None else None
             not_found = status_code == 404 and not pages
-            error = f"Semantic Scholar HTTP {status_code or 'error'}: {exc}"
+            error = f"Semantic Scholar HTTP {status_code or 'error'}."
             break
         except (requests.RequestException, ValueError) as exc:
             attempts += getattr(exc, "_attempts", policy["max_attempts"])
-            error = f"Semantic Scholar request failed: {exc}"
+            error = f"Semantic Scholar request failed ({type(exc).__name__})."
             break
 
         rows = page["data"]

@@ -32,6 +32,7 @@ from .discover import METADATA_SOURCE, OaiClient
 from .download import download_version
 from .references import collect_references
 from .dates import ReferenceDates, prepare_index
+from .failures import classify_failure, permanent_tasks
 from .metrics import collect_resource_samples, summarize_corpus, summarize_benchmark, _disk_bytes, disk_bytes_with_extras
 
 _ID = re.compile(r'(?:\d{4}\.\d{4,5}|[a-zA-Z][a-zA-Z0-9.-]*/\d{7})\Z')
@@ -329,6 +330,7 @@ def run_pipeline(
     reference_fn: ReferencesCallable = collect_references,
     checkpoint=None,
     reference_dates_config=None,
+    retry_permanent: bool = False,
 ) -> RunResult:
     """Collect one scope, checkpoint each task and measure the whole run.
 
@@ -339,7 +341,7 @@ def run_pipeline(
     """
     _scope(scope)
     _require(policy, HttpPolicy)
-    if (type(resume) is not bool or policy['timeout_seconds'] <= 0 or policy['max_attempts'] < 1
+    if (type(resume) is not bool or type(retry_permanent) is not bool or policy['timeout_seconds'] <= 0 or policy['max_attempts'] < 1
             or not policy['user_agent'].strip()):
         raise ValueError('Invalid pipeline configuration')
     root = data_root.resolve()
@@ -352,6 +354,30 @@ def run_pipeline(
     if not path.exists() and root.exists() and any(root.iterdir()):
         raise ValueError('Nonempty root has no manifest; choose a new root')
     had_manifest = path.exists()
+    saved_tasks = permanent_tasks(manifest) if resume and not retry_permanent else {}
+    restored_path = root / 'permanent_tasks.json'
+    if resume and not retry_permanent and restored_path.is_file():
+        restored = json.loads(restored_path.read_text(encoding='utf-8'))
+        if not isinstance(restored, dict):
+            raise ValueError('Invalid restored permanent tasks')
+        for identifier, tasks in restored.items():
+            paper_directory(identifier, root)
+            if not isinstance(tasks, dict) or set(tasks) != {'downloads', 'references'} or not isinstance(tasks['downloads'], dict):
+                raise ValueError('Invalid restored permanent task schema')
+            for version, value in tasks['downloads'].items():
+                _download(value, identifier, int(version))
+                if value['status'] != 'failed' or classify_failure('source', value['status'], value['error'])[0] != 'permanent':
+                    raise ValueError('Restored source task is not permanent')
+            if tasks['references'] is not None:
+                value = tasks['references']
+                _references(value, identifier)
+                if value['status'] == 'success' or classify_failure('references', value['status'], value['error'])[0] != 'permanent':
+                    raise ValueError('Restored reference task is not permanent')
+            current = saved_tasks.setdefault(identifier, deepcopy(tasks))
+            current['downloads'] = {**tasks['downloads'], **current['downloads']}
+            current['references'] = current['references'] or tasks['references']
+    saved_missing = [deepcopy(i) for i in (manifest.get('discovery') or {}).get('issues', [])
+                     if resume and not retry_permanent and classify_failure('discovery', i['status'], i['error'])[0] == 'permanent']
     manifest['run_id'] = str(uuid.uuid4())
     for state in manifest['papers'].values():
         state['elapsed_seconds'] = None
@@ -378,6 +404,9 @@ def run_pipeline(
     worker.start()
     date_resolver = None
     try:
+        # Preserve prior terminal decisions even if this resume is interrupted
+        # after resetting the per-run manifest but before revisiting those tasks.
+        _atomic_json(restored_path, saved_tasks)
         save_manifest(manifest, path)
         # Repeated references across assigned papers reuse this client's cache.
         metadata_client = OaiClient(policy=policy, cache_dir=root / 'metadata_cache', use_cache=resume)
@@ -395,9 +424,24 @@ def run_pipeline(
                 cache_dir=date_work/'v1-cache' if date_work else date_config.get('cache_dir'),
                 cache_store=date_config.get('cache_dir') if date_work else None,
                 max_age_days=date_config.get('max_age_days', 365))
-        discovery = metadata_client.discover(deepcopy(scope))
+        if saved_missing:
+            from .sessions import scope_ids
+            missing_ids = {i['arxiv_id'] for i in saved_missing}
+            remaining = [i for i in scope_ids(scope) if i not in missing_ids]
+            discovery = (metadata_client.discover(dict(mode='ids', ids=remaining, start_id=None, end_id=None))
+                         if remaining else dict(papers=[], issues=[], elapsed_seconds=0.0, metadata_source=METADATA_SOURCE))
+            discovery.update(scope=deepcopy(scope), requested_count=len(scope_ids(scope)),
+                             issues=discovery['issues'] + saved_missing)
+            discovery['scope_complete'] = not any(i['status'] == 'failed' for i in discovery['issues'])
+            discovery['status'] = 'partial' if discovery['papers'] or discovery['scope_complete'] else 'failed'
+        else:
+            discovery = metadata_client.discover(deepcopy(scope))
         _discovery(discovery, scope)
         manifest['discovery'] = deepcopy(discovery)
+        discovered_ids = {record['arxiv_id'] for record in discovery['papers']}
+        # A failed fresh discovery must not leave an old paper in this run's
+        # discovered denominator. Prior artifacts remain on disk for recovery.
+        manifest['papers'] = {i: s for i, s in manifest['papers'].items() if i in discovered_ids}
         save_manifest(manifest, path)
         for issue in discovery['issues']:
             if checkpoint is not None:
@@ -418,8 +462,12 @@ def run_pipeline(
                     raise ValueError('Source directory escapes root')
                 task_started = time.perf_counter()
                 try:
-                    result = download_fn(identifier, version, version_dir,
-                                         policy=policy, use_cache=resume)
+                    previous = saved_tasks.get(identifier, {}).get('downloads', {}).get(str(version))
+                    if previous:
+                        result = dict(deepcopy(previous), attempts=0, elapsed_seconds=0.0, used_cache=False)
+                    else:
+                        result = download_fn(identifier, version, version_dir,
+                                             policy=policy, use_cache=resume)
                 except (ValueError, NotImplementedError):
                     raise
                 except Exception as exc:
@@ -433,7 +481,11 @@ def run_pipeline(
             task_started = time.perf_counter()
             try:
                 date_lookup = date_resolver if date_resolver is not None else metadata_client.submission_dates
-                refs = reference_fn(identifier, directory, date_lookup, policy=policy, use_cache=resume)
+                previous = saved_tasks.get(identifier, {}).get('references')
+                if previous:
+                    refs = dict(deepcopy(previous), attempts=0, elapsed_seconds=0.0, used_cache=False)
+                else:
+                    refs = reference_fn(identifier, directory, date_lookup, policy=policy, use_cache=resume)
             except (ValueError, NotImplementedError):
                 raise
             except Exception as exc:

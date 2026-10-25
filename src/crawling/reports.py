@@ -12,6 +12,7 @@ import zipfile
 
 from .backup import _sha256
 from .sessions import _read, _receipt, completed_sources, scope_ids, successful_ids, locate_receipt
+from .failures import quarantined_ids
 
 
 def _csv(path, rows, fields):
@@ -23,15 +24,16 @@ def _csv(path, rows, fields):
 
 def session_rows(manifest, plan, invalid_ids=()):
     complete = successful_ids(manifest, invalid_ids)
+    quarantine = quarantined_ids(manifest, invalid_ids)
     new, retry = set(plan.get('new_ids', [])), set(plan.get('retry_ids', []))
     return [dict(run_id=manifest['run_id'], arxiv_id=i,
                  role='retry' if i in retry else 'new' if i in new else 'unclassified',
-                 complete=i in complete) for i in scope_ids(manifest['scope'])]
+                 complete=i in complete, quarantined=i in quarantine) for i in scope_ids(manifest['scope'])]
 
 
 def write_session_breakdown(report_dir: Path, plan: dict, manifest: dict, invalid_ids=()) -> dict:
     rows = session_rows(manifest, plan, invalid_ids)
-    _csv(report_dir/'attempts.csv', rows, ['run_id','arxiv_id','role','complete'])
+    _csv(report_dir/'attempts.csv', rows, ['run_id','arxiv_id','role','complete','quarantined'])
     counts = {f'{role}_{key}': sum(r['role']==role and (key=='requested' or r['complete']) for r in rows)
               for role in ('new','retry','unclassified') for key in ('requested','complete')}
     (report_dir/'session_counts.json').write_text(json.dumps(counts, indent=2), encoding='utf-8')
@@ -50,6 +52,7 @@ def aggregate_reports(state_paths: list[Path], output_dir: Path) -> dict:
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
     attempts, runs, papers, pending, registered_new = {}, {}, {}, set(), set()
+    quarantine = set()
     receipts, verified_corpora = {}, set()
     owners = {}
     for state_path in state_paths:
@@ -59,7 +62,8 @@ def aggregate_reports(state_paths: list[Path], output_dir: Path) -> dict:
         chosen = completed_sources(state)
         for plan in state.get('plans', []):
             registered_new.update(plan['new_ids'])
-        pending.update(set(state['pending_ids']) - chosen.keys())
+        quarantine.update(set(state['permanent_failures']) - chosen.keys())
+        pending.update(set(state['pending_ids']) - chosen.keys() - set(state['permanent_failures']))
         for entry in state['backups']:
             receipt_path = entry['receipt_path']
             receipt_file = locate_receipt(receipt_path,state_path.resolve().parent.parent)
@@ -113,9 +117,10 @@ def aggregate_reports(state_paths: list[Path], output_dir: Path) -> dict:
                     corpus_zip=str(receipt_file.parent/'corpus.zip'), receipt_path=str(receipt_file))
     rows = [v[1] for v in attempts.values()]
     result = dict(unique_complete_papers=len(papers), unique_new_ids=len(registered_new | {r['arxiv_id'] for r in rows if r['role']=='new'}),
-                  retry_attempts=sum(r['role']=='retry' for r in rows), distinct_runs=len(runs), pending_ids=sorted(pending))
+                  retry_attempts=sum(r['role']=='retry' for r in rows), distinct_runs=len(runs),
+                  pending_ids=sorted(pending), quarantined_ids=sorted(quarantine))
     _csv(output/'papers_unique.csv', list(papers.values()), ['member','arxiv_id','title','submission_date','corpus_zip','receipt_path'])
-    _csv(output/'attempts.csv', rows, ['member','run_id','arxiv_id','role','complete'])
+    _csv(output/'attempts.csv', rows, ['member','run_id','arxiv_id','role','complete','quarantined'])
     _csv(output/'benchmark_runs.csv', [v[1] for v in runs.values()],
          ['member','run_id','wall_seconds','ram_peak_bytes','disk_peak_bytes','complete_measurement','cache_mode','environment'])
     (output/'summary.json').write_text(json.dumps(result, indent=2), encoding='utf-8')

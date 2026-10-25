@@ -36,6 +36,10 @@ outputs/
 report_data/
 *.log
 
+# Separate report checkout and local review notes are not part of the code repo.
+/arXiv-report/
+/docs/milestone1/RA_SOAT_TRUOC_KHI_NOP.md
+
 # Incomplete downloads and temporary files
 *.download
 *.part

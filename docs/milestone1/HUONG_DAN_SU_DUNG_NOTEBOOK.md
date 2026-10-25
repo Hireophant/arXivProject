@@ -231,3 +231,16 @@ Giữ report gốc để đọc chi tiết versions/references và sinh thống 
 - `analyze`: đặt `RUN_MODE='analyze'`, `EXISTING_ROOT` trỏ corpus có `metrics/run_summary.json`, `ALLOW_NETWORK=False`. Đọc số đo sẵn có, không đo lại crawl hoặc cập nhật queue; root bị ngắt chưa có summary tương ứng cần resume trước. Lưu/export mới lên Drive cần kết nối và bật mạng theo cấu hình notebook.
 
 **Mở notebook trên Windows để đọc/analyze:** dùng Python >=3.11, cài môi trường từ `environment.yml` hoặc `src/requirements.txt`, mở Jupyter và chọn đúng kernel. Với corpus đã giải nén, cấu hình analyze như trên và dùng đường dẫn Windows cho `EXISTING_ROOT`. Quy trình cào nhiều phiên tự động và nối Drive trong hướng dẫn này dùng Colab.
+
+
+## Cập nhật retry và output trước nộp (24/10/2026)
+
+- Giữ nguyên member, Drive root và queue cũ. Mở runtime/notebook dùng source mới sau khi phiên hiện tại kết thúc. Trước planner, lỗi cũ được đọc từ report ZIP đã xác minh hash. Migration không xóa lịch sử completed và không biến bài lỗi thành bài thành công.
+- `pending` dành cho phần còn cần cứu/kiểm tra; `quarantined` là bài chỉ còn các tác vụ lỗi vĩnh viễn. HTTP 404/410 và not_found không gọi lại tự động. 429, 408, 5xx, mạng/timeout tiếp tục retry. Bài có source 404 và S2 429 chỉ retry S2. Lỗi integrity vẫn phải sửa, không được cách ly để bỏ qua.
+- `no_tex` có receipt hợp lệ không tải lại, vẫn giữ version rỗng. Bài `no_tex` còn thiếu references vẫn được cứu references. “Hoàn thành xử lý” chấp nhận `no_tex`; “full TeX” thì không. Source 404 không chứng minh tác giả chỉ nộp PDF. ID sai định dạng dừng trước request để sửa cấu hình.
+- Thẻ sau collection và backup hiển thị thời gian pipeline, bài hoàn thành/tổng, số `.tex`/`.bib` local, Drive đã xác minh, pending và cách ly. Drive tính ZIP/receipt của phiên đang xem, có cả checkpoint trùng; không dùng dung lượng local thay cho Drive. Chưa có receipt thì hiển thị “Chưa xác minh”.
+- Bảng corpus/audit chỉ hiện 5 dòng mẫu; lỗi gom tối đa 10 nhóm hiển thị, toàn bộ vẫn ở CSV. Audit đếm **hạng mục kiểm tra**, không ghi nhầm thành số file hay khẳng định đủ dải bài. MiB/GiB và phút:giây chỉ là định dạng hiển thị; dữ liệu CSV/JSON vẫn giữ byte/giây.
+- Đọc `permanent_failures.csv` cho cả no_tex và lỗi không retry, `outstanding_tasks.csv` cho các phần chưa hoàn thành, `integrity_audit.csv` cho kiểm toán đầy đủ. Quarantine không tăng success rate.
+- Nếu cần kiểm tra lại upstream sau này: restore corpus thật, chọn `RUN_MODE='resume'`, `EXISTING_ROOT` đúng và bật `RETRY_PERMANENT_FAILURES=True`. Không bật cho phiên cold/planner; không xóa queue. Sau khi kiểm tra đặt lại False.
+
+Test offline xác minh logic và luồng notebook; cần kiểm tra thêm một phiên Colab CPU nhỏ với API và Drive thật trước khi chạy batch lớn.

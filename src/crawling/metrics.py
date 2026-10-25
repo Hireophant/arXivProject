@@ -14,6 +14,7 @@ from threading import Event
 from statistics import mean
 
 from . import BenchmarkResult, CorpusSummary, Manifest, ResourceSample
+from .failures import failure_rows
 
 
 def _disk_bytes(root: Path) -> int:
@@ -203,3 +204,11 @@ def export_report_data(manifest: Manifest, benchmark: BenchmarkResult, output_di
             writer.writeheader()
             for row in rows:
                 writer.writerow({k: json.dumps(v, ensure_ascii=False) if isinstance(v, (dict, list)) else v for k, v in row.items()})
+    issues = failure_rows(manifest)
+    fields = ['arxiv_id', 'task', 'status', 'category', 'code', 'reason', 'error']
+    for name, rows in [('outstanding_tasks', [r for r in issues if r['status'] != 'no_tex']),
+                       ('permanent_failures', [r for r in issues if r['category'] == 'permanent'])]:
+        with (output_dir / f'{name}.csv').open('w', encoding='utf-8', newline='') as stream:
+            writer = csv.DictWriter(stream, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(rows)

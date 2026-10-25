@@ -9,6 +9,8 @@ Design, limitations and full citations: KE_HOACH_MILESTONE_1.md sections 10/12.
 from __future__ import annotations
 
 from copy import deepcopy
+import csv
+import io
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -19,6 +21,7 @@ from uuid import UUID, uuid4
 import zipfile
 
 from .backup import _sha256
+from .failures import failure_rows, permanent_tasks, quarantined_ids
 
 _ID = re.compile(r'(?:\d{4}\.\d{4,5}|[A-Za-z][A-Za-z0-9.-]*/\d{7})\Z')
 
@@ -60,7 +63,7 @@ def _read(path: Path, member: str) -> dict:
         # exists() can suppress permission/I/O errors. Only an actual missing
         # file is a fresh queue; every other read error must stop collection.
         return dict(schema_version='1.0', member=member, pending_ids=[], sources={},
-                    active_session=None, last_completed_session=None, backups=[])
+                    active_session=None, last_completed_session=None, backups=[], permanent_failures={})
     if (not isinstance(value, dict) or value.get('schema_version') != '1.0'
             or value.get('member') != member or not isinstance(value.get('pending_ids'), list)
             or not isinstance(value.get('sources'), dict) or not isinstance(value.get('backups'), list)
@@ -74,6 +77,16 @@ def _read(path: Path, member: str) -> dict:
         raise ValueError('Inconsistent retry state.')
     if any(not isinstance(v, str) for v in value['sources'].values()):
         raise ValueError('Invalid retry backup source.')
+    quarantine = value.setdefault('permanent_failures', {})
+    if not isinstance(quarantine, dict):
+        raise ValueError('Invalid permanent failure state.')
+    if quarantine:
+        _validate_ids(list(quarantine))
+    if any(not isinstance(rows, list) or not rows or any(
+            not isinstance(row, dict) or row.get('arxiv_id') != identifier
+            or row.get('category') != 'permanent' for row in rows)
+           for identifier, rows in quarantine.items()):
+        raise ValueError('Invalid permanent failure evidence.')
     return value
 
 
@@ -103,6 +116,50 @@ def completed_sources(state: dict) -> dict[str, str]:
     return result
 
 
+def migrate_permanent_failures(state_path: Path, *, member: str) -> int:
+    """Classify old pending evidence once, using hash-verified report archives.
+
+    Does not contact upstream services, reset queues, or acknowledge completion.
+    Missing/corrupt evidence stops migration instead of silently dropping IDs.
+    """
+    path = Path(state_path)
+    state = _read(path, member)
+    scanned = set(state.get('quarantine_scanned_receipts', []))
+    grouped = {}
+    for identifier, source in state['sources'].items():
+        if source not in scanned and identifier in state['pending_ids']:
+            grouped.setdefault(source, set()).add(identifier)
+    added = 0
+    for source, identifiers in grouped.items():
+        receipt_file = locate_receipt(source, path.resolve().parent.parent)
+        receipt = _receipt(receipt_file, path.resolve().parent.parent)
+        archive = receipt_file.parent / 'report.zip'
+        expected = receipt['archives']['report']
+        if archive.stat().st_size != expected['bytes'] or _sha256(archive) != expected['sha256']:
+            raise OSError('Quarantine migration report failed its backup hash.')
+        with zipfile.ZipFile(archive) as zipped:
+            manifest = json.loads(zipped.read('manifest.json'))
+            invalid = set()
+            if 'integrity_audit.csv' in zipped.namelist():
+                invalid = {r['arxiv_id'] for r in csv.DictReader(io.StringIO(
+                    zipped.read('integrity_audit.csv').decode('utf-8')))
+                    if r['valid'].lower() not in ('true', '1')}
+        terminal = quarantined_ids(manifest, invalid) & identifiers
+        rows = failure_rows(manifest)
+        for identifier in terminal:
+            state['permanent_failures'][identifier] = [dict(r, receipt_path=source)
+                for r in rows if r['arxiv_id'] == identifier and r['category'] == 'permanent']
+        added += len(terminal)
+        scanned.add(source)
+    if grouped:
+        blocked = set(state['permanent_failures']) - completed_sources(state).keys()
+        state['pending_ids'] = [i for i in state['pending_ids'] if i not in blocked]
+        state['sources'] = {i: s for i, s in state['sources'].items() if i in state['pending_ids']}
+        state['quarantine_scanned_receipts'] = sorted(scanned)
+        _write(path, state)
+    return added
+
+
 def progress(state_path: Path, *, member: str, assignment_scope: dict,
              previous_assignment_scope: dict | None = None) -> dict:
     """Read progress for the current segment without dropping older queue work.
@@ -119,17 +176,18 @@ def progress(state_path: Path, *, member: str, assignment_scope: dict,
     state = _read(Path(state_path), member)
     if state.get('assignment_ids', assigned) not in (assigned, allowed):
         raise ValueError('Full assignment changed; keep the saved member range.')
-    seen = set(state['pending_ids'])
+    quarantine = set(state['permanent_failures']) - completed_sources(state).keys()
+    seen = set(state['pending_ids']) | quarantine
     for entry in state['backups']:
         seen.update(entry['requested_ids'])
         seen.update(entry['completed_ids'])
     if not seen.issubset(allowed):
         raise ValueError('Saved work contains IDs outside this member assignment.')
     completed = completed_sources(state)
-    pending = [i for i in state['pending_ids'] if i in assigned_set and i not in completed]
+    pending = [i for i in state['pending_ids'] if i in assigned_set and i not in completed and i not in quarantine]
     unseen = [i for i in assigned if i not in seen]
     return dict(member=member, total=len(assigned), completed=len(set(assigned) & completed.keys()),
-                pending=len(pending), unseen=len(unseen),
+                pending=len(pending), unseen=len(unseen), quarantined=len(assigned_set & quarantine),
                 next_new_id=unseen[0] if unseen else None,
                 pending_ids=pending, unseen_ids=unseen,
                 last_saved_id=next((i for b in reversed(state['backups'])
@@ -143,6 +201,7 @@ def plan_session(state_path: Path, *, member: str, assignment_scope: dict,
     if (type(new_limit) is not int or new_limit < 1 or type(retry_limit) is not int
             or retry_limit < 0 or type(retry_only) is not bool):
         raise ValueError('New limit must be positive and retry limit nonnegative.')
+    migrate_permanent_failures(state_path, member=member)
     info = progress(state_path, member=member, assignment_scope=assignment_scope,
                     previous_assignment_scope=previous_assignment_scope)
     retries = info['pending_ids'][:retry_limit]
@@ -180,13 +239,21 @@ def prepare_session(state_path: Path, *, member: str, scope: dict, extend: bool 
     path = Path(state_path)
     requested = scope_ids(scope)
     state = _read(path, member)
-    before = state['pending_ids']
+    # Explicit resume retains the exact manifest scope; automatic cold visits
+    # omit terminal failures even if a legacy queue still lists them as pending.
+    blocked = set(state['permanent_failures']) | completed_sources(state).keys()
+    before = [i for i in state['pending_ids'] if i not in blocked]
+    if extend:
+        requested = [i for i in requested if i not in blocked]
+        if not requested and not before:
+            return dict(ticket=None, member=member, scope=None, requested_ids=[], new_ids=[],
+                        retry_ids=[], deferred_ids=[], sources={})
     known = set(before)
     for entry in state['backups']:
         known.update(entry['requested_ids'])
     combined = list(dict.fromkeys([*before, *requested])) if extend else requested
     actual_scope = (dict(mode='ids', ids=combined, start_id=None, end_id=None)
-                    if extend and before else deepcopy(scope))
+                    if extend else deepcopy(scope))
     plan = dict(ticket=str(uuid4()), member=member, state_path=str(path.resolve()),
                 backup_root=str(path.resolve().parent.parent), input_scope=deepcopy(scope),
                 scope=actual_scope, requested_ids=combined,
@@ -195,6 +262,7 @@ def prepare_session(state_path: Path, *, member: str, scope: dict, extend: bool 
                 deferred_ids=[i for i in before if i not in combined],
                 sources={i: state['sources'][i] for i in combined if i in state['sources']})
     state['pending_ids'] = list(dict.fromkeys([*before, *requested]))
+    state['sources'] = {i: source for i, source in state['sources'].items() if i in state['pending_ids']}
     state['active_session'] = plan['ticket']
     _write(path, state)
     return plan
@@ -253,6 +321,7 @@ def seed_pending(plan: dict, root: Path) -> int:
     for identifier, receipt_path in plan['sources'].items():
         grouped.setdefault(receipt_path, []).append(identifier)
     copied = 0
+    restored_tasks = {}
     for receipt_path, identifiers in grouped.items():
         receipt_file = locate_receipt(receipt_path,Path(plan['backup_root']))
         receipt = _receipt(receipt_file, Path(plan['backup_root']))
@@ -262,6 +331,8 @@ def seed_pending(plan: dict, root: Path) -> int:
             raise OSError('Retry corpus ZIP does not match its backup receipt.')
         folders = {i.replace('.', '-').replace('/', '-') for i in identifiers}
         with zipfile.ZipFile(archive) as zipped:
+            previous = json.loads(zipped.read('manifest.json'))
+            restored_tasks.update({i: p for i, p in permanent_tasks(previous).items() if i in identifiers})
             members = []
             for item in zipped.infolist():
                 path = PurePosixPath(item.filename)
@@ -280,6 +351,9 @@ def seed_pending(plan: dict, root: Path) -> int:
                     with zipped.open(item) as source, target.open('wb') as output:
                         shutil.copyfileobj(source, output)
                     copied += 1
+    if restored_tasks:
+        _write(root / 'permanent_tasks.json', restored_tasks)
+        copied += 1
     return copied
 
 
@@ -303,8 +377,8 @@ def successful_ids(manifest: dict, invalid_ids=()) -> set[str]:
 def finish_session(state_path: Path, plan: dict, manifest: dict, backup: dict, *, invalid_ids=(), final=True) -> dict:
     """Acknowledge only complete, audited IDs in a verified archived run.
 
-    Missing/failed discovery, source, references, or failed integrity audit all
-    remain pending, including confirmed not_found IDs for explicit visibility.
+    Unresolved recoverable tasks and integrity failures remain pending. Terminal
+    upstream failures are retained separately, never counted as complete.
     A backup error never reaches this function, so unarchived work stays queued.
     """
     path = Path(state_path)
@@ -328,17 +402,25 @@ def finish_session(state_path: Path, plan: dict, manifest: dict, backup: dict, *
     if any(b['receipt_path'] == str(receipt_path) for b in state['backups']):
         return state
     done = successful_ids(manifest, invalid_ids)
-    still_pending = set(state['pending_ids']) - done
+    terminal = quarantined_ids(manifest, invalid_ids)
+    rows = failure_rows(manifest)
+    for identifier in terminal:
+        state['permanent_failures'][identifier] = [dict(r, receipt_path=str(receipt_path))
+            for r in rows if r['arxiv_id'] == identifier and r['category'] == 'permanent']
+    for identifier in done | (set(covered) - terminal):
+        state['permanent_failures'].pop(identifier, None)
+    still_pending = set(state['pending_ids']) - done - terminal
     # Failed retries rotate to the tail, so permanently missing upstream data
     # cannot starve deferred IDs when a per-session retry limit is configured.
     state['pending_ids'] = ([i for i in state['pending_ids'] if i in still_pending and i not in covered]
                             + [i for i in covered if i in still_pending])
-    state['sources'] = {i: source for i, source in state['sources'].items() if i not in done}
+    state['sources'] = {i: source for i, source in state['sources'].items() if i in still_pending}
     for identifier in covered:
         if identifier in state['pending_ids']:
             state['sources'][identifier] = str(receipt_path)
     state['backups'].append(dict(run_id=manifest['run_id'], receipt_path=str(receipt_path),
                                  requested_ids=covered, completed_ids=sorted(done),
+                                 quarantined_ids=sorted(terminal),
                                  kind='final' if final else 'checkpoint'))
     if final:
         state['last_completed_session'] = plan['ticket']
