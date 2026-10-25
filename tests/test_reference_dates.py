@@ -21,7 +21,6 @@ from crawling.checkpoints import _artifact_audit, BackgroundCheckpoints
 from crawling.backup import backup_run
 from crawling.sessions import prepare_session, seed_pending, progress, finish_session
 from crawling.metrics import disk_bytes_with_extras
-from crawling.reports import aggregate_reports
 from crawling import DateLookupResult, ReferenceReceipt
 from crawling.pipeline import _require
 
@@ -252,9 +251,6 @@ class DateTests(unittest.TestCase):
         self.assertEqual(state['backups'][0]['kind'],'checkpoint')
         self.assertEqual(state['backups'][0]['completed_ids'],[PAPER])
         self.assertEqual(output['status'],'success')
-        aggregated=aggregate_reports([drive/'retry-state/member-1.json'],self.root/'book-aggregate')
-        self.assertEqual(aggregated['unique_complete_papers'],1)
-        self.assertEqual(aggregated['pending_ids'],[])
     def test_bad_index_fails_before_network_and_does_not_reset_queue(self):
         drive=self.root/'drive'
         plan=prepare_session(drive/'retry-state/member-1.json',member='Danh',scope=SCOPE)

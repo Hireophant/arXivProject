@@ -205,21 +205,11 @@ Không xóa queue để bỏ qua lỗi. Bản lưu được kiểm CRC/hash; ki�
 
 Nhiều report ZIP vì chia nhiều lượt là bình thường. Có thể thu thập xong rồi tổng hợp viết Book một lần; không cần crawl lại 5.000 ID trong một lượt. Retry giữ thành lịch sử xử lý, còn corpus tổng hợp đếm mỗi base arXiv ID hoàn tất một lần.
 
-Mỗi người bàn giao **nguyên cây Milestone1** vào thư mục riêng, ví dụ `exports/Danh`, `exports/Khanh`, `exports/Khang`, `exports/Nguyen`; giữ cấu trúc bên trong. Người làm báo cáo có thể dùng helper:
+Mỗi người bàn giao **nguyên cây Milestone1** vào thư mục riêng, ví dụ `exports/Danh`, `exports/Khanh`, `exports/Khang`, `exports/Nguyen`; giữ cấu trúc bên trong, gồm đủ queue của cả 12 tài khoản và các ZIP/receipt được tham chiếu.
 
-```python
-from pathlib import Path
-from crawling.reports import aggregate_reports
+Repo crawler chỉ xuất số đo, manifest, trạng thái new/retry và bản lưu đã xác minh của từng phiên. **Việc tổng hợp nhiều phiên và cả nhóm thuộc repo report riêng**: kiểm receipt/hash, chọn kết quả hợp lệ cho từng paper/version, loại trùng checkpoint/final/retry và tính lại thống kê cho Book. Hiện repo crawler không cung cấp helper tổng hợp; phía report cần triển khai bước này trước khi dùng toàn bộ dữ liệu nhóm.
 
-result = aggregate_reports([
-    Path('/content/exports/Danh/retry-state/member-1.json'),
-    Path('/content/exports/Khanh/retry-state/member-2.json'),
-    Path('/content/exports/Khang/retry-state/member-3.json'),
-    Path('/content/exports/Nguyen/retry-state/member-4.json'),
-], Path('/content/book-data'))
-```
-
-Ví dụ cần source repo đã setup và bốn cây dữ liệu thực sự nằm ở các đường dẫn đó; sửa theo nơi mình copy. Helper kiểm bản lưu và tạo `papers_unique.csv`, `attempts.csv`, `benchmark_runs.csv`, `summary.json`. Nó chưa tự viết/publish Book hoặc gộp source thành một thư mục M2; bảng papers chỉ đến ZIP corpus thật cần dùng.
+Để lấy source cho M2, tra ledger trong `retry-state` tới các checkpoint/full-corpus ZIP đã xác minh. `session-reports/corpus.zip` chỉ là manifest stub, không chứa source.
 
 Giữ report gốc để đọc chi tiết versions/references và sinh thống kê/hình lúc build Book. Không cộng report checkpoint với report cuối cùng của cùng `run_id`: checkpoint là số đo tích lũy tại thời điểm lưu. Không cộng số dòng mọi report thành tổng bài duy nhất. Book theo đề dùng tiếng Anh, repo công khai riêng/GitHub Pages; report ZIP là đầu vào, không phải Book hoàn chỉnh.
 

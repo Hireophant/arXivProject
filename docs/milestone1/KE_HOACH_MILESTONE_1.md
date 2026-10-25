@@ -242,3 +242,8 @@ Fixture notebook chạy các cell thật (imports/configuration/mount/environmen
 **Review/fix:** reviewer độc lập phát hiện3 P2; đã tái hiện RED rồi sửa GREEN: lỗi retry đứng đầu làm starvation → chuyển lỗi xuống cuối; final raw report override audit fail → lưu audit verdict và truyền vào counts/aggregate; aggregate chỉ kiểm report mà thiếu source → kiểm source ZIP tồn tại/size/hash trước tính completed. Bổ sung regression cho portable member tree và opt-out retry không làm bỏ qua new-limit; bật/tắt retry không tự crawl toàn5.000. Tất cả checks cuối đạt.
 
 **Giới hạn/cách bàn giao:** có thể mất nhóm chưa commit khi VM mất; không hứa chạy tiếp lúc tắt máy. Checkpoint/report upload overhead thực đo trong pipeline, final raw-report export nằm ngoài benchmark và được ghi provenance. session-reports/corpus.zip chỉ manifest stub, không phải source M2; completed ledger không bao giờ trỏ stub. Giữ nguyên cây từng member khi tổng hợp (helper rebase layout runUUID/attempt có kiểm); aggregate trả unique completed/new registered/retry attempts, không tự viết/publish Book. Tests/data/output và môi trường tạm được dọn trước commit theo yêu cầu user; docs phân công/kế hoạch được giữ/cập nhật.
+
+
+## Cập nhật phạm vi repo crawler (25/10/2026)
+
+Hàm tổng hợp `aggregate_reports()` được bỏ khỏi repo crawler vì luồng cào không gọi hàm này. Các ghi chép về aggregate ở trên là lịch sử triển khai/kiểm thử trước thay đổi này. Tổng hợp nhiều phiên và cả nhóm sẽ được triển khai trong repo report riêng. Crawler vẫn giữ xuất số đo, manifest, breakdown new/retry, checkpoint, receipt và ledger để report có đủ đầu vào kiểm chứng và M2 khôi phục source.

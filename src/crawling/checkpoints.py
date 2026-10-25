@@ -201,7 +201,7 @@ class BackgroundCheckpoints:
         _json(report/'report_provenance.json',dict(kind='final_report',source_corpus='per-paper checkpoint receipts',
             benchmark_includes_background_checkpoint_uploads=True,final_report_export_outside_benchmark=True))
         (corpus/'README.txt').write_text('MANIFEST ONLY: source files are in the verified checkpoint corpus ZIPs.\n',encoding='utf-8')
-        (report/'README.md').write_text('# Final session report\n\nThe paired corpus.zip is a manifest-only stub, not the source corpus.\nUse papers_unique.csv from aggregate_reports or the checkpoint ledger to locate source ZIPs.\n',encoding='utf-8')
+        (report/'README.md').write_text('# Final session report\n\nThe paired corpus.zip is a manifest-only stub, not the source corpus.\nUse the checkpoint ledger in retry-state to locate verified source ZIPs.\n',encoding='utf-8')
         backup=backup_run(corpus,report,Path(self.plan['backup_root'])/'session-reports',run_id=manifest['run_id'],work_dir=stage/'zip')
         register_final_report(self.plan,backup)
         self._remove_stage(stage)

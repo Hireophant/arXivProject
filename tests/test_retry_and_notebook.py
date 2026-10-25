@@ -242,8 +242,56 @@ class RetryTests(unittest.TestCase):
         manifest['papers'][PAPER]['references'].update(status='failed', error='Semantic Scholar HTTP 429.')
         self.assertEqual(quarantined_ids(manifest), set())
 
+    def test_drive_source_count_deduplicates_backups_and_rejects_tampering(self):
+        from crawling.presentation import verified_drive_source_files
+        plan = prepare_session(self.state, member='Danh', scope=deepcopy(SCOPE))
+        result, manifest = self.collect()
+        first = self.backup(result, manifest)
+        finish_session(self.state, plan, manifest, first)
+        second = self.backup(result, manifest)
+        self.assertEqual(verified_drive_source_files(self.state, 'Danh', result['run_id'],
+                         extra_receipt=second['receipt_path']), 2)
+        self.assertIsNone(verified_drive_source_files(self.state, 'Danh', 'unrelated'))
+        archive = Path(second['receipt_path']).parent / 'corpus.zip'
+        body = archive.read_bytes()
+        archive.write_bytes(bytes([body[0] ^ 1]) + body[1:])
+        with self.assertRaises(OSError):
+            verified_drive_source_files(None, 'Danh', result['run_id'], second['receipt_path'])
+
+    def test_dashboard_separates_full_session_time_and_verified_drive_count(self):
+        result, manifest = self.collect()
+        html = summary_dashboard(manifest, result, session_seconds=125,
+                                 session_finished=True, drive_source_files=2)
+        self.assertIn('02:05', html)
+        self.assertIn('Tổng thời gian phiên đến backup Drive', html)
+        self.assertIn('File .tex / .bib đã xác minh trên Drive', html)
+        unknown = summary_dashboard(manifest, result)
+        self.assertIn('Chưa xác minh', unknown)
+
+    def test_verified_no_tex_backup_reports_zero_drive_source_files(self):
+        from crawling.presentation import verified_drive_source_files
+        self.source_body = b'%PDF-1.4\n1 0 obj\n<<>>\nendobj\nstartxref\n0\n%%EOF\n'
+        result, manifest = self.collect()
+        backup = self.backup(result, manifest)
+        self.assertEqual(verified_drive_source_files(None, 'Danh', result['run_id'],
+                                                    backup['receipt_path']), 0)
+
 
 class PresentationTests(unittest.TestCase):
+    def test_grouped_errors_show_and_export_all_groups_despite_pandas_limit(self):
+        import pandas as pd
+        from crawling.presentation import export_issue_groups, preview_style
+        rows = pd.DataFrame([dict(category='review', reason=f'group-{i:02d}',
+                                  arxiv_id=PAPER, task=f'source v{i}') for i in range(16)])
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / 'issue_groups.csv'
+            groups = export_issue_groups(rows, target)
+            self.assertEqual(len(pd.read_csv(target)), 16)
+            with pd.option_context('display.max_rows', 5):
+                html = preview_style(groups, limit=len(groups)).to_html()
+            for i in range(16):
+                self.assertIn(f'group-{i:02d}', html)
+
     def test_classification_legacy_urls_and_unknown_errors(self):
         for status, error, category in [('failed', 'Source HTTP 404.', 'permanent'),
                 ('not_found', '404 https://api.semanticscholar.org/long', 'permanent'),
