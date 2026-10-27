@@ -16,6 +16,27 @@ Index preparation/download/copy/verification is included in pipeline wall/RAM/di
 
 ## Setup and execution
 
+### Prepare raw inputs for Milestone 2
+
+Open [src/notebooks/milestone2_prepare.ipynb](src/notebooks/milestone2_prepare.ipynb)
+to restore an M1 Drive backup folder or downloaded ZIP into a separate
+`preparationM2/raw_m1/<DATASET_NAME>/` folder. It verifies archive/source receipts,
+combines versions across retries, preserves raw TeX/BibTeX and writes coverage,
+provenance and blocked-version inventories. This is input preparation; the M2
+parser is a later step. The helper uses only Python stdlib.
+
+Set SOURCE_PATH, PREPARATION_DIR and DATASET_NAME, then run all cells.
+The default Drive destination is `preparationM2/raw_m1/<DATASET_NAME>/`.
+Preparation reads saved files back and writes input_validation.json with a
+stable snapshot_id. Recheck with validate_prepared_corpus before parsing;
+valid partial inputs retain their blocked versions and do not claim full coverage.
+Keep one writer per dataset and the full original backup tree. New preparation
+code must be available in the Colab checkout. See the
+[input preparation guide](docs/milestone2/HUONG_DAN_CHUAN_BI_INPUT.md) for paths,
+resume, schema m2-input-1.0 and the handoff to the future parser.
+
+### Run Milestone 1
+
 Python **3.11 or later** is required. From the project root:
 
 ```bash
