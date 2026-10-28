@@ -8,7 +8,7 @@ Cập nhật **27/10/2026**: đồng bộ bốn bổ sung trong kế hoạch: C3
 
 ## 0. Bắt đầu từ đâu và dữ liệu nào được dùng?
 
-Bổ sung 27/10/2026: chốt thư mục raw trên Drive là **preparationM2**, thêm kiểm đọc lại/snapshot và hướng làm từng phần. Đã có code chuẩn bị input; các module parser trong src/parsing/ vẫn là việc phải triển khai.
+Bổ sung 27/10/2026: chốt thư mục raw trên Drive là **preparationM2**, thêm kiểm đọc lại/snapshot và hướng làm từng phần. Đã có code chuẩn bị input. Cập nhật 28/10/2026: đã tạo prototype trong src/parsing/; hàm nghiệp vụ vẫn chưa triển khai. Schema nằm trong [contracts.py](../../src/parsing/contracts.py); hướng dẫn triển khai nằm ngay trong docstring từng prototype. Prompt riêng ở mục 14–15.
 
 **Luồng chung:** backup Milestone1 → notebook milestone2_prepare.ipynb → `preparationM2/raw_m1/<DATASET_NAME>/` → input adapter + parser → `Milestone2/parsed/<DATASET_NAME>/` → metrics/Book. Không ghi kết quả parse vào raw đã chuẩn bị.
 
@@ -82,60 +82,33 @@ Phần **đã có để chuẩn bị input**, Danh bảo trì và Khánh review:
 | `src/parsing/normalize.py` | Danh | Cleanup, math, cite rewrite trên node |
 | `src/parsing/content_dedup.py` | Danh | Element IDs, mapping và hierarchy theo version |
 | `src/parsing/validation.py` | Danh | Schema/integrity và audit toàn publication |
+| `src/parsing/serialization.py` | Danh | JSON/JSONL round-trip, review input và atomic write |
 | `src/parsing/pipeline.py` | Danh | Điều phối, checkpoint, resume và export working data |
 | `src/parsing/metrics.py` | Khánh | Coverage/count/reduction tables; nhận số đo do pipeline cấp |
 | `src/parsing/benchmark.py` | Danh | Wall time, process-tree RAM samples, output bytes |
 | `src/notebooks/milestone2.ipynb` | Danh | Chọn input/config, chạy và hiển thị/audit; không nhét parser vào cell |
-| `tests/test_m2_*.py` | Mỗi người tạo file của mình | Ca hồi quy và integration |
+| `tests/test_m2_*.py` | Mỗi người triển khai template test của mình | Ca hồi quy và integration |
 | `README.md`, `src/requirements.txt`, `environment.yml` | Danh tích hợp; mọi người cung cấp thay đổi | Hướng dẫn và môi trường M2, giữ M1 chạy được |
 
-Các file trên là **đề xuất cần tạo**, chưa tồn tại chỉ vì đã có tên trong bảng. Đường dẫn Book ở mục 9 thuộc checkout/repo báo cáo riêng.
+Các file trên đã có bộ khung ngày 28/10/2026; có tên file không có nghĩa đã triển khai. Bổ sung serialization.py (Danh) để chốt IO/review format. Đường dẫn Book ở mục 9 thuộc checkout/repo báo cáo riêng. Chữ “dự kiến” trong các task bên dưới chỉ hướng triển khai, không cho phép thay schema/API đã chốt.
 
-### 3.2. Kiểu dữ liệu dự kiến trong `contracts.py`
+### 3.2. Schema đã chốt, không tự sửa trong nhánh owner
 
-Chọn dataclass hoặc TypedDict nhất quán khi bắt đầu; các fields ngữ nghĩa sau phải được giữ. Với danh sách `diagnostics`, mỗi diagnostic có `code`, `severity`, `message`, `version`, `path`, `offset`; trường không áp dụng để null, không bịa vị trí.
+Nguồn chính thức: [contracts.py](../../src/parsing/contracts.py), semantics/wire format ghi trực tiếp trong docstring từng type và hàm serialization. Dùng dataclass keyword-only; types đầy đủ gồm SourceSpan, BibliographyLocation, BibliographyExtraction, diagnostics/decisions/conflicts và run/checkpoint records. Không tự đổi thành dictionaries giữa owner.
 
-| Type | Fields/ý nghĩa tối thiểu |
-|---|---|
-| `ParseConfig` | `normalization_version: str` bao gồm component-content và identity rules, `strict: bool = True` theo kế hoạch 9.3, `reference_review_path: Path or None = None` theo C3; không chứa corpus data hay credentials |
-| `VersionInput` | `arxiv_id: str`, `version: int`, `source_dir: Path or None`, `source_status: tex/no_tex/blocked`, `source_fingerprint: str or None`, `diagnostics` |
-| `PublicationInput` | `arxiv_id: str`, `versions: list[VersionInput]`; đủ phiên bản expected từ M1 |
-| `GatherResult` | `version_input`, `root_path: str or None`, `latex: str`, `source_map: list`, `bib_paths: list[str]`, `status: ready/partial/failed/empty_no_tex/blocked_input`, `diagnostics` |
-| `RawNode` | `local_id: str`, `parent_local_id: str or None`, `kind: str`, `content: str`, `position: int`, `source_spans: list`; local_id là occurrence ID trong version; sau normalize, content từng kind theo kế hoạch D3 |
-| `VersionTree` | `arxiv_id`, `version`, `root_local_id: str or None`, `nodes: list[RawNode]`, `bibliography_blocks: list[str]`, `status: parsed/empty_no_tex/partial/failed/blocked_input`, `diagnostics` |
-| `BibEntry` | Các fields đúng bảng `bibtex`; trước unify có thể giữ cùng citation key ở versions khác nhau |
-| `BibOccurrence` | `occurrence_id: str` ổn định theo publication/version/path/source span, `version: int`, `entry: BibEntry`, `source_path: str`, `source_span`, `source_fingerprint: str`, `raw: str`, `diagnostics`; giữ provenance ngoài bảng cuối |
-| `UnifiedBibliography` | `entries: list[BibEntry]`, `key_map: dict[tuple[int,str],str]`, `conflicts: list`, `identity_decisions: list`, `diagnostics`; decisions giữ occurrence IDs/evidence/reviewer và affected versions theo C3 |
-| `ElementRow` / `HierarchyRow` | Đúng các cột bảng `elements` / `hierarchy` của đề, không thêm status/position |
-| `ParsedPublication` | `arxiv_id`, `elements`, `hierarchy`, `bibtex`, `version_states`, `occurrences`, `key_map`, `identity_decisions`, `diagnostics`, `counts_before_after`, `export_ready: bool`; trạng thái cuối sau validate theo kế hoạch 9.3 |
-| `ValidationIssue` | `code: str`, `severity: error/warning`, `arxiv_id`, `version`, `message: str` |
-| `ParseRunResult` | `run_id`, `status: success/partial/failed`, `manifest_path`, `metrics_path`, `processed_publications: int`, `diagnostics` |
+- Khánh nhận raw m2-input-1.0 đã prepare; crawler schema 3.0 đi qua notebook prepare trước.
+- Khang trả occurrence tree có spans/position và bibliography blocks typed, chưa normalize/dedup.
+- Nguyên trả BibliographyExtraction có occurrences **và diagnostics**, kể cả trường hợp không đọc được entry nào. unify nhận list BibliographyExtraction toàn publication, không list entries trần.
+- Danh normalize trên copies, assemble shared IDs, finalize status rồi serialize đúng working schema m2-working-1.0.
+- Nội dung nodes theo D3, identity theo C3, status theo 9.3; public signatures chi tiết nằm trong source. Đổi contract phải qua Danh cập nhật đồng bộ, không tự merge schema khác nhau.
 
-`kind` nội bộ thống nhất: `document`, `heading`, `paragraph`, `itemize`, `item`, `sentence`, `block_formula`, `figure`. Chi tiết cấp section/subsection được giữ ở occurrence sidecar hoặc metadata nội bộ; table có kind `figure`, subtype table nằm ngoài schema cuối. Một version không TeX có root null và nodes rỗng.
+### 3.3. API và cách phát triển độc lập
 
-Khang + Danh chốt component content theo D3: heading chỉ có title; paragraph/item chứa nội dung con đúng thứ tự; itemize giữ wrapper và ranh giới item. Danh chuẩn hóa từ con lên cha rồi mới fingerprint `(kind, content)`; root giữ identity riêng theo version. Không dùng blank content cho container có body. Nguyên + Danh dùng C3 cho identity và truyền đầy đủ affected versions để validator hạ status khi còn error.
+Đọc signature/type hints và docstring ngay trong từng prototype; không cần tài liệu API riêng. Bổ sung `validation.finalize_publication`, module `serialization` và types metrics/benchmark để không phải đoán format lúc ghép.
 
-### 3.3. Hàm giao tiếp dự kiến
+[Fixtures chung](../../tests/m2_support/fixtures.py) dựng sẵn GatherResult, raw/normalized VersionTree, BibliographyExtraction, UnifiedBibliography và expected ParsedPublication. Chỉ là mẫu synthetic, không chạy prototype upstream, không chứng minh corpus thật. Mỗi owner tự viết test và fixtures bổ sung trong files riêng, không chờ module người khác hoàn thành.
 
-Đây là API để các phần nối được với nhau; người triển khai định nghĩa types trước, không dùng dictionary tùy ý khác nhau ở mỗi module.
-
-| Module / API | Nhận từ ai? | Trả cho ai? |
-|---|---|---|
-| `inputs.load_publications(corpus_root: Path) -> list[PublicationInput]` | Manifest/source M1 | Khánh -> pipeline |
-| `gather.gather_version(version: VersionInput) -> GatherResult` | Pipeline | Khánh -> Khang và Nguyên |
-| `hierarchy.parse_version(gathered: GatherResult) -> VersionTree` | Khánh | Khang -> Nguyên/Danh |
-| `sentences.split_sentences(text: str) -> list[str]` | Text span đã phân vùng bởi hierarchy | Khang dùng nội bộ hierarchy |
-| `bibliography.extract_entries(gathered: GatherResult, tree: VersionTree) -> list[BibOccurrence]` | Khánh/Khang | Nguyên -> unify |
-| `reference_dedup.unify_entries(arxiv_id: str, entries: list[BibOccurrence], *, review_decisions: list or None = None) -> UnifiedBibliography` | Entries mọi versions + quyết định review đã xác minh C3 | Nguyên -> Danh |
-| `normalize.normalize_tree(tree: VersionTree, bibliography: UnifiedBibliography, config: ParseConfig) -> VersionTree` | Khang + Nguyên | Danh -> content dedup |
-| `content_dedup.assemble_publication(trees: list[VersionTree], bibliography: UnifiedBibliography) -> ParsedPublication` | Trees đã normalize của mọi versions | Danh -> validator/export |
-| `validation.validate_publication(publication: ParsedPublication) -> list[ValidationIssue]` | Bảng + occurrence/version sidecars | Danh -> pipeline |
-| `metrics.summarize(publications: list[ParsedPublication]) -> dict` | Counts/status thật đã xử lý | Khánh -> notebook/Book export |
-| `pipeline.run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bool = False) -> ParseRunResult` | Notebook | Danh -> người chạy và Book metrics |
-
-Hàm `split_sentences` vẫn phải bảo vệ math/commands trong text, không nhận chuỗi đã xóa math rồi làm mất nội dung. `normalize_tree` giữ diagnostics và source spans; không tự sửa input M1. Empty/blocked vẫn được truyền qua pipeline, không `continue` làm mất coverage.
-
-`load_publications` được gọi trên corpus đã hợp nhất và xác minh; việc restore/chọn bản giữa nhiều backup là bước Khánh chuẩn bị trước, có inventory và nguồn được chọn. `assemble_publication` xử lý một publication không rỗng về danh sách versions, kể cả tất cả versions đều empty.
+`tests/test_m2_<module>.py` đã tạo placeholder test có skip rõ ràng; thay bằng assertions thật rồi xóa placeholder khi triển khai. Không lấy suite toàn skipped làm bằng chứng đạt. Prompt từng người và prompt Danh ghép/dọn cuối ở mục 14–15.
 
 ### 3.4. Quy tắc nối raw input với parser
 
@@ -164,7 +137,7 @@ Nếu publication xuất hiện trong nhiều dataset, Khánh đối chiếu fin
 - [ ] Xác minh/checkpoint/full backup và hợp nhất theo publication-version. Không đếm checkpoint/final/retry thành nhiều bài.
 - [ ] Giữ metadata và references M1 làm đầu vào M3; parser không lọc publication vì S2 references rỗng.
 - [ ] Viết adapter theo API mục 3, giữ đúng ID legacy và version int.
-- [ ] Nhận cả corpus M1 schema 3.0 và output chuẩn bị m2-input-1.0 theo [hướng dẫn input](./HUONG_DAN_CHUAN_BI_INPUT.md). Với output chuẩn bị, kiểm preparation.json đã kết thúc và run_id khớp manifest; map ready_tex -> tex, empty_no_tex -> no_tex, blocked_input -> blocked trong VersionInput. version_states là căn cứ, không suy source hợp lệ chỉ từ downloads.status có thể là claim M1 cũ.
+- [ ] Chốt 28/10: chỉ nhận output chuẩn bị m2-input-1.0; backup corpus M1 schema 3.0 phải đi qua notebook prepare trước, theo [hướng dẫn input](./HUONG_DAN_CHUAN_BI_INPUT.md). Với output chuẩn bị, kiểm preparation.json đã kết thúc và run_id khớp manifest; map ready_tex -> tex, empty_no_tex -> no_tex, blocked_input -> blocked trong VersionInput. version_states là căn cứ, không suy source hợp lệ chỉ từ downloads.status có thể là claim M1 cũ.
 
 **Test bắt buộc:** bài có 3 versions nhưng thiếu v2 vẫn có đủ 3 version records, v2 blocked; `no_tex` có receipt khác thư mục thiếu; hai backup cùng bài không nhân đôi; ID có slash không bị hỏng; report stub bị nhận diện không đủ source.
 
@@ -431,11 +404,11 @@ Nhóm chọn bài thật từ corpus nếu có đặc điểm tương ứng; n�
 
 Mỗi ca cần input, expected và output thực. Kiểm tay ghi publication/version/path/vị trí, kết quả, lỗi và commit sửa; không chỉ ghi “đã xem PDF”.
 
-S1–S13 kiểm bằng unit/integration fixtures và corpus thật tương ứng; S14 là nghiệm thu build/browser theo kế hoạch 10.4, không yêu cầu giả lập trình duyệt trong unittest. Các ca mới là công việc phải thực hiện sau khi triển khai, chưa phải test đã chạy.
+S1–S13 kiểm bằng unit/integration fixtures và corpus thật tương ứng; S14 là nghiệm thu build/browser theo kế hoạch 10.4, không yêu cầu giả lập trình duyệt trong unittest. Các ca là công việc phải thực hiện sau khi triển khai, chưa phải test đã chạy. Prototype và test templates đã có, nhưng skipped placeholders không tính đạt.
 
 ### 8.2. Cách chạy kiểm tra dự kiến
 
-Sau khi các test files được tạo, từ project root:
+Sau khi owner thay test placeholders bằng tests thật, từ project root:
 
 ```powershell
 python -m unittest discover -s tests -p 'test_m2_*.py' -v
@@ -551,3 +524,87 @@ Task chỉ “đạt” khi reviewer đọc output và consumer dùng được; 
 - [ ] Hai links đã kiểm ngoài đăng nhập và nhóm nộp Moodle trước hạn đã xác nhận.
 
 **Định nghĩa hoàn thành:** code + dữ liệu toàn phạm vi đã kiểm + thống kê/benchmark có bằng chứng + Book thực nghiệm + hướng dẫn tái lập + nộp đúng hai link. Không đánh dấu hoàn thành chỉ vì từng người nói module mình chạy được.
+
+## 14. Prompt giao AI riêng cho từng người
+
+Copy **nguyên khối của người mình**. Cả bốn dùng cùng commit bộ khung làm base. AI phải đọc source thật; không chỉ dựa prompt để đoán schema. Mọi kết quả cuối cần người phụ trách tự kiểm tay và gửi phản hồi bàn giao theo mẫu mục 12. Danh quản lý shared schema/dependencies, ghép cuối theo mục 15.
+
+### 14.1. Khánh — copy gửi AI
+
+```text
+Bạn triển khai phần Khánh của Milestone 2 trong repo arXivProject. Đọc ARXIV_PROJECT_FULL.md phần M2, docs/milestone2/KE_HOACH_MILESTONE_2.md, PHAN_CONG_MILESTONE_2_4_NGUOI.md phần KH1–KH4, docstrings từng prototype, src/parsing/contracts.py và docstrings các file dưới đây.
+
+Chỉ sửa src/parsing/inputs.py, gather.py, metrics.py; tests/test_m2_inputs.py, test_m2_gather.py, test_m2_metrics.py; bàn giao bằng phản hồi cuối theo mẫu mục 12, không tạo doc riêng. Có thể thêm test fixture/helper prefix khanh trong tests/m2_support, không sửa fixtures.py chung. Không sửa contracts, package init, modules của người khác, README/requirements/environment, tài liệu chung hoặc report pages chung. Dependency mới ghi đề xuất vào bàn giao cho Danh. Không tự commit/push/merge.
+
+Triển khai các public prototypes đúng signature/types hiện có, thêm private helpers khi cần. inputs chỉ nhận raw m2-input-1.0 đã prepare, gọi read-back validation, giữ tất cả expected versions kể cả blocked/no_tex và snapshot. gather root documentclass active, input/include bắc cầu, đúng thứ tự và include lặp, comment/escaped percent/cycle/missing/root ambiguity; bibliography locations và source maps theo Unicode offsets contract. metrics nhận finalized publication fixtures độc lập, đủ 5 status, đúng mẫu số và null khi chưa đo. Không gọi pipeline hay viết parser cây thay Khang.
+
+Viết tests thật từ S1/S8/S9 và KH3; thay skipped placeholders, không sửa schema để test qua. Dùng shared fixtures làm input cho metrics, TemporaryDirectory cho nguồn gather, fixture backup preparation cho adapter. Không cần chờ upstream/downstream. Nếu raw thật chưa có, hoàn thành phần test độc lập, ghi kiểm thật chưa làm; không bịa evidence.
+
+Cuối cùng bắt buộc hướng dẫn Khánh tự kiểm tay: mở inventory của một bài >=2 versions, so từng version/path/status với source; mở root và các includes, đánh thứ tự text, đối chiếu flattened latex và source_map ở một include sâu/lặp; kiểm commented include không xuất hiện và file thừa không vào. Chọn no_tex và missing nếu corpus có, xác nhận không bị nhầm. Tính tay một fixture metrics mixed status rồi so CSV/tỷ lệ. Reviewer Khang xem gathering, Danh xem input/coverage. Ghi ID/version/snapshot/path/range/expected/actual và lỗi còn lại trong phản hồi bàn giao theo mẫu mục 12; AI không thay người ký đã kiểm tay.
+
+Trước bàn giao: dọn debug prints, backup .bak/.orig, helper trùng không dùng do CHÍNH BẠN tạo. Scratch/output thực đặt dưới data/milestone2-dev/khanh/ ngoài Git. Xóa placeholder test chỉ sau khi có tests thật thay thế và chạy lại đạt; không xóa tests fail/skipped để giấu thiếu việc. Không xóa contracts/shared fixtures/source người khác/raw/outputs cũ. Liệt kê files đổi, dependencies, lệnh + pass/fail/skip thực, contract requests, citations và giới hạn. Giữ diff chỉ trong ownership để Danh merge thuận lợi.
+```
+
+### 14.2. Khang — copy gửi AI
+
+```text
+Bạn triển khai phần Khang của Milestone 2 trong arXivProject. Đọc đề M2, kế hoạch/phân công KG1–KG4 và S2/S3/S4/S9/S11, src/parsing/contracts.py và docstrings hierarchy.py/sentences.py.
+
+Chỉ sửa src/parsing/hierarchy.py, sentences.py; tests/test_m2_hierarchy.py, test_m2_sentences.py; bàn giao bằng phản hồi cuối theo mẫu mục 12, không tạo doc riêng. Có thể thêm fixture/helper prefix khang riêng, không sửa shared fixtures.py, contracts, init, modules người khác, dependency chung hoặc report pages chung. Dependency mới đề xuất Danh trong bàn giao. Không tự commit/push/merge.
+
+Giữ public signatures; triển khai private scanner/parser có bảo vệ math/commands/braces/comment/verbatim trước khi split. Nhận GatherResult bằng fixtures có sẵn, không gọi gather upstream chưa làm. Cây occurrence document/heading/paragraph/itemize/item và leaves sentence/block_formula/figure; inline math ở trong sentence, table kind figure/subtype table; section* ack/appendix phải giữ. Bỏ bibliography khỏi body nhưng giữ BibliographyBlock có raw/spans cho Nguyên; không cắt hết phần sau References. Giữ local_id ổn định/position siblings/source spans/heading_level; normalized_with=None. Container raw content phải đầy đủ và children không làm mất text; không làm normalization, shared IDs hay dedup thay Danh.
+
+Viết expected tree/sentences do người đọc xác định; dùng make_gathered hoặc tự dựng typed GatherResult cho test độc lập. Bổ sung escaped percent, câu lặp, abbreviation/URL/decimal, math block/align, table/caption, itemize lồng, prose trước heading, appendix sau bibliography. Lỗi macro mất nội dung phải diagnostic chứ không xóa im lặng. Thay skipped placeholders bằng assertions thật. Không sửa schema/fixture chung để khớp implementation.
+
+Cuối cùng bắt buộc hướng dẫn Khang kiểm tay: tự vẽ cây cho một bài thật nhiều file và một bài nhiều math/list/table nếu có; chọn ít nhất một paragraph, ghi ranh giới từng sentence, so source/PDF khi có với nodes. Mở math xem inline không bị thành leaf riêng; block/table đúng kind, caption/rows còn; check itemize cha/con và sibling order, ack/appendix còn, references không lẫn body. Mở ranges của câu lặp để chắc spans đúng lần xuất hiện. Reviewer Khánh kiểm cây, Nguyên kiểm bibliography boundary. Ghi ID/version/snapshot/spans/expected/actual trong phản hồi bàn giao theo mẫu mục 12, phần chưa có raw ghi chưa kiểm thật, AI không thay chữ ký người.
+
+Trước bàn giao dọn file nháp/debug và helper trùng do bạn tạo, scratch/output dưới data/milestone2-dev/khang/ ngoài Git. Bỏ placeholder test sau khi có test thật thay thế; không xóa test fail để xanh. Không đụng file chung/raw/module người khác. Bàn giao danh sách diff, API, test pass/fail/skip thực, citations/dependencies, limitations và phần văn bản Book riêng để Danh ghép, không sửa trang chung gây conflict.
+```
+
+### 14.3. Nguyên — copy gửi AI
+
+```text
+Bạn triển khai phần Nguyên của Milestone 2 trong arXivProject. Đọc đề M2, kế hoạch C1–C3 và phân công NG1–NG4/S5/S6/S9/S12, src/parsing/contracts.py và docstrings bibliography.py/reference_dedup.py.
+
+Chỉ sửa src/parsing/bibliography.py, reference_dedup.py; tests/test_m2_bibliography.py, test_m2_reference_dedup.py; bàn giao bằng phản hồi cuối theo mẫu mục 12, không tạo doc riêng. Có thể thêm fixtures prefix nguyen riêng. Không sửa contracts/shared fixtures/init, normalizer/pipeline/gather/hierarchy, requirements/README/environment/report pages chung. Ghi dependencies và đề xuất contract vào bàn giao cho Danh, không tự commit/push/merge.
+
+Giữ đúng API typed: extract_entries trả BibliographyExtraction có occurrences + diagnostics, unify_entries nhận list extractions của mọi versions. Dùng GatherResult/VersionTree/BibOccurrence dựng sẵn để làm độc lập; không chờ Khánh/Khang và không implement lại module họ. Đọc chỉ .bib khai báo và bibitem blocks, multiline/braces/optional labels; fields unknown giữ None/[], entry hỏng giữ raw với entry=None/error, missing .bbl không tự coi bibliography rỗng. Đừng lấy metadata references M1 làm bibliography M2 hay lọc entries non-arXiv.
+
+Identity/union theo C3: DOI đúng, thiếu DOI chỉ full ordered authors + normalized title + year khớp, không nối bắc cầu qua DOI đối nghịch; year thiếu/initials mơ hồ có review evidence. Canonical key deterministic theo contract, map (version,old_key), same key trong một version mơ hồ phải error/không đoán. Union fields không mất year khi v3 bỏ, giữ conflicts/decisions/provenance, review occurrence IDs/fingerprint phải khớp. Chỉ xuất key_map cho Danh, không viết lại normalize/rewrite code. Tests đảo input order, key collisions, missing entries/fields và stale reviews.
+
+Cuối cùng hướng dẫn Nguyên tự kiểm tay: mở source và output một bibitem, một .bib có nested braces/tác giả tổ chức, một reference qua >=2 versions; gạch từng field có evidence, so authors/year/DOI, kiểm unknown không bị bịa. Lần theo old_key từng version -> unified key -> entry, tự xác nhận lý do merge/keep/pending và union fields. Chọn same-key different-DOI, missing-year, bridge-conflict fixtures để kiểm không gộp nhầm; kiểm reviewer quyết định thật khớp fingerprints. Khi Danh tích hợp, cùng kiểm câu cite trước/sau và content dedup. Reviewer Khang kiểm boundary, Danh kiểm identity/key map. Ghi ID/version/snapshot/span/evidence/expected/actual trong phản hồi bàn giao theo mẫu mục 12; chưa có raw ghi chưa kiểm thật, AI không ký thay.
+
+Trước bàn giao dọn debug/file .bak/.orig và helpers trùng do bạn tạo; scratch/output dưới data/milestone2-dev/nguyen/ ngoài Git. Bỏ placeholder test sau khi có tests thật chạy đạt, không xóa fail/skip để che thiếu. Không xóa shared fixtures/raw/module khác. Bàn giao diff/test pass-fail-skip/dependencies/citations/limitations và phần reference Book riêng, Danh ghép trang chung.
+```
+
+### 14.4. Danh — phần triển khai riêng, copy gửi AI
+
+```text
+Bạn triển khai phần Danh của M2 trong arXivProject. Đọc đề M2, phân công DA1–DA4/S4/S7/S8/S10–S14, kế hoạch C3/D3/9.3/10, docstrings các prototype và src/parsing/contracts.py/docstrings.
+
+Trong giai đoạn độc lập chỉ triển khai normalize.py, content_dedup.py, validation.py, serialization.py, pipeline.py, benchmark.py, src/notebooks/milestone2.ipynb; tests tương ứng; bàn giao bằng phản hồi cuối theo mẫu mục 12. Không implement lại Khánh/Khang/Nguyên. Shared contracts/fixtures/dependencies Danh quản lý nhưng không đổi schema chỉ để test qua; nếu thật sự cần đổi, ghi lý do/input và đồng bộ consumers sau khi nhóm nhận revision mới. Chưa có yêu cầu thì không tự commit/push.
+
+Dùng raw/normalized tree, unified bibliography và expected publication fixtures để phát triển riêng normalize/assemble/validate/serialization; không chờ upstream. Cleanup giữ semantics, normalize math/cites theo version trước dedup, rebuild component D3 bottom-up, idempotent, không mutate raw. Exact dedup theo kind/content và deterministic IDs, root version riêng, giữ occurrence/order/spans; projected graph không phải occurrence tree. Validate schema/cites/occurrences, finalize status sau mọi bước, strict chỉ chặn publish không thay status. All-no_tex hợp lệ vẫn giữ coverage, blocked/partial không biến success.
+
+Serialize đúng wire format (đặc biệt tuple key map, int version keys, null/authors lists), atomic/staging/read-back, checkpoint input/config/code/review hash, reject stale cache, không đè output tốt bằng input mới lỗi. Pipeline chỉ nối public APIs chứ không copy logic owner. Chưa merge upstream thì unit tests độc lập đạt nhưng real integration phải ghi pending, không mock mọi thứ để tuyên bố xong. Benchmark Colab CPU fresh, wall/mean/process-tree peak/output bytes và raw evidence; local smoke không gọi Colab benchmark. Notebook gọi helpers, không nhét parser trong cells hoặc in số giả.
+
+Cuối cùng Danh tự kiểm tay: một bài thật nhiều file >=2 versions từ raw đến ba bảng, một câu unchanged đổi parent vẫn một element/đủ edges, repeated occurrences đúng thứ tự; paragraph đổi body và item đảo thứ tự có ID khác. So cite keys với bibtex sau rewrite, kiểm math/table/caption còn nghĩa. Đọc lại JSON để so authors/null/key map/root/version status. Chạy lại source/config/code/review đổi để xác nhận cache invalid, làm lỗi write trong fixture và kiểm output tốt không bị che. Tính tay wall/mean/output bytes một mẫu, nhìn Colab CPU settings; mở Book HTML/Pages thử search/filter/hover/zoom/reset. Ghi evidence/limitations/checks người thật trong phản hồi bàn giao theo mẫu mục 12, reviewer Khánh/Khang/Nguyên ký phần liên quan.
+
+Trước bàn giao giữ diff chỉ ownership; scratch dưới data/milestone2-dev/danh/. Dọn debug, backup files, temporary duplicate helpers do mình tạo; thay placeholder tests bằng tests thật và bỏ placeholder sau khi đạt. Không xóa contracts/fixtures/test thật/raw hay module của người khác. Chỉ sang merge/cleanup cuối khi nhận đủ các nhánh và được Danh yêu cầu theo mục 15.
+```
+
+## 15. Prompt Danh ghép cuối và tự dọn phần dư
+
+Prompt này dùng **sau khi ba người bàn giao**, không chạy lúc mới có bộ khung. Cơ chế dọn nằm trong workflow của AI; không có Git hook tự xóa file khi pull/merge. Không thể bảo đảm không conflict nếu các nhánh sửa ngoài ownership; phân vùng files giúp giảm conflict, Git conflict còn lại phải xem nội dung.
+
+```text
+Tôi là Danh, người tích hợp M2. Hãy ghép các phần đã được nhóm bàn giao vào bộ khung chung. Trước khi merge, đọc git status để giữ thay đổi đang có, đọc src/parsing/contracts.py, docstrings các prototype và bốn phản hồi bàn giao của thành viên theo mẫu mục 12. Xác định rõ nhánh/commit hoặc files bàn giao thực tế, base revision, dependencies, tests và phần kiểm tay còn thiếu. Nếu chưa có thông tin nhánh thì hỏi tôi; không tự đoán branch/commit hoặc tuyên bố đã nhận đủ.
+
+So diff theo owner trước, không copy cả folder đè checkout. Contracts/public signatures/fixtures dùng chung phải khớp 1.0; nếu owner tự đổi thì đối chiếu input/expected, sửa consumer về contract hoặc đề xuất một revision đồng bộ có lý do. Merge từng phần, chạy tests tương ứng sau mỗi phần, rồi integration thực xuyên load/gather/tree/extract/unify/normalize/assemble/finalize/export/metrics. Không dùng mock tất cả owner để thay bằng chứng pipeline thật. Book/dependency/shared README chỉ cập nhật tập trung một lần; không làm hỏng M1.
+
+Trong cùng lượt tích hợp, chủ động DỌN PHẦN DƯ do quá trình phát triển M2 tạo ra khi đủ bằng chứng: xóa file nháp/debug/.bak/.orig/helper duplicate đã được thay thế trong ownership đã nhận; bỏ test placeholder @skip sau khi xác nhận các acceptance cases đã có assertions thật chạy đạt; bỏ temporary compatibility adapter không còn callers sau khi đã cập nhật mọi consumer và test. Dùng rg tìm references trước khi xóa helper; ghi file nào xóa và lý do. Không tạo wrapper/fallback thứ hai chỉ để né contract conflict. Mỗi public module chỉ giữ một implementation, mỗi logic chung một nơi có owner.
+
+Không xóa contracts.py, shared fixture hữu ích, test thật, test fail để làm xanh, notebook prepare, code M1, corpus/raw, working outputs, review decisions hoặc evidence. Không coi tất cả skipped tests là dư; nếu acceptance chưa làm thì giữ trạng thái chưa hoàn thành. Không dùng git clean -fd, reset --hard, xóa wildcard hay hook tự chạy khi merge. Scratch trong data/ vốn ngoài Git không tham gia merge; không cần xóa dữ liệu người dùng. Chỉ xóa file có nguồn gốc/đích thay thế rõ, bất định thì liệt kê để tôi quyết định.
+
+Sau cleanup chạy tests M2 và regression M1 thích hợp trong môi trường đủ dependencies, notebook smoke và read-back. Tìm NotImplementedError/TODO/demo/skipped trong phạm vi source M2/tests/Book; báo phần chưa làm, không xóa marker thay implementation. Trước khi chốt yêu cầu người phụ trách kiểm tay output thật theo bốn bàn giao, Danh review xuyên pipeline; không tự ghi chữ ký người. Nếu thiếu corpus/Colab/Pages thì ghi kiểm tương ứng pending, không gọi M2 hoàn thành. Bàn giao diff/cleanup list, tests pass-fail-skip, integration evidence, remaining risks và hướng chạy. Chỉ commit/push khi tôi đã yêu cầu; không tự merge PR lên remote.
+```

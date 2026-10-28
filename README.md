@@ -66,6 +66,19 @@ Colab Secrets or the `S2_API_KEY` environment variable can provide an optional S
 
 See the [notebook usage guide](docs/milestone1/HUONG_DAN_SU_DUNG_NOTEBOOK.md), [plan, method and full citations](docs/milestone1/KE_HOACH_MILESTONE_1.md) and [four-member responsibilities](docs/milestone1/PHAN_CONG_MILESTONE_1_4_NGUOI.md).
 
+
+## Milestone 2 implementation scaffold
+
+`src/parsing/` contains typed prototypes; business functions raise `NotImplementedError`.
+Read [contracts.py](src/parsing/contracts.py) for the shared schema and each function's
+docstring for its inputs, implementation steps, edge cases and manual checks.
+The [assignment](docs/milestone2/PHAN_CONG_MILESTONE_2_4_NGUOI.md) includes per-member
+AI prompts and Danh's final merge/cleanup prompt (sections 14–15).
+[Synthetic fixtures](tests/m2_support/fixtures.py) let members test independently.
+The [M2 notebook template](src/notebooks/milestone2.ipynb) defaults to `RUN_PARSER=False`.
+Owner tests currently have skipped placeholders; these are not completed parser tests.
+
+
 ## Modules and local outputs
 
 | Owner | Files | Responsibility |

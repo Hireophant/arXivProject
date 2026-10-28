@@ -10,7 +10,7 @@ Cập nhật **27/10/2026**: chốt content của node cha, quy tắc trạng th
 
 **Cách tổ chức:** đọc corpus M1 nhưng không sửa nó; xử lý từng publication với toàn bộ versions; lưu nội dung dùng chung và quan hệ cha–con theo version riêng biệt. Code nghiệp vụ nằm trong package mới `src/parsing/`, notebook chỉ cấu hình, gọi pipeline và hiển thị kết quả.
 
-**Môi trường dự kiến:** tiếp tục Python >= 3.11, pandas, matplotlib và psutil của repo. Chưa cài hoặc chọn thêm parser LaTeX/BibTeX trong lần lập kế hoạch này; người phụ trách thử trên bộ mẫu ở giai đoạn 1, ghi lựa chọn và khóa phiên bản nếu bổ sung dependency. Không cần GPU, LLM hoặc mô hình pretrained để thực hiện kế hoạch này.
+**Môi trường dự kiến:** tiếp tục Python >= 3.11, pandas, matplotlib và psutil của repo. Bộ khung dùng dataclass stdlib và JSON/JSONL làm working format. Chưa cài hoặc chọn thêm parser LaTeX/BibTeX; người phụ trách thử trên bộ mẫu ở giai đoạn 1, ghi lựa chọn và khóa phiên bản nếu bổ sung dependency. Không cần GPU, LLM hoặc mô hình pretrained để thực hiện kế hoạch này.
 
 ## 1. Hiểu M2 trong một phút
 
@@ -63,7 +63,7 @@ Không có deadline M2 cụ thể trong phần đề đã đọc. Nhóm phải t
 - Bổ sung 27/10/2026: đã có notebook [chuẩn bị raw input](../../src/notebooks/milestone2_prepare.ipynb) và helper src/preparation/; xem [hướng dẫn](./HUONG_DAN_CHUAN_BI_INPUT.md). Bước này khôi phục source/receipts từ backup M1 thành schema m2-input-1.0, chưa triển khai parser. Adapter src/parsing/inputs.py phải nhận schema chuẩn bị này, kiểm completion/run_id và giữ trạng thái input ready_tex/empty_no_tex/blocked_input theo hướng dẫn; metadata/reference result nằm tại các path trong manifest.
 
 - `src/crawling/` và `src/notebooks/milestone1.ipynb` đã có. M2 tái sử dụng dữ liệu và quy ước ID, không viết lại crawler.
-- Chưa có package `src/parsing/` hoặc notebook M2 trong danh sách source đã kiểm tra ngày lập tài liệu.
+- Cập nhật 28/10/2026: đã có package `src/parsing/`, notebook M2 và test templates dưới dạng prototype chưa triển khai. [contracts.py](../../src/parsing/contracts.py) và docstrings từng prototype chốt API/wire format; không xem scaffold là parser hoàn chỉnh.
 - `arXiv-report/` là checkout báo cáo riêng, được `.gitignore` của repo code loại trừ. Có sẵn bốn trang M2 trong `book/content/milestone2/`; các trang phương pháp đang là khung chờ thực nghiệm, không chứng minh parser đã chạy.
 - Corpus có thể nằm trong các checkpoint/full backup M1 trên Drive. **ZIP corpus dạng manifest-only stub của session report không đủ làm input M2.** Phải khôi phục source thật từ checkpoint/full corpus đã xác minh.
 - Không kết luận nhóm đã đủ dữ liệu M1 chỉ từ việc source code tồn tại. Bước đầu phải kiểm kê đầy đủ corpus, phiên bản còn thiếu và backup sử dụng.
