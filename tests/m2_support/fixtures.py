@@ -4,7 +4,8 @@ Khánh: tự tạo thư mục/files theo TEX/BIB khi test gather (TemporaryDirec
 Khang/Nguyên: make_gathered()/make_raw_tree(), không cần Khánh code xong.
 Danh: make_raw_tree()/make_unified_bibliography()/make_normalized_tree().
 Metrics: make_expected_publication() là expected dựng tay, không phải parser output.
-Mỗi lần gọi tạo objects mới. Không sửa fixtures chung trong nhánh owner.
+Mỗi lần gọi tạo objects mới. Ưu tiên fixtures riêng và giữ nguyên schema/types để tránh conflict; chỉ khi thật sự cần đổi
+mới cập nhật fixtures chung và phối hợp đồng bộ các chỗ dùng liên quan.
 """
 from copy import deepcopy
 import hashlib

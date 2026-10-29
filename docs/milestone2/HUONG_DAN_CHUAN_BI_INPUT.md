@@ -97,6 +97,9 @@ Danh ghi snapshot_id này vào config/manifest/checkpoint parser. Khánh đối 
 
 ## 4. Kiểm chứng và chạy lại
 
+Notebook prepare giữ nguyên luồng cũ: khôi phục/kiểm raw M1 và lưu vào preparationM2, không thêm bước đóng gói ZIP. Việc tối ưu chạy local thuộc phía parser, xem kế hoạch 10.0; không cần thao tác thêm trong notebook prepare.
+
+
 - Kiểm corpus.zip theo SHA-256/bytes của backup_receipt.json, rồi kiểm source file list/hash/bytes theo M1 source receipt 3.0.
 - JSON được đọc từng khối có giới hạn dung lượng, không cấp sẵn bộ đệm theo kích thước manifest tối đa cho mỗi file nhỏ. Kiểm đường dẫn có cache trong một lượt; hash file vẫn được đọc lại và cache không tồn tại qua các lượt kiểm.
 - File provenance được parse và đối chiếu backup/fingerprint của từng version dùng được cùng download/error evidence; file tồn tại nhưng hỏng JSON hoặc thiếu bằng chứng không được coi là valid.

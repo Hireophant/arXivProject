@@ -1,10 +1,19 @@
 """PROTOTYPE — Khánh / KH1.
 
-Chỉ triển khai file owner; đọc types/docstrings trong contracts.py và hướng dẫn từng hàm bên dưới.
-Test độc lập dùng fixtures dựng sẵn trong tests/m2_support/fixtures.py, không chờ module người khác.
-Chỉ sửa module/tests của mình; dependencies/shared schema để Danh ghép một lần, tránh conflict.
-Không thay public signatures/contracts; private helpers được tự thêm trong file này.
+Prototype và docstring thuật toán là hướng tham khảo, không giới hạn ở điền thân hàm.
+Đọc contracts.py, phần việc owner và tiêu chí nghiệm thu; hoàn thiện đầy đủ task/đầu ra.
+Nếu có phương án tốt hơn, so sánh lợi ích/đánh đổi, dependencies, ảnh hưởng API và cách kiểm chứng;
+hỏi người phụ trách task chọn hướng trước khi làm phần phụ thuộc, tiếp tục việc độc lập trong lúc chờ.
+Không hỏi lại lựa chọn đã chốt hoặc từng chi tiết nhỏ. Sau khi chốt có thể thêm/thay/tổ chức lại code.
+Test độc lập dùng fixtures trong tests/m2_support/fixtures.py, không chờ module người khác.
+Chỉ sửa phạm vi owner đang thống nhất; mở rộng phạm vi cần phối hợp owner bị ảnh hưởng.
+Ưu tiên giữ nguyên schema, kiểu dữ liệu và API; không cần đổi mà vẫn hoàn thành tốt task thì càng tốt.
+Không khuyến khích đổi; chỉ đổi khi thật sự cần thiết và hạn chế sửa phần chung để tránh conflict. Phối hợp Danh/owner bị ảnh hưởng và đồng bộ consumer, fixtures, tests, notebook, tài liệu.
+Không giảm yêu cầu hay acceptance cases khi đổi thiết kế.
 Tất cả hàm hiện cố ý chưa triển khai; không coi import thành công là parser chạy được.
+
+Hướng hiệu năng đã chọn (kế hoạch 10.0; chưa triển khai):
+Kiểm corpus đúng một lần mỗi run trong load_publications; private loader dùng manifest/context đã đọc. Không cache validation qua run hoặc rehash toàn corpus từng version.
 """
 from __future__ import annotations
 

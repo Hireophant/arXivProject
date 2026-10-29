@@ -1,10 +1,10 @@
-"""Hợp đồng M2 v1 — Danh quản lý; mọi owner phải dùng nguyên schema này.
+"""Hợp đồng M2 v1 hiện tại — Danh quản lý; các owner dùng cùng revision đã thống nhất.
 
 Chỉ types/constants, không đọc file, không chạy parser, không import owner modules.
 Đọc docstring của từng type bên dưới và của prototype đang triển khai.
 Quy ước chung: Python >=3.11; dataclass keyword-only tại mọi ranh giới owner.
 Tests import src.parsing; notebook thêm <repo>/src và import parsing. Không trộn
-hai kiểu import trong một process. Nội bộ không thay typed objects bằng dict/pandas.
+hai kiểu import trong một process. Ưu tiên giữ nguyên typed objects hiện tại, chỉ thay khi thật sự cần thiết.
 Raw nhận m2-input-1.0 từ notebook prepare; working output m2-working-1.0.
 Khánh: inputs/gather/metrics; Khang: hierarchy/sentences; Nguyên: bibliography/
 reference_dedup; Danh: normalize/content_dedup/validation/serialization/pipeline/
@@ -12,7 +12,12 @@ benchmark. Owner chỉ sửa module/tests của mình. contracts và fixtures do
 JSON/hash canonical: UTF-8, ensure_ascii=False, sort_keys=True, allow_nan=False,
 separators=(',', ':'); None -> JSON null. Scratch/output thật dưới data/ ngoài Git.
 Chưa chọn thư viện LaTeX/BibTeX; owner thử private implementation và báo dependencies
-cho Danh ghép requirements một lần. Không tự thay public signatures/schema.
+cho Danh ghép requirements một lần. Prototype/docstring thuật toán là tham khảo.
+Nếu có hướng tốt hơn, trình bày đánh đổi và hỏi người phụ trách task chọn trước khi làm phần phụ thuộc.
+Ưu tiên giữ nguyên schema, kiểu dữ liệu và API; không khuyến khích đổi. Nếu hoàn thành tốt task
+mà không cần đổi thì càng tốt; chỉ đổi khi thật sự cần thiết để tránh sửa chồng chéo. Khi cần đổi, phối hợp Danh/owner bị ảnh hưởng
+và đồng bộ consumer, fixtures, tests, notebook, tài liệu.
+Mục tiêu là hoàn thiện đầy đủ task/đầu ra/tiêu chí nghiệm thu, không chỉ điền prototype.
 Dataclasses không tự validate; validation.py phải kiểm invariant trước export.
 """
 from __future__ import annotations

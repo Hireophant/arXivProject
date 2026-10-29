@@ -1,6 +1,7 @@
 """TEST TEMPLATE CHƯA TRIỂN KHAI — Danh/DA4 — measurements và boundary.
 Thay placeholder bằng expected/assertions thật; đọc docstrings module và S-cases.
-Không sửa fixture chung, không viết lại thuật toán trong expected.
+Ưu tiên fixture riêng để tránh conflict; chỉ cập nhật fixture chung khi schema/types thật sự cần đổi
+và phối hợp đồng bộ các chỗ dùng. Không viết lại thuật toán trong expected.
 """
 import unittest
 

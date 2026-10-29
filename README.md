@@ -69,9 +69,24 @@ See the [notebook usage guide](docs/milestone1/HUONG_DAN_SU_DUNG_NOTEBOOK.md), [
 
 ## Milestone 2 implementation scaffold
 
+The input preparation notebook stays separate: M1 backups → verified raw in
+`preparationM2` → optional transport ZIP/checksum → local Colab parsing.
+`src/preparation/transport.py` implements packaging/staging; the parser notebook
+uses local raw/output paths. Parser owners still implement once-per-run validation,
+indexed processing, bounded per-publication memory and verified batch Drive backup;
+these are specified in plan section 10.0 and are not completed parser features.
+
 `src/parsing/` contains typed prototypes; business functions raise `NotImplementedError`.
 Read [contracts.py](src/parsing/contracts.py) for the shared schema and each function's
 docstring for its inputs, implementation steps, edge cases and manual checks.
+Prototypes and suggested implementation steps are starting points. If an AI finds
+a worthwhile alternative, it should explain the tradeoffs and ask the task owner
+which approach to use before implementing the affected work. The goal remains
+completing every assigned requirement and acceptance criterion, beyond filling stubs.
+Prefer keeping existing schemas, data types and APIs unchanged. Changes are not
+encouraged; make them only when truly necessary. Completing the task without these
+changes is preferable, reducing shared-file edits and conflicts. Coordinate affected changes with
+Danh and relevant owners, and update consumers, fixtures, tests, notebooks and docs.
 The [assignment](docs/milestone2/PHAN_CONG_MILESTONE_2_4_NGUOI.md) includes per-member
 AI prompts and Danh's final merge/cleanup prompt (sections 14–15).
 [Synthetic fixtures](tests/m2_support/fixtures.py) let members test independently.
