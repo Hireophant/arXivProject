@@ -1,13 +1,29 @@
 # arXiv Project — Toàn bộ đề bài và các milestone
 
 Nguồn: https://hcmus-cs-ta.github.io/lab-book/intro-ds/statement/  
-Ngày tải và đối chiếu: 17/10/2026 (Asia/Bangkok). Bản cũ được tải ngày 11/10/2026.
+Ngày tải và đối chiếu gần nhất: 25/10/2026 (Asia/Bangkok). Các bản trước được tải ngày 11/10/2026 và đối chiếu ngày 17/10/2026.
 
 Tài liệu này gộp các bản Markdown tải trực tiếp từ website môn học: trang tổng quan và cả ba milestone. Giữ nguyên nội dung tiếng Anh, ví dụ code, công thức, bảng, quy định và tiêu chí chấm điểm. Tiêu đề được điều chỉnh cấp để tiện đọc; liên kết MyST và trích dẫn được chuyển sang Markdown. Các trang tài liệu bên ngoài được giữ dưới dạng liên kết tham khảo.
 
-## Những thay đổi so với bản 11/10/2026
+## Đối chiếu toàn bộ đề ngày 25/10/2026 với bản lưu 17/10/2026
 
-Phần này là tóm tắt đối chiếu của nhóm tài liệu, không phải nội dung nguyên văn của đề bài. Các phần tiếng Anh bên dưới là nội dung đề hiện tại, tải ngày 17/10/2026; ngày đối chiếu không khẳng định ngày giảng viên sửa đề.
+Đã tải lại Markdown xuất bản của trang tổng quan và cả ba milestone, đối chiếu toàn bộ phần nội dung, tiêu đề, ví dụ code, công thức, bảng/schema, yêu cầu báo cáo và tiêu chí chấm điểm. Đây là ngày kiểm tra, không khẳng định ngày giảng viên sửa đề.
+
+| Phần | Kết quả so với bản lưu 17/10/2026 |
+|:---|:---|
+| Tổng quan | Không phát hiện thay đổi nội dung. Cập nhật URL Markdown nguồn vì URL cũ trả HTTP 404. |
+| M1 — Crawling | Không phát hiện thay đổi nội dung, kể cả suggested data organization, ví dụ code, schema, benchmark, báo cáo và chấm điểm. Cập nhật URL Markdown nguồn vì URL cũ trả HTTP 404. |
+| M2 — Parsing | Không phát hiện thay đổi nội dung, kể cả compilation path, hierarchy, dedup, version rỗng, schema, báo cáo và chấm điểm. Cập nhật URL Markdown nguồn vì URL cũ trả HTTP 404. |
+| M3 — Data Labelling | Thêm đoạn xác định số bài manual và tổng labeled entries là theo thành viên: nhóm k người có ít nhất 5*k bài manual và 100*k entries. Sàn 20 entries vẫn tính trên mỗi bài manual. Automatic pool phải phủ ít nhất 10% toàn bộ số bài ngoài manual pool và đồng thời có ít nhất 2*k bài; mỗi bài automatic gán mọi entry, không áp sàn 20 entries. |
+| M3 — Data Modeling | Thêm đoạn xác định mỗi tập Test và Validation có k bài manual và k bài automatic cho nhóm k người. |
+| M3 — Model Evaluation | Đổi mô tả Test set từ “the two publications defined above” sang “the manually labeled and automatically matched publications defined above”. Đổi cách mã hóa ký tự @ trong tên metric từ `@5` sang `&#64;5`; khi hiển thị vẫn là MRR@5, công thức không đổi. |
+| M3 — Liên kết nguồn | Cập nhật URL Markdown nguồn vì URL cũ trả HTTP 404. |
+
+Phần tiếng Anh bên dưới đã được cập nhật theo lần kiểm tra này; giữ cách chuyển MyST references/citations sang liên kết và footnotes để đọc được trong một file Markdown thông thường. Ghi chú triển khai của nhóm được tách riêng, không phải yêu cầu của giảng viên.
+
+## Lịch sử thay đổi ngày 17/10/2026 so với bản 11/10/2026
+
+Phần này giữ lại tóm tắt lịch sử đối chiếu của nhóm tài liệu ngày 17/10/2026, không phải nội dung nguyên văn của đề bài. Cột “Bản hiện tại” trong bảng này chỉ bản ngày 17/10/2026; cập nhật tiếp theo ngày 25/10/2026 được ghi ở mục phía trên.
 
 | Nội dung | Bản cũ | Bản hiện tại |
 |:---|:---|:---|
@@ -46,7 +62,7 @@ Nhịp hiện hành: tối thiểu 3 giây/request, một kết nối tại mộ
 
 ## arXiv Project — Problem Statements
 
-[Trang nguồn](https://hcmus-cs-ta.github.io/lab-book/intro-ds/statement/) · [Bản Markdown gốc](https://hcmus-cs-ta.github.io/lab-book/build/index-e620bc33e2e4c33e19205dd3c9f27ce3.md)
+[Trang nguồn](https://hcmus-cs-ta.github.io/lab-book/intro-ds/statement/) · [Bản Markdown gốc](https://hcmus-cs-ta.github.io/lab-book/build/index-00b793f93fea5e64bc417d04b04d5bf7.md)
 
 ### Logistics
 
@@ -77,7 +93,7 @@ Ensure your code is well-documented with clear comments. You can use online docu
 
 ## Project Milestone 1 — Data Crawling
 
-[Trang nguồn](https://hcmus-cs-ta.github.io/lab-book/intro-ds/statement/crawling/) · [Bản Markdown gốc](https://hcmus-cs-ta.github.io/lab-book/build/crawling-8fad9ed19f51add44df0ebce57dffab5.md)
+[Trang nguồn](https://hcmus-cs-ta.github.io/lab-book/intro-ds/statement/crawling/) · [Bản Markdown gốc](https://hcmus-cs-ta.github.io/lab-book/build/crawling-50362c745d10be63d5eeea48ff304630.md)
 
 ## Objectives
 
@@ -388,7 +404,7 @@ Your grade is determined upon five main criteria as listed below:
 
 ## Project Milestone 2 — Hierarchical Parsing and Standardization
 
-[Trang nguồn](https://hcmus-cs-ta.github.io/lab-book/intro-ds/statement/parsing/) · [Bản Markdown gốc](https://hcmus-cs-ta.github.io/lab-book/build/parsing-5ea96dd2b37a4dc5b36db8de0d231ea6.md)
+[Trang nguồn](https://hcmus-cs-ta.github.io/lab-book/intro-ds/statement/parsing/) · [Bản Markdown gốc](https://hcmus-cs-ta.github.io/lab-book/build/parsing-6cd8bced6b6ded0420e647fef234f957.md)
 
 ## Objectives
 
@@ -532,7 +548,7 @@ Your grade is determined upon five main criteria as listed below:
 
 ## Project Milestone 3 — Reference Matching Pipeline
 
-[Trang nguồn](https://hcmus-cs-ta.github.io/lab-book/intro-ds/statement/matching/) · [Bản Markdown gốc](https://hcmus-cs-ta.github.io/lab-book/build/matching-06eeb42f80468333de4ce91f69ff4dfa.md)
+[Trang nguồn](https://hcmus-cs-ta.github.io/lab-book/intro-ds/statement/matching/) · [Bản Markdown gốc](https://hcmus-cs-ta.github.io/lab-book/build/matching-3c75016d86cfe407c46b48231f66f279.md)
 
 ## Objectives
 
@@ -553,6 +569,8 @@ Students need to create a ground truth dataset by labelling associations between
 - Manually label references for at least **5 publications**. Each manually-labeled publication must have at least **20 labeled BibTeX entries**, its quantity $Q$, with at least 100 labeled entries across the pool.
 
 - Implement automatic matching with classic tools such as regex or string similarity heuristics and label at least **10%** of the publications outside the manual pool. The automatic matcher labels every BibTeX entry of the publications it is applied to.
+
+These publication counts are per-member quantities: a group of $k$ members holds at least $5*k$ manually labeled publications with at least $100*k$ labeled entries in total, while the minimum quantity $Q$ of a manually-labeled publication stays as given, since it is a per-publication floor rather than a pool size, and it applies to manually labeled publications only. Automatically matched publications carry no per-publication label count, since the matcher labels every BibTeX entry of the publications it is applied to. Automatic labeling is measured against the whole remaining pool: at least 10 percent of the publications outside the manual pool must be labeled automatically, and the automatic pool must in any case hold at least $2*k$ publications so that the split below can draw its automatically matched publications.
 
 Labeled entries define the ground truth for training and evaluation: for each labeled entry, its row in the candidate matrix of the Data Modeling section is completed, one positive when a true reference exists and an all-negative row otherwise. The internal format for these labels is up to the students but must be clearly documented in the group's repository and presented in the poster.
 
@@ -578,11 +596,13 @@ The data split strategy is as follows:
 
 - **Training Set:** Consists of all remaining publications (the remaining manually labeled ones and the remaining automatically matched ones).
 
+The one-publication counts of the Test and Validation sets are per-member quantities as well, so a group of $k$ members puts $k$ manually labeled and $k$ automatically matched publications into each of the two sets.
+
 ### Model Evaluation
 
-Evaluate the trained model on the **Test set**, comprising the two publications defined above. For every labeled BibTeX entry, the model outputs a ranked list of the **top 5 candidate references**. Post-processing of the results is allowed.
+Evaluate the trained model on the **Test set**, comprising the manually labeled and automatically matched publications defined above. For every labeled BibTeX entry, the model outputs a ranked list of the **top 5 candidate references**. Post-processing of the results is allowed.
 
-The evaluation metric is **Mean Reciprocal Rank @5, written MRR@5**.
+The evaluation metric is **Mean Reciprocal Rank &#64;5, written MRR@5**.
 
 $$\text{MRR@5} = \frac{1}{|Q|} \sum_{i=1}^{|Q|} \frac{1}{\text{rank}_i}$$
 
