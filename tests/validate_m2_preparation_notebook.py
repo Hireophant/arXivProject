@@ -12,6 +12,8 @@ def main():
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--dataset", default="Danh2")
+    parser.add_argument("--max-papers", type=int, default=100)
+    parser.add_argument("--retry-blocked", action="store_true")
     args = parser.parse_args()
     repo = Path(__file__).resolve().parents[1]
     notebook = nbformat.read(repo / "src/notebooks/milestone2_prepare.ipynb", as_version=4)
@@ -23,6 +25,7 @@ def main():
         f"PROJECT_DIR=Path({str(repo)!r})\n"
         "REPOSITORY_URL='unused'\nREPOSITORY_BRANCH='master'\n"
         "CLONE_IF_NEEDED=False\nSHOW_PROGRESS_EVERY=10\n"
+        f"MAX_PAPERS_PER_RUN={args.max_papers!r}\nRETRY_BLOCKED={args.retry_blocked!r}\n"
     )
     for cell in notebook.cells:
         if "parameters" in cell.get("metadata", {}).get("tags", []):

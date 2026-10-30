@@ -19,6 +19,8 @@ Ví dụ đường dẫn theo crawler M1 hiện tại:
 SOURCE_PATH = Path('/content/drive/MyDrive/arXivProject/Milestone1')
 PREPARATION_DIR = Path('/content/drive/MyDrive/arXivProject/preparationM2')
 DATASET_NAME = 'Danh2'
+MAX_PAPERS_PER_RUN = 100
+RETRY_BLOCKED = False
 ~~~
 
 Nếu đã gom backup nhiều tài khoản/người dưới một thư mục cha, SOURCE_PATH có thể trỏ tới thư mục đó. Không bắt buộc folder phải mang tên acc1/danh: helper tìm backup receipts đệ quy. Tên DATASET_NAME chỉ đặt tên bộ output, không chứng minh nó chứa đủ bốn người.
@@ -27,6 +29,18 @@ Local dùng checkout hiện tại, sửa source/output sang đường dẫn loca
 
 Notebook clone repo khi chạy Colab mà chưa có checkout. **Code mới phải được push hoặc đưa lên runtime trước**; bản cũ trên GitHub thiếu helper sẽ dừng và hướng dẫn cập nhật, không tự pull đè checkout.
 
+### Chạy theo lượt và tiếp tục ID
+
+Mỗi lượt mặc định xử lý 100 ID duy nhất, gồm mọi version và mọi bản backup trùng của ID đó. Giữ cùng source/dataset/đích rồi chạy lại cell prepare để lấy ID chưa xử lý tiếp theo; có thể đổi số lượng mỗi lượt. Thứ tự chọn theo đường dẫn backup rồi ID tăng dần trong từng manifest, không phải sắp ID toàn corpus.
+
+`batch_checkpoint.json` chỉ chốt sau khi output được đọc lại và kiểm tra thành công. Nếu ngắt giữa lượt, lần sau chọn lại lượt chưa chốt và tận dụng source hợp lệ đã ghi. Không xóa checkpoint nếu muốn tiếp tục. Các lượt vẫn đọc/kiểm hash archive và kiểm lại output đã có; chia lượt không loại hết chi phí Drive I/O.
+
+Manifest và preparation.json có `batch.selected_ids`, `processed_ids`, `pending_ids`, `papers_processed`, `papers_pending`. ID chưa tới lượt giữ đầy đủ record/versions nhưng không ghi metadata/reference/source riêng; inventory ghi `blocked_input`, reason `PENDING_BATCH`, source_dir rỗng. Metadata của ID chờ trong manifest chỉ mô tả phạm vi backup. `blocked_versions.csv` chứa cả các version đang chờ; bảng notebook tách số chờ và số lỗi thật.
+
+ID đã thử mà source thiếu/hỏng được tính đã xử lý, vẫn blocked và giữ lý do lỗi. Mặc định không chọn lại để tránh cản ID mới; bật `RETRY_BLOCKED=True` nếu muốn thử lại (cũng tính trong giới hạn lượt). `MAX_PAPERS_PER_RUN=None` làm lại toàn corpus và sửa file output hỏng, không áp dụng giới hạn. Nếu thêm/đổi backup receipt, dùng dataset mới hoặc None để xây lại, tránh dùng nhầm tiến độ cho nguồn mới.
+
+Chạy đến khi `papers_pending == 0`; điều này chưa đảm bảo hết lỗi source. Chỉ `input_validation.complete=True` mới xác nhận toàn bộ input đã phát hiện đủ và hợp lệ. Adapter/parser giữ ID chờ trong coverage/metrics như blocked, không đọc file chưa khôi phục và không bỏ ID khỏi mẫu số. Sau mỗi lượt, snapshot có thể đổi; cần chuyển lại raw/ZIP và kiểm snapshot mới trước khi parse. Bản raw local cũ không tự cập nhật theo Drive.
+
 ## 2. Dữ liệu được lưu
 
 ~~~text
@@ -34,6 +48,7 @@ preparationM2/
   raw_m1/<DATASET_NAME>/
     .prepare-owner.json
     preparation.json
+    batch_checkpoint.json
     input_validation.json
     manifest.json
     inventory.csv
@@ -70,7 +85,7 @@ corpus.zip trong session-report thường chỉ có manifest. Helper vẫn dùng
 |---|---|
 | in_progress | Chưa có completion marker cho lượt hiện tại; không dùng output như bộ hoàn chỉnh |
 | ready | Có publication, mọi version phát hiện có TeX hợp lệ hoặc no_tex có bằng chứng, không có lỗi backup |
-| partial | Có inventory nhưng còn source thiếu/xung đột hoặc lỗi đọc/khôi phục backup; xem audit |
+| partial | Có inventory nhưng còn ID chờ lượt sau, source thiếu/xung đột hoặc lỗi đọc/khôi phục backup; xem batch và audit |
 | failed | Không khôi phục được publication inventory đáng tin |
 
 ready chỉ áp dụng phạm vi các manifest tìm thấy trong SOURCE_PATH, không khẳng định toàn bộ assignment M1 hay toàn nhóm đã đủ. Preview hiển thị assignment/pending count từ queue để đối chiếu; queue không được dùng để bịa metadata/versions chưa crawl.
@@ -105,7 +120,7 @@ Notebook prepare giữ nguyên luồng cũ: khôi phục/kiểm raw M1 và lưu 
 - File provenance được parse và đối chiếu backup/fingerprint của từng version dùng được cùng download/error evidence; file tồn tại nhưng hỏng JSON hoặc thiếu bằng chứng không được coi là valid.
 - Nhiều retry/checkpoint cùng publication không tạo nhiều bài; các version hợp lệ được ghép vào cùng một publication.
 - Hai copy hợp lệ có bytes khác nhau cho cùng publication/version → SOURCE_CONFLICT, chặn để review; không tự chọn theo ZIP lớn nhất.
-- Khi chạy lại, hash source output được kiểm lại; file hỏng được khôi phục. Hash backup vẫn được kiểm, không tin marker cũ mù quáng.
+- Khi chạy lại, hash source output được kiểm lại. File hỏng của ID đang chọn được khôi phục; để sửa mọi ID đã làm, dùng MAX_PAPERS_PER_RUN=None. Hash backup vẫn được kiểm, không tin marker cũ mù quáng.
 - Không ghi vào thư mục M1 hoặc thư mục đích có dữ liệu cá nhân chưa do helper tạo. Không đổi raw nguồn khi thử parser.
 - Nếu Colab ngắt, output còn in_progress; chạy lại cùng cấu hình, cùng dataset. File cũ ngoài manifest mới có thể còn trên disk: parser đọc inventory/manifest, không tự glob tất cả folder rồi suy ra versions.
 - Nếu runtime ngắt sau khi data được ghi nhưng trước khi ký snapshot, run/snapshot có thể chưa khớp: không bàn giao, chạy lại notebook. input_validation.json và preparation.json phải thuộc cùng run; bước kiểm tươi là bắt buộc.

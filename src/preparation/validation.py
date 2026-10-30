@@ -47,6 +47,22 @@ def validate_prepared_corpus(root):
         papers = manifest["papers"]
         if not isinstance(papers, dict) or not papers:
             raise ValueError("Prepared manifest has no publications")
+        batch = manifest.get("batch")
+        pending_ids = set()
+        if batch is not None:
+            processed, pending = batch["processed_ids"], batch["pending_ids"]
+            pending_ids = set(pending)
+            limit, selected_ids = batch["max_papers"], batch["selected_ids"]
+            if (limit is not None and (type(limit) is not int or limit < 1 or len(selected_ids) > limit)
+                    or selected_ids != sorted(set(selected_ids))):
+                raise ValueError("Invalid batch selection/limit")
+            if (summary.get("batch") != batch or processed != sorted(set(processed))
+                    or pending != sorted(pending_ids) or set(processed) & pending_ids
+                    or set(processed) | pending_ids != set(papers)
+                    or batch["papers_processed"] != len(processed)
+                    or batch["papers_pending"] != len(pending_ids)
+                    or not set(batch["selected_ids"]).issubset(processed)):
+                raise ValueError("Batch ID coverage/counts disagree with manifest")
         inventory_path = root / "inventory.csv"
         _no_links(inventory_path, checked_paths)
         with inventory_path.open(encoding="utf-8", newline="") as stream:
@@ -70,7 +86,11 @@ def validate_prepared_corpus(root):
                     raise ValueError("Invalid expected publication/version states")
                 snapshot = dict(arxiv_id=identifier, record=record, versions=[], references=None)
                 try:
-                    if paper["metadata_path"] != key + "/metadata.json" or read(paper["metadata_path"]) != record["metadata"]:
+                    if identifier in pending_ids:
+                        if (any(state != "blocked_input" for state in states.values())
+                                or paper.get("references") is not None):
+                            raise ValueError("Pending publication cannot claim prepared input")
+                    elif paper["metadata_path"] != key + "/metadata.json" or read(paper["metadata_path"]) != record["metadata"]:
                         raise ValueError("Saved metadata differs from publication record")
                 except (OSError, ValueError, KeyError, TypeError) as error:
                     issue("METADATA_INTEGRITY", error, identifier)
@@ -98,6 +118,8 @@ def validate_prepared_corpus(root):
                     if row.get("status") != state:
                         issue("INVENTORY_MISMATCH", "Inventory/state disagree", identifier, version)
                     node = dict(version=version, state=state)
+                    if (row.get("reason") == "PENDING_BATCH") != (identifier in pending_ids):
+                        issue("BATCH_MISMATCH", "Pending reason/ID coverage disagree", identifier, version)
                     if state == "blocked_input":
                         if row.get("source_dir") or not row.get("reason"):
                             issue("INVENTORY_MISMATCH", "Blocked version must retain reason and no usable path", identifier, version)
