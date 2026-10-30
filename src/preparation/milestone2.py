@@ -350,13 +350,23 @@ def _write_csv(path, fields, rows):
     _replace(pending, path)
 
 
-def prepare_corpus(source, output, *, progress=None):
-    """Restore all discoverable publications/versions; return a truthful summary.
+def prepare_corpus(source, output, *, progress=None, max_papers=None, retry_blocked=False):
+    """Restore raw input, optionally selecting at most max_papers IDs per run.
+
+    None rebuilds all IDs. Bounded runs continue the last validated checkpoint;
+    retry_blocked also makes previously attempted blocked IDs eligible. Selection
+    follows sorted backup paths then sorted manifest IDs, counting each ID once.
+    Pending IDs remain blocked_input/PENDING_BATCH in full corpus coverage.
+    Receipts must stay unchanged between bounded runs. One writer only.
 
     The completion file is preparation.json. Consumers must check its status,
     matching manifest run_id, and each version_state. This is raw input, not M2
     parser output. Rerunning rechecks archives and repaired/local source bytes.
     """
+    if max_papers is not None and (type(max_papers) is not int or max_papers < 1):
+        raise ValueError("max_papers must be a positive integer or None")
+    if type(retry_blocked) is not bool:
+        raise ValueError("retry_blocked must be boolean")
     source, output = Path(source).absolute(), Path(output).absolute()
     _no_links(output)
     output = output.resolve()
@@ -377,6 +387,21 @@ def prepare_corpus(source, output, *, progress=None):
             checked = set()
             for p in output.rglob("*"):
                 _no_links(p, checked)
+        # Bind progress to the exact backup receipts, never an integer offset.
+        signature = hashlib.sha256()
+        for label in preview["receipts"]:
+            signature.update(_json_bytes(label))
+            with store.open(label) as stream:
+                signature.update(hashlib.file_digest(stream, "sha256").digest())
+        source_signature = signature.hexdigest()
+        checkpoint_path = output / "batch_checkpoint.json"
+        checkpoint = None
+        if max_papers is not None and checkpoint_path.exists():
+            with checkpoint_path.open("rb") as stream:
+                checkpoint = _load_json(stream)
+            if (checkpoint.get("schema_version") != SCHEMA
+                    or checkpoint.get("source_signature") != source_signature):
+                raise ValueError("Backup receipts changed; use a new dataset output or run max_papers=None to rebuild")
         output.mkdir(parents=True, exist_ok=True)
         _write_json(owner, dict(schema_version=SCHEMA))
         run_id = uuid4().hex
@@ -384,6 +409,25 @@ def prepare_corpus(source, output, *, progress=None):
         work = output / (".prepare-work-" + uuid4().hex)
         work.mkdir()
         papers, selected, conflicts, audit, provenance = {}, {}, set(), [], []
+        processed_ids, batch_ids = set(), set()
+        if checkpoint is not None:
+            papers = checkpoint["manifest"]["papers"]
+            processed_ids = set(checkpoint["processed_ids"])
+            provenance = checkpoint["provenance"]
+            for identifier, paper in papers.items():
+                paper["versions"] = set(paper["record"]["versions"])
+                paper["metadata_rank"] = (-1, "", "")
+                paper["reference_rank"] = (-1, "", "")
+                paper["download_ranks"] = {}
+            for row in checkpoint["inventory"]:
+                pair = (row["arxiv_id"], int(row["version"]))
+                if row["status"] != "blocked_input":
+                    selected[pair] = dict(fingerprint=row["source_fingerprint"], backup=row["backup"],
+                                          result=papers[pair[0]]["downloads"][str(pair[1])])
+                elif row["reason"] == "SOURCE_CONFLICT":
+                    conflicts.add(pair)
+        retry_ids = {identifier for identifier in processed_ids
+                     if any(s == "blocked_input" for s in papers[identifier]["version_states"].values())}
         restored = 0
         for orphan in preview["orphan_corpus_archives"]:
             audit.append(dict(backup=orphan, status="error", code="MISSING_BACKUP_RECEIPT"))
@@ -416,6 +460,20 @@ def prepare_corpus(source, output, *, progress=None):
                                 or versions != list(range(1, max(versions) + 1))
                                 or record.get("metadata", {}).get("arxiv_id") != identifier):
                             raise ValueError("Invalid publication/version record")
+                        if identifier not in batch_ids:
+                            eligible = identifier not in processed_ids or (retry_blocked and identifier in retry_ids)
+                            if eligible and (max_papers is None or len(batch_ids) < max_papers):
+                                batch_ids.add(identifier)
+                                # Replace all candidates for a retried ID, retaining other IDs.
+                                papers.pop(identifier, None)
+                                selected = {k: v for k, v in selected.items() if k[0] != identifier}
+                                conflicts = {k for k in conflicts if k[0] != identifier}
+                                provenance = [e for e in provenance if e["arxiv_id"] != identifier]
+                                if progress:
+                                    progress(f"Paper {len(batch_ids)}/{max_papers or 'all'}: {identifier}")
+                        active = identifier in batch_ids
+                        if identifier in processed_ids and not active:
+                            continue
                         paper = papers.setdefault(identifier, dict(record=record, metadata_path=key + "/metadata.json",
                                                     downloads={}, version_states={}, versions=set(), references=None,
                                                     download_evidence={}, download_ranks={},
@@ -425,7 +483,11 @@ def prepare_corpus(source, output, *, progress=None):
                         if rank > paper["metadata_rank"]:
                             paper["record"] = record
                             paper["metadata_rank"] = rank
-                            _write_json(output / key / "metadata.json", record["metadata"])
+                            if active:
+                                _write_json(output / key / "metadata.json", record["metadata"])
+                        if not active:
+                            # Coverage only: no metadata/source files are claimed for queued IDs.
+                            continue
                         references = entry.get("references")
                         if isinstance(references, dict):
                             ref_rank = ({"success": 4, "partial": 3, "not_found": 2, "failed": 1}.get(references.get("status"), 0), stamp, label)
@@ -482,6 +544,12 @@ def prepare_corpus(source, output, *, progress=None):
             except (OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile) as error:
                 audit.append(dict(backup=label, status="error", code="BACKUP_INVALID", detail=str(error)))
 
+        processed_ids.update(batch_ids)
+        pending_ids = sorted(set(papers) - processed_ids)
+        batch = dict(max_papers=max_papers, selected_ids=sorted(batch_ids),
+                     processed_ids=sorted(processed_ids), pending_ids=pending_ids,
+                     papers_processed=len(processed_ids), papers_pending=len(pending_ids),
+                     source_signature=source_signature)
         inventory = []
         for identifier, paper in sorted(papers.items()):
             key = _paper_key(identifier)
@@ -494,7 +562,8 @@ def prepare_corpus(source, output, *, progress=None):
                 conflict = (identifier, version) in conflicts
                 state = ("blocked_input" if conflict or chosen is None else
                          "empty_no_tex" if chosen["result"]["status"] == "no_tex" else "ready_tex")
-                reason = "SOURCE_CONFLICT" if conflict else "SOURCE_MISSING_OR_INVALID" if chosen is None else ""
+                reason = ("PENDING_BATCH" if identifier not in processed_ids else
+                          "SOURCE_CONFLICT" if conflict else "SOURCE_MISSING_OR_INVALID" if chosen is None else "")
                 paper["version_states"][str(version)] = state
                 evidence = paper["download_evidence"].get(str(version), {})
                 paper["downloads"][str(version)] = chosen["result"] if chosen else evidence.get("result")
@@ -513,8 +582,10 @@ def prepare_corpus(source, output, *, progress=None):
                        versions_blocked=counts["blocked_input"], backup_count=preview["backup_count"],
                        backup_errors=errors, restored_versions=restored, queues=preview["queues"],
                        completed_at_utc=datetime.now(timezone.utc).isoformat())
-        _write_json(output / "manifest.json", dict(schema_version=SCHEMA, run_id=run_id, papers=papers,
-                                                  source=str(store.source), preparation_file="preparation.json"))
+        summary["batch"] = batch
+        prepared_manifest = dict(schema_version=SCHEMA, run_id=run_id, papers=papers, batch=batch,
+                                 source=str(store.source), preparation_file="preparation.json")
+        _write_json(output / "manifest.json", prepared_manifest)
         fields = ["arxiv_id", "version", "status", "reason", "source_dir", "backup", "source_fingerprint",
                   "m1_source_status", "m1_error"]
         _write_csv(output / "inventory.csv", fields, inventory)
@@ -534,6 +605,11 @@ def prepare_corpus(source, output, *, progress=None):
         if not validation["valid"]:
             summary["status"] = "failed"
         _write_json(output / "preparation.json", summary)
+        if validation["valid"]:
+            # Commit progress LAST. An interrupted/invalid run retries the same IDs.
+            _write_json(checkpoint_path, dict(schema_version=SCHEMA, source_signature=source_signature,
+                        processed_ids=sorted(processed_ids), manifest=prepared_manifest,
+                        inventory=inventory, provenance=provenance))
         return summary
     finally:
         store.close()

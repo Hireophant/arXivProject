@@ -24,6 +24,9 @@ from .contracts import PublicationInput, VersionInput
 def load_publications(corpus_root: Path) -> list[PublicationInput]:
     """API chính. Đọc raw m2-input-1.0 do notebook prepare tạo, không restore ZIP.
     1. Gọi preparation.validate_prepared_corpus, đòi valid=True; complete=False vẫn nạp nhưng giữ blocked.
+    ID chưa tới lượt chuẩn bị vẫn ở manifest/inventory: blocked_input, reason PENDING_BATCH.
+    Giữ các ID này trong coverage/metrics; không đọc metadata_path/source chưa được khôi phục.
+    Dùng record.metadata trong manifest để mô tả ID chờ, không coi là file metadata đã xác minh.
     2. Đối chiếu preparation/input_validation/manifest cùng run và snapshot hiện tại.
     3. Duyệt manifest.papers theo arxiv_id, record.versions tăng dần; không glob folders để suy versions.
     4. Gọi load_version_input cho TẤT CẢ versions. Giữ corpus_root, snapshot_id và preparation_run_id.

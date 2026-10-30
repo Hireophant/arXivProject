@@ -39,6 +39,22 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(check['snapshot_id'], receipt['snapshot_id'])
         self.assertEqual(check['versions_empty_no_tex'], 1)
 
+    def test_partial_batch_round_trip_preserves_pending_ids_and_snapshot(self):
+        backup(self.root / 'm1', 'a')
+        backup(self.root / 'm1', 'b', identifier='2606.20275')
+        raw = self.root / 'prepared'
+        prepared = prepare_corpus(self.root / 'm1', raw, max_papers=1)
+        archive = self.root / 'partial.zip'
+        receipt = pack_prepared_corpus(raw, archive)
+        local = stage_prepared_archive(archive, self.root / 'local', expected_sha256=receipt['sha256'])
+        check = validate_prepared_corpus(local)
+        self.assertTrue(check['valid'], check['issues'])
+        self.assertFalse(check['complete'])
+        self.assertEqual(check['snapshot_id'], prepared['snapshot_id'])
+        manifest = json.loads((local / 'manifest.json').read_text())
+        self.assertEqual(manifest['batch']['pending_ids'], ['2606.20275'])
+        self.assertEqual(manifest['papers']['2606.20275']['version_states'], {'1': 'blocked_input'})
+
     def test_bad_hash_never_publishes_local_input(self):
         archive = self.root / 'input.zip'
         pack_prepared_corpus(self.prepared(), archive)

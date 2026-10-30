@@ -27,6 +27,18 @@ parser is a later step. The helper uses only Python stdlib.
 
 Set SOURCE_PATH, PREPARATION_DIR and DATASET_NAME, then run all cells.
 The default Drive destination is `preparationM2/raw_m1/<DATASET_NAME>/`.
+The preparation notebook defaults to `MAX_PAPERS_PER_RUN = 100` unique IDs per
+run (all versions included). Rerun the restore cell with the same dataset/output
+to take the next unprocessed IDs; changing the batch size is supported.
+`batch_checkpoint.json` commits ID progress only after read-back validation.
+An interrupted run retries its uncommitted batch. Pending IDs stay in full
+manifest/inventory coverage as `blocked_input` / `PENDING_BATCH`; partial input
+must not be reported as complete. `RETRY_BLOCKED=True` permits retrying attempted
+blocked IDs within the same limit; `MAX_PAPERS_PER_RUN=None` rebuilds/repairs all.
+Changed backup receipts require a new dataset or a full rebuild. Each run still
+verifies archives and previously prepared output; batch size limits restoration,
+not all Drive I/O. Keep the checkpoint file when continuing preparation.
+
 Preparation reads saved files back and writes input_validation.json with a
 stable snapshot_id. Recheck with validate_prepared_corpus before parsing;
 valid partial inputs retain their blocked versions and do not claim full coverage.

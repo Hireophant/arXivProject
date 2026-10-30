@@ -20,8 +20,9 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def backup(root, name, *, versions=(1,), sources=None, stub=False, when='2026-10-27T12:00:00+00:00', source_elapsed=1.0):
+def backup(root, name, *, versions=(1,), sources=None, stub=False, when='2026-10-27T12:00:00+00:00', source_elapsed=1.0, identifier=PAPER):
     """Independent fixture implements the existing M1 archive/receipt shapes."""
+    key = identifier.replace('.', '-').replace('/', '-')
     folder = root / name
     folder.mkdir(parents=True)
     sources = sources if sources is not None else {1: TEX}
@@ -30,7 +31,7 @@ def backup(root, name, *, versions=(1,), sources=None, stub=False, when='2026-10
     for version in versions:
         body = sources.get(version, 'missing')
         status = 'failed' if body == 'missing' else 'no_tex' if body is None else 'success'
-        result = dict(arxiv_id=PAPER, version=version, status=status,
+        result = dict(arxiv_id=identifier, version=version, status=status,
                       source_bytes_before=len(body) if isinstance(body, bytes) else 0,
                       source_bytes_after=len(body) if isinstance(body, bytes) else 0,
                       archive_bytes=100, file_count=1 if isinstance(body, bytes) else 0,
@@ -39,32 +40,32 @@ def backup(root, name, *, versions=(1,), sources=None, stub=False, when='2026-10
         downloads[str(version)] = result
         if body == 'missing' or stub:
             continue
-        prefix = f'2606-20274/sources/v{version}'
+        prefix = f'{key}/sources/v{version}'
         # Empty directories matter for verified no_tex.
         files[prefix + '/'] = b''
         hashes = {}
         if body is not None:
             files[prefix + '/main.tex'] = body
             hashes['main.tex'] = digest(body)
-        receipt = dict(schema_version='3.0', arxiv_id=PAPER, version=version,
-                       source_url=f'https://export.arxiv.org/src/{PAPER}v{version}',
+        receipt = dict(schema_version='3.0', arxiv_id=identifier, version=version,
+                       source_url=f'https://export.arxiv.org/src/{identifier}v{version}',
                        source_kind='pdf' if body is None else 'tex', result=result,
                        files_sha256=hashes)
-        files[f'2606-20274/sources/.v{version}.receipt.json'] = json.dumps(receipt).encode()
-    metadata = dict(arxiv_id=PAPER, title='Original title', authors=['A. Author'],
+        files[f'{key}/sources/.v{version}.receipt.json'] = json.dumps(receipt).encode()
+    metadata = dict(arxiv_id=identifier, title='Original title', authors=['A. Author'],
                     submission_date='2026-06-18', revised_dates=['2026-08-22'] * (len(versions)-1), venue=None)
-    record = dict(arxiv_id=PAPER, versions=list(versions), metadata=metadata)
-    refs = dict(arxiv_id=PAPER, status='success', references={}, all_references=[], pagination_complete=True)
-    paper = dict(record=record, metadata_path='2606-20274/metadata.json', downloads=downloads, references=refs)
+    record = dict(arxiv_id=identifier, versions=list(versions), metadata=metadata)
+    refs = dict(arxiv_id=identifier, status='success', references={}, all_references=[], pagination_complete=True)
+    paper = dict(record=record, metadata_path=f'{key}/metadata.json', downloads=downloads, references=refs)
     manifest = dict(schema_version='3.0', run_id=name.split('/')[-1], updated_at=when,
-                    metadata_source='oai-pmh/arXivRaw', papers={PAPER: paper},
-                    scope=dict(mode='ids', ids=[PAPER], start_id=None, end_id=None),
+                    metadata_source='oai-pmh/arXivRaw', papers={identifier: paper},
+                    scope=dict(mode='ids', ids=[identifier], start_id=None, end_id=None),
                     discovery=dict(papers=[record], issues=[]))
     files['manifest.json'] = json.dumps(manifest).encode()
     if not stub:
-        files['2606-20274/metadata.json'] = json.dumps(metadata).encode()
-        files['2606-20274/references.json'] = b'{}'
-        files['2606-20274/references_all.json'] = b'[]'
+        files[f'{key}/metadata.json'] = json.dumps(metadata).encode()
+        files[f'{key}/references.json'] = b'{}'
+        files[f'{key}/references_all.json'] = b'[]'
     for archive_name, entries in [('corpus', files), ('report', {'manifest.json': files['manifest.json']})]:
         with zipfile.ZipFile(folder / (archive_name + '.zip'), 'w', zipfile.ZIP_DEFLATED) as z:
             for path, data in entries.items():
@@ -398,6 +399,172 @@ class PreparationTests(unittest.TestCase):
         self.assertEqual(result['versions_empty_no_tex'],1)
         self.assertEqual(list(target.iterdir()),[])
 
+    def test_batches_keep_full_coverage_and_resume_by_id_with_changed_size(self):
+        prepare, _ = self.api()
+        ids = ['2606.20274', '2606.20275', '2606.20276', '2606.20277']
+        for i, identifier in enumerate(ids):
+            backup(self.source, str(i), identifier=identifier, versions=(1, 2), sources={1: TEX, 2: None})
+        first = prepare(self.source, self.output, max_papers=1)
+        self.assertTrue(first['input_valid'])
+        self.assertEqual(first['status'], 'partial')
+        self.assertEqual(first['paper_count'], 4)
+        self.assertEqual(first['batch']['selected_ids'], ids[:1])
+        self.assertEqual(first['batch']['pending_ids'], ids[1:])
+        self.assertEqual(first['versions_blocked'], 6)
+        self.assertFalse((self.output / '2606-20275' / 'metadata.json').exists())
+        second = prepare(self.source, self.output, max_papers=2)
+        self.assertTrue(second['input_valid'])
+        self.assertEqual(second['batch']['selected_ids'], ids[1:3])
+        self.assertEqual(second['batch']['papers_processed'], 3)
+        third = prepare(self.source, self.output, max_papers=2)
+        self.assertEqual(third['status'], 'ready')
+        self.assertEqual(third['batch']['selected_ids'], ids[3:])
+        self.assertTrue(self.validator()(self.output)['complete'])
+        final = prepare(self.source, self.output, max_papers=2)
+        self.assertEqual(final['batch']['selected_ids'], [])
+        self.assertEqual(final['restored_versions'], 0)
+        self.assertEqual(third['snapshot_id'], final['snapshot_id'])
+
+    def test_batch_limit_applies_inside_one_corpus_zip(self):
+        prepare, _ = self.api()
+        a = backup(self.source, 'a')
+        b = backup(self.source, 'b', identifier='2606.20275')
+        with zipfile.ZipFile(a / 'corpus.zip') as z:
+            files = {name: z.read(name) for name in z.namelist()}
+        with zipfile.ZipFile(b / 'corpus.zip') as z:
+            other = {name: z.read(name) for name in z.namelist()}
+        manifest = json.loads(files['manifest.json'])
+        manifest['papers'].update(json.loads(other.pop('manifest.json'))['papers'])
+        files.update(other)
+        files['manifest.json'] = json.dumps(manifest).encode()
+        with zipfile.ZipFile(a / 'corpus.zip', 'w', zipfile.ZIP_DEFLATED) as z:
+            for name, data in files.items():
+                z.writestr(name, data)
+        receipt = json.loads((a / 'backup_receipt.json').read_text())
+        content = (a / 'corpus.zip').read_bytes()
+        receipt['archives']['corpus'].update(bytes=len(content), sha256=digest(content))
+        (a / 'backup_receipt.json').write_text(json.dumps(receipt))
+        shutil.rmtree(b)
+        first = prepare(self.source, self.output, max_papers=1)
+        self.assertEqual(first['batch']['pending_ids'], ['2606.20275'])
+        self.assertEqual(first['versions_ready_tex'], 1)
+        self.assertEqual(prepare(self.source, self.output, max_papers=1)['status'], 'ready')
+
+    def test_pending_coverage_tampering_is_rejected(self):
+        prepare, _ = self.api()
+        backup(self.source, 'a')
+        backup(self.source, 'b', identifier='2606.20275')
+        prepare(self.source, self.output, max_papers=1)
+        manifest = self.manifest()
+        manifest['batch']['pending_ids'] = []
+        (self.output / 'manifest.json').write_text(json.dumps(manifest))
+        check = self.validator()(self.output)
+        self.assertFalse(check['valid'])
+
+    def test_interruption_does_not_commit_or_skip_batch_ids(self):
+        prepare, _ = self.api()
+        for i in range(3):
+            backup(self.source, str(i), identifier=f'2606.{20274+i}')
+        prepare(self.source, self.output, max_papers=1)
+        checkpoint = (self.output / 'batch_checkpoint.json').read_bytes()
+        def interrupt(message):
+            if message.startswith('Read-back validation:'):
+                raise KeyboardInterrupt()
+        with self.assertRaises(KeyboardInterrupt):
+            prepare(self.source, self.output, max_papers=1, progress=interrupt)
+        self.assertEqual((self.output / 'batch_checkpoint.json').read_bytes(), checkpoint)
+        resumed = prepare(self.source, self.output, max_papers=1)
+        self.assertTrue(resumed['input_valid'])
+        self.assertEqual(resumed['batch']['selected_ids'], ['2606.20275'])
+        self.assertEqual(resumed['batch']['pending_ids'], ['2606.20276'])
+
+    def test_invalid_readback_does_not_advance_batch_checkpoint(self):
+        prepare, _ = self.api()
+        backup(self.source, 'a')
+        backup(self.source, 'b', identifier='2606.20275')
+        prepare(self.source, self.output, max_papers=1)
+        checkpoint = (self.output / 'batch_checkpoint.json').read_bytes()
+        path = self.output / '2606-20274/sources/v1/main.tex'
+        path.write_bytes(b'damaged')
+        failed = prepare(self.source, self.output, max_papers=1)
+        self.assertFalse(failed['input_valid'])
+        self.assertEqual((self.output / 'batch_checkpoint.json').read_bytes(), checkpoint)
+        repaired = prepare(self.source, self.output, max_papers=None)
+        self.assertEqual(repaired['status'], 'ready')
+        self.assertEqual(path.read_bytes(), TEX)
+
+    def test_changed_backups_cannot_silently_reuse_batch_ids(self):
+        prepare, _ = self.api()
+        backup(self.source, 'a')
+        prepare(self.source, self.output, max_papers=1)
+        backup(self.source, 'b', identifier='2606.20275')
+        with self.assertRaisesRegex(ValueError, 'Backup receipts changed'):
+            prepare(self.source, self.output, max_papers=1)
+        self.assertEqual(prepare(self.source, self.output)['paper_count'], 2)
+
+    def test_retry_blocked_is_explicit_and_does_not_starve_new_ids(self):
+        prepare, _ = self.api()
+        backup(self.source, 'a', sources={})
+        backup(self.source, 'b', identifier='2606.20275')
+        first = prepare(self.source, self.output, max_papers=1)
+        self.assertEqual(first['versions_blocked'], 2)
+        second = prepare(self.source, self.output, max_papers=1)
+        self.assertEqual(second['batch']['selected_ids'], ['2606.20275'])
+        self.assertEqual(second['batch']['papers_pending'], 0)
+        self.assertEqual(second['status'], 'partial')
+        retry = prepare(self.source, self.output, max_papers=1, retry_blocked=True)
+        self.assertEqual(retry['batch']['selected_ids'], [PAPER])
+        self.assertTrue(retry['input_valid'])
+
+    def test_duplicate_backups_do_not_consume_extra_batch_slots(self):
+        prepare, _ = self.api()
+        backup(self.source, 'a')
+        backup(self.source, 'b', versions=(1, 2), sources={1: TEX, 2: None})
+        backup(self.source, 'c', identifier='2606.20275')
+        result = prepare(self.source, self.output, max_papers=1)
+        self.assertEqual(result['batch']['selected_ids'], [PAPER])
+        self.assertEqual(result['versions_ready_tex'], 1)
+        self.assertEqual(result['versions_empty_no_tex'], 1)
+        self.assertTrue(result['input_valid'])
+        self.assertEqual(prepare(self.source, self.output, max_papers=1)['status'], 'ready')
+
+    def test_batch_limit_rejects_invalid_values_before_writing(self):
+        prepare, _ = self.api()
+        for value in (0, -1, True, 1.5, '100'):
+            with self.assertRaises(ValueError):
+                prepare(self.source, self.output, max_papers=value)
+        self.assertFalse(self.output.exists())
+
+    def test_notebook_two_runs_advance_ids_and_validate_handoff(self):
+        import sys
+        backup(self.source, 'a')
+        backup(self.source, 'b', identifier='2606.20275')
+        repo = Path(__file__).resolve().parents[1]
+        notebook = json.loads((repo / 'src/notebooks/milestone2_prepare.ipynb').read_text())
+        config = (f"from pathlib import Path\nSOURCE_PATH=Path({str(self.source)!r})\n"
+                  f"PREPARATION_DIR=Path({str(self.root/'preparationM2')!r})\n"
+                  f"PROJECT_DIR=Path({str(repo)!r})\nDATASET_NAME='Danh2'\n"
+                  "REPOSITORY_URL='unused'\nREPOSITORY_BRANCH='master'\nCLONE_IF_NEEDED=False\n"
+                  "SHOW_PROGRESS_EVERY=10\nMAX_PAPERS_PER_RUN=1\nRETRY_BLOCKED=False\n")
+        original_path = sys.path[:]
+        try:
+            for expected_id, expected_pending in [(PAPER, 1), ('2606.20275', 0)]:
+                namespace = {'__name__': '__main__'}
+                with redirect_stdout(io.StringIO()):
+                    for cell in notebook['cells']:
+                        if cell['cell_type'] != 'code':
+                            continue
+                        code = config if 'parameters' in cell.get('metadata', {}).get('tags', []) else ''.join(cell['source'])
+                        exec(compile(code, 'milestone2_prepare.ipynb', 'exec'), namespace)
+                summary = namespace['summary']
+                self.assertEqual(summary['batch']['selected_ids'], [expected_id])
+                self.assertEqual(summary['batch']['papers_pending'], expected_pending)
+                self.assertTrue(namespace['input_check']['valid'])
+                self.assertEqual(namespace['input_check']['complete'], expected_pending == 0)
+                self.assertEqual(len(namespace['inventory']), 2)
+        finally:
+            sys.path[:] = original_path
+
     def test_preparation_notebook_executes_locally_against_real_backup_fixture(self):
         self.api()
         backup(self.source,'checkpoints/a',versions=(1,2),sources={1:TEX,2:None})
@@ -409,7 +576,7 @@ class PreparationTests(unittest.TestCase):
         config=(f"from pathlib import Path\nSOURCE_PATH=Path({str(self.source)!r})\n"
                 f"PREPARATION_DIR=Path({str(self.root/'preparationM2')!r})\n"
                 f"PROJECT_DIR=Path({str(repo)!r})\nDATASET_NAME='Danh2'\n"
-                "REPOSITORY_URL='unused'\nREPOSITORY_BRANCH='master'\nCLONE_IF_NEEDED=False\nSHOW_PROGRESS_EVERY=10\n")
+                "REPOSITORY_URL='unused'\nREPOSITORY_BRANCH='master'\nCLONE_IF_NEEDED=False\nSHOW_PROGRESS_EVERY=10\nMAX_PAPERS_PER_RUN=100\nRETRY_BLOCKED=False\n")
         with redirect_stdout(io.StringIO()):
             for cell in notebook['cells']:
                 if cell['cell_type']!='code':continue
