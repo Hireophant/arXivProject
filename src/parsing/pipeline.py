@@ -1,24 +1,195 @@
-"""PROTOTYPE — Danh / DA3 — bạn là người ghép cuối.
+"""Sequential local parsing, verified checkpoints and immutable batches (Danh / DA3).
 
-Prototype và docstring thuật toán là hướng tham khảo, không giới hạn ở điền thân hàm.
-Đọc contracts.py, phần việc owner và tiêu chí nghiệm thu; hoàn thiện đầy đủ task/đầu ra.
-Nếu có phương án tốt hơn, so sánh lợi ích/đánh đổi, dependencies, ảnh hưởng API và cách kiểm chứng;
-hỏi người phụ trách task chọn hướng trước khi làm phần phụ thuộc, tiếp tục việc độc lập trong lúc chờ.
-Không hỏi lại lựa chọn đã chốt hoặc từng chi tiết nhỏ. Sau khi chốt có thể thêm/thay/tổ chức lại code.
-Test độc lập dùng fixtures trong tests/m2_support/fixtures.py, không chờ module người khác.
-Chỉ sửa phạm vi owner đang thống nhất; mở rộng phạm vi cần phối hợp owner bị ảnh hưởng.
-Ưu tiên giữ nguyên schema, kiểu dữ liệu và API; không cần đổi mà vẫn hoàn thành tốt task thì càng tốt.
-Không khuyến khích đổi; chỉ đổi khi thật sự cần thiết và hạn chế sửa phần chung để tránh conflict. Phối hợp Danh/owner bị ảnh hưởng và đồng bộ consumer, fixtures, tests, notebook, tài liệu.
-Không giảm yêu cầu hay acceptance cases khi đổi thiết kế.
-Tất cả hàm hiện cố ý chưa triển khai; không coi import thành công là parser chạy được.
-
-Hướng hiệu năng đã chọn (kế hoạch 10.0; chưa triển khai):
-Một publication đủ versions mỗi lần; ghi/read-back/checkpoint rồi giải phóng cây. Giữ metrics gọn, đọc review/index một lần/run. Output/checkpoint local; một writer backup batch mới bất biến khi publication đã chốt, kiểm hash trên Drive trước đánh dấu bền vững; restore kiểm signature/read-back. Không zip lại toàn run mỗi bài. Đo stage/parser/backup riêng; worker pool chỉ sau pilot/profile và bounded queue.
+Only composes public owner APIs; no gathering/hierarchy/bibliography/metrics duplication.
+All versions of one publication remain together; outputs are finalized and read back
+before checkpoints. Source/config/code/review signatures and artifact hashes gate resume.
+Prepare M1 separately. Backup batches are verified after copy before a receipt is published.
+Upstream stubs raise visibly; unit orchestration tests do not prove real raw integration.
 """
 from __future__ import annotations
 
+import hashlib
+import json
+import os
+import platform
+import shutil
+import time
+import uuid
+import zipfile
+from contextvars import ContextVar
+from copy import deepcopy
+from dataclasses import asdict, replace
 from pathlib import Path
+from typing import BinaryIO
 from .contracts import ParseConfig, ParsedPublication, ParseRunResult, PublicationInput
+from . import contracts as c
+from .serialization import (_canonical, _hydrate, _loads, _owned_destination, _write_json,
+                            read_publication, read_review_decisions, write_publication)
+from .validation import finalize_publication
+
+_REVIEW: ContextVar[tuple | None] = ContextVar('m2_review',default=None)
+_BACKUP: ContextVar[object] = ContextVar('m2_backup',default=None)
+_PROFILE: ContextVar[list | None] = ContextVar('m2_profile',default=None)
+_CODE: ContextVar[str | None] = ContextVar('m2_code_hash',default=None)
+
+
+def _code_hash() -> str:
+    digest = hashlib.sha256()
+    source_root = Path(__file__).resolve().parent.parent
+    for package in ('parsing','preparation'):
+        for path in sorted((source_root/package).glob('*.py')):
+            digest.update(path.relative_to(source_root).as_posix().encode('utf-8'))
+            digest.update(b'\0'); digest.update(path.read_bytes()); digest.update(b'\0')
+    return digest.hexdigest()
+
+
+def _acquire_writer(output_root: Path) -> BinaryIO:
+    # An OS lock is released on process exit. Never infer ownership from a stale
+    # marker or unlink an active inode (which could admit a second POSIX writer).
+    stream = (output_root/'.m2-writer.lock').open('a+b')
+    try:
+        stream.seek(0,os.SEEK_END)
+        if stream.tell() == 0:
+            stream.write(b'\0');stream.flush()
+        stream.seek(0)
+        if os.name == 'nt':
+            import msvcrt
+            msvcrt.locking(stream.fileno(),msvcrt.LK_NBLCK,1)
+        else:
+            import fcntl
+            fcntl.flock(stream.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
+    except BaseException:
+        stream.close()
+        raise
+    return stream
+
+
+def _release_writer(stream: BinaryIO) -> None:
+    try:
+        stream.seek(0)
+        if os.name == 'nt':
+            import msvcrt
+            msvcrt.locking(stream.fileno(),msvcrt.LK_UNLCK,1)
+        else:
+            import fcntl
+            fcntl.flock(stream.fileno(),fcntl.LOCK_UN)
+    finally: stream.close()
+
+
+def _hash(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open('rb') as stream:
+        for block in iter(lambda:stream.read(1024*1024),b''): digest.update(block)
+    return digest.hexdigest()
+
+
+def _atomic_json(path: Path, value: object) -> None:
+    path.parent.mkdir(parents=True,exist_ok=True)
+    staging = path.with_name('.'+path.name+'.'+uuid.uuid4().hex+'.tmp')
+    try:
+        _write_json(staging,value)
+        os.replace(staging,path)
+    finally:
+        if staging.exists(): staging.unlink()
+
+
+def _relative_file(root: Path, relative: str) -> Path:
+    if not isinstance(relative,str) or not relative or '\\' in relative or ':' in relative:
+        raise ValueError('Invalid artifact path')
+    path = root/relative
+    if Path(relative).is_absolute() or '..' in Path(relative).parts or not path.resolve().is_relative_to(root.resolve()):
+        raise ValueError('Artifact escapes run root')
+    if any(p.is_symlink() for p in (path,*path.parents)): raise ValueError('Symlink artifact')
+    return path
+
+
+def _paper_key(arxiv_id: str) -> str:
+    # No lossy dot/slash replacement at the filesystem boundary.
+    return hashlib.sha256(arxiv_id.encode('utf-8')).hexdigest()
+
+
+def _review_hash(config: ParseConfig) -> str | None:
+    cached = _REVIEW.get()
+    if cached is not None and cached[0] == config.reference_review_path: return cached[1]
+    return _hash(config.reference_review_path) if config.reference_review_path is not None else None
+
+
+def _stage(name: str, action: object) -> object:
+    started = time.perf_counter()
+    try: return action()
+    finally:
+        profile = _PROFILE.get()
+        if profile is not None: profile.append({'stage':name,'wall_seconds':time.perf_counter()-started})
+
+
+def _merge_metrics(total: c.MetricsSummary, current: c.MetricsSummary) -> c.MetricsSummary:
+    statuses = {status:total.status_counts[status]+current.status_counts[status] for status in c.VERSION_STATUSES}
+    counts = {}
+    for row in total.dedup+current.dedup:
+        before,after = counts.get(row.kind,(0,0))
+        counts[row.kind] = (before+row.before,after+row.after)
+    attempted = statuses['parsed']+statuses['partial']+statuses['failed']
+    expected = sum(statuses.values())
+    def rate(n: int, d: int) -> float | None: return n/d if d else None
+    total.versions.extend(current.versions)
+    return c.MetricsSummary(versions=total.versions,status_counts=statuses,
+        publication_count=total.publication_count+current.publication_count,
+        export_ready_publication_count=total.export_ready_publication_count+current.export_ready_publication_count,
+        parse_success_rate=rate(statuses['parsed'],attempted),
+        resolved_version_coverage=rate(statuses['parsed']+statuses['empty_no_tex'],expected),
+        attempt_coverage=rate(attempted,expected-statuses['empty_no_tex']),
+        dedup=[c.DedupCount(kind=kind,before=b,after=a) for kind,(b,a) in sorted(counts.items())])
+
+
+def _empty_metrics() -> c.MetricsSummary:
+    return c.MetricsSummary(versions=[],status_counts={s:0 for s in c.VERSION_STATUSES},publication_count=0,
+        export_ready_publication_count=0,parse_success_rate=None,resolved_version_coverage=None,attempt_coverage=None,dedup=[])
+
+
+def _assert_run_inputs(root: Path, config: ParseConfig, review_sha: str | None, code_sha: str) -> None:
+    current_review = _hash(config.reference_review_path) if config.reference_review_path is not None else None
+    if current_review != review_sha or _code_hash() != code_sha:
+        _atomic_json(root/'cache-invalid.json',{'reason':'Code/review changed during run; do not resume these checkpoints'})
+        raise ValueError('Code/review changed during run; checkpoints quarantined')
+
+
+def _failed_publication(publication: PublicationInput, diagnostic: c.Diagnostic) -> ParsedPublication:
+    diagnostics = [deepcopy(d) for version in publication.versions for d in version.diagnostics]+[diagnostic]
+    return finalize_publication(c.ParsedPublication(arxiv_id=publication.arxiv_id,elements=[],hierarchy=[],bibtex=[],
+        version_states={v.version:('empty_no_tex' if v.source_status=='no_tex' else 'blocked_input' if v.source_status=='blocked' else 'failed') for v in publication.versions},
+        occurrences=[],root_ids={v.version:None for v in publication.versions},key_map={},bib_occurrences=[],
+        identity_decisions=[],conflicts=[],diagnostics=diagnostics,counts_before_after=[]))
+
+
+def _cache_candidates(output_root: Path) -> dict[tuple[str,str], list[tuple[Path,c.CheckpointRecord]]]:
+    result = {}
+    for path in sorted(output_root.glob('*/checkpoints/*.json'),reverse=True):
+        try:
+            if path.is_symlink(): continue
+            checkpoint = _hydrate(c.CheckpointRecord,_loads(path.read_text('utf-8')))
+            if checkpoint.contract_version != c.CONTRACT_VERSION or checkpoint.schema_version != c.OUTPUT_SCHEMA_VERSION: continue
+            root = path.parent.parent
+            if (root/'cache-invalid.json').exists(): continue
+            manifest = _hydrate(c.RunManifest,_loads((root/'manifest.json').read_text('utf-8')))
+            if manifest.run_id != checkpoint.run_id: continue
+            result.setdefault((checkpoint.arxiv_id,checkpoint.signature),[]).append((root,checkpoint))
+        except (OSError,ValueError,TypeError): continue
+    return result
+
+
+def _cached_publication(candidates: list, publication: PublicationInput) -> ParsedPublication | None:
+    for root,checkpoint in candidates:
+        try:
+            if not checkpoint.output_sha256: continue
+            if any(_hash(_relative_file(root,path)) != digest for path,digest in checkpoint.output_sha256.items()): continue
+            destination = _relative_file(root,checkpoint.artifact_path)
+            artifacts = {p.relative_to(root).as_posix() for p in destination.iterdir() if p.is_file()}
+            if not artifacts.issubset(checkpoint.output_sha256): continue
+            parsed = read_publication(destination)
+            if parsed.arxiv_id != publication.arxiv_id or set(parsed.version_states) != {v.version for v in publication.versions}: continue
+            return parsed
+        except (OSError,ValueError,TypeError): continue
+    return None
 
 
 def process_publication(publication: PublicationInput, config: ParseConfig) -> ParsedPublication:
@@ -29,7 +200,46 @@ def process_publication(publication: PublicationInput, config: ParseConfig) -> P
     Không đọc lại corpus bằng mỗi owner; không chia versions một bài sang các worker/shard.
     Test integration thực sau merge, không mock tất cả owner API rồi tuyên bố pipeline đạt.
     """
-    raise NotImplementedError("M2 prototype: pipeline.process_publication — Danh / DA3 — bạn là người ghép cuối")
+    from .gather import gather_version
+    from .hierarchy import parse_version
+    from .bibliography import extract_entries
+    from .reference_dedup import unify_entries
+    from .normalize import normalize_tree
+    from .content_dedup import assemble_publication
+    if not publication.versions or len({v.version for v in publication.versions}) != len(publication.versions):
+        raise ValueError('Expected versions must be nonempty and unique')
+    if any(v.arxiv_id != publication.arxiv_id for v in publication.versions): raise ValueError('Mixed publication versions')
+    cached_review = _REVIEW.get()
+    if cached_review is not None and cached_review[0] == config.reference_review_path and cached_review[3] == publication.snapshot_id:
+        decisions = cached_review[2].get(publication.arxiv_id,[])
+    else:
+        decisions = [d for d in read_review_decisions(config.reference_review_path,snapshot_id=publication.snapshot_id) if d.arxiv_id == publication.arxiv_id]
+    trees, extractions = [], []
+    for version in sorted(publication.versions,key=lambda v:v.version):
+        try:
+            gathered = _stage('gather',lambda:gather_version(version))
+            tree = _stage('tree',lambda:parse_version(gathered))
+            if tree.arxiv_id != publication.arxiv_id or tree.version != version.version: raise ValueError('Owner returned wrong version identity')
+        except NotImplementedError: raise
+        except Exception as exc:
+            diagnostic = c.Diagnostic(arxiv_id=publication.arxiv_id,version=version.version,code='PARSE_FATAL',severity='error',message=f'{type(exc).__name__}: {exc}')
+            tree = c.VersionTree(arxiv_id=publication.arxiv_id,version=version.version,root_local_id=None,nodes=[],bibliography_blocks=[],
+                status='empty_no_tex' if version.source_status == 'no_tex' else 'blocked_input' if version.source_status == 'blocked' else 'failed',
+                source_fingerprint=version.source_fingerprint,diagnostics=deepcopy(version.diagnostics)+[diagnostic])
+            extraction = c.BibliographyExtraction(arxiv_id=publication.arxiv_id,version=version.version,occurrences=[],diagnostics=[diagnostic])
+        else:
+            try:
+                extraction = _stage('bibliography',lambda:extract_entries(gathered,tree))
+                if extraction.arxiv_id != publication.arxiv_id or extraction.version != version.version: raise ValueError('Bibliography returned wrong version identity')
+            except NotImplementedError: raise
+            except Exception as exc:
+                diagnostic = c.Diagnostic(arxiv_id=publication.arxiv_id,version=version.version,code='BIB_ENTRY_UNPARSED',severity='error',message=f'{type(exc).__name__}: {exc}')
+                tree = replace(tree,diagnostics=tree.diagnostics+[diagnostic])
+                extraction = c.BibliographyExtraction(arxiv_id=publication.arxiv_id,version=version.version,occurrences=[],diagnostics=[diagnostic])
+        trees.append(tree); extractions.append(extraction)
+    bibliography = _stage('unify',lambda:unify_entries(publication.arxiv_id,extractions,review_decisions=decisions))
+    normalized = _stage('normalize',lambda:[normalize_tree(tree,bibliography,config) for tree in trees])
+    return _stage('assemble_finalize',lambda:finalize_publication(assemble_publication(normalized,bibliography)))
 
 
 def checkpoint_signature(publication: PublicationInput, config: ParseConfig) -> str:
@@ -39,7 +249,15 @@ def checkpoint_signature(publication: PublicationInput, config: ParseConfig) -> 
     Source/config/code/review thay đổi -> cache invalid, input chưa đạt không được lấy output tốt cũ che lỗi.
     Giữ raw review bytes hash và verified decisions provenance để tái lập.
     """
-    raise NotImplementedError("M2 prototype: pipeline.checkpoint_signature — Danh / DA3 — bạn là người ghép cuối")
+    if not config.code_revision.strip() or config.code_revision == 'unrecorded': raise ValueError('Record actual code revision')
+    payload = {'contract':c.CONTRACT_VERSION,'schema':c.OUTPUT_SCHEMA_VERSION,'arxiv_id':publication.arxiv_id,
+        'snapshot_id':publication.snapshot_id,'preparation_run_id':publication.preparation_run_id,
+        'sources':[{'version':v.version,'status':v.source_status,'fingerprint':v.source_fingerprint,
+                    'diagnostics':[asdict(d) for d in v.diagnostics]} for v in sorted(publication.versions,key=lambda v:v.version)],
+        'normalization_version':config.normalization_version,'strict':config.strict,
+        'sample_interval_seconds':config.ram_sample_interval_seconds,
+        'code_revision':config.code_revision,'code_sha256':_CODE.get() or _code_hash(),'review_sha256':_review_hash(config)}
+    return hashlib.sha256(_canonical(payload).encode('utf-8')).hexdigest()
 
 
 def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bool = False) -> ParseRunResult:
@@ -66,5 +284,271 @@ def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bo
     phản hồi bàn giao; kiểm conflicts thủ công nếu ai sửa ngoài ownership, không hứa zero conflict.
     Người thật cuối cùng so xuyên raw->tree->normalize->tables/bib/cites, reviewer từng phần xác nhận.
     """
-    raise NotImplementedError("M2 prototype: pipeline.run — Danh / DA3 — bạn là người ghép cuối")
+    from .inputs import load_publications
+    from .metrics import summarize,write_metrics
+    started = time.perf_counter()
+    corpus_root,output_root = Path(corpus_root).resolve(),_owned_destination(output_root).resolve()
+    if corpus_root.is_relative_to(output_root) or output_root.is_relative_to(corpus_root): raise ValueError('Input/output trees must be disjoint')
+    if config.code_revision == 'unrecorded' or not config.code_revision.strip(): raise ValueError('Record actual code revision')
+    output_root.mkdir(parents=True,exist_ok=True)
+    writer = _acquire_writer(output_root)
+    run_id = 'm2-'+time.strftime('%Y%m%dT%H%M%SZ',time.gmtime())+'-'+uuid.uuid4().hex[:12]
+    root = output_root/run_id
+    try:
+        root.mkdir()
+    except BaseException:
+        _release_writer(writer)
+        raise
+    manifest = c.RunManifest(run_id=run_id,snapshot_id='',preparation_run_id='',code_revision=config.code_revision,
+        normalization_version=config.normalization_version,strict=config.strict,review_sha256=None,status='in_progress',publications=[])
+    manifest_path,metrics_path = root/'manifest.json',root/'metrics/run_summary.json'
+    diagnostics, summary, seen, io_failed = [],_empty_metrics(),set(),False
+    review_token,code_token = None,None
+    try:
+        _atomic_json(manifest_path,asdict(manifest))
+        publications = _stage('validation_inputs',lambda:load_publications(corpus_root))
+        if not publications: raise ValueError('No expected publications')
+        contexts = {(p.snapshot_id,p.preparation_run_id) for p in publications}
+        if len(contexts) != 1: raise ValueError('Mixed input snapshots/preparation runs')
+        manifest.snapshot_id,manifest.preparation_run_id = contexts.pop()
+        review_sha = _review_hash(config)
+        decisions = read_review_decisions(config.reference_review_path,snapshot_id=manifest.snapshot_id)
+        if (config.reference_review_path is not None and _hash(config.reference_review_path) != review_sha):
+            raise ValueError('Review changed while being read')
+        manifest.review_sha256 = review_sha
+        review_index = {}
+        for decision in decisions: review_index.setdefault(decision.arxiv_id,[]).append(decision)
+        review_token = _REVIEW.set((config.reference_review_path,review_sha,review_index,manifest.snapshot_id))
+        code_sha = _code_hash()
+        code_token = _CODE.set(code_sha)
+        cache_index = _cache_candidates(output_root) if resume else {}
+        _atomic_json(root/'environment.json',{'python':platform.python_version(),'platform':platform.platform(),
+            'raw_corpus_root':str(corpus_root),'code_revision':config.code_revision,'code_sha256':code_sha,'config':{
+                'strict':config.strict,'normalization_version':config.normalization_version,
+                'ram_sample_interval_seconds':config.ram_sample_interval_seconds}})
+        _atomic_json(root/'profile/run.json',{'stage':'validation_inputs','wall_seconds':time.perf_counter()-started,
+            'note':'Run startup through full input validation/review/cache index; not a fresh-network prepare measurement'})
+        for publication in publications:
+            if publication.arxiv_id in seen: raise ValueError('Duplicate publication in input')
+            seen.add(publication.arxiv_id)
+            signature = checkpoint_signature(publication,config)
+            paper_started,profile = time.perf_counter(),[]
+            key = _paper_key(publication.arxiv_id)
+            record = c.RunPublicationRecord(arxiv_id=publication.arxiv_id,expected_versions=[v.version for v in publication.versions],
+                checkpoint_signature=signature,export_ready=False,working_path=None,published_path=None,
+                audit_path='audit/'+key+'.jsonl',wall_seconds=None,used_cache=False,output_sha256={})
+            profile_token = _PROFILE.set(profile)
+            parsed = None
+            try:
+                parsed = _cached_publication(cache_index.get((publication.arxiv_id,signature),[]),publication) if resume else None
+                record.used_cache = parsed is not None
+                if parsed is None: parsed = process_publication(publication,config)
+                if parsed.arxiv_id != publication.arxiv_id or set(parsed.version_states) != {v.version for v in publication.versions}:
+                    raise ValueError('Processor lost expected publication/version coverage')
+                parsed = finalize_publication(parsed)
+            except NotImplementedError:
+                raise
+            except Exception as exc:
+                parsed = _failed_publication(publication,c.Diagnostic(arxiv_id=publication.arxiv_id,code='PARSE_FATAL',severity='error',message=f'{type(exc).__name__}: {exc}'))
+            finally:
+                _PROFILE.reset(profile_token)
+            _assert_run_inputs(root,config,review_sha,code_sha)
+            export_started = time.perf_counter()
+            try:
+                files = _stage('export_readback',lambda:write_publication(parsed,root/'working'/key))
+                record.working_path = 'working/'+key
+                record.export_ready = parsed.export_ready
+                if parsed.export_ready or not config.strict: record.published_path = record.working_path
+                record.output_sha256 = {p.relative_to(root).as_posix():_hash(p) for p in files}
+            except (OSError,ValueError,TypeError) as exc:
+                io_failed = True
+                record.working_path,record.published_path,record.export_ready,record.output_sha256 = None,None,False,{}
+                parsed.diagnostics.append(c.Diagnostic(arxiv_id=publication.arxiv_id,code='OUTPUT_WRITE_FAILED',severity='error',message=str(exc)))
+                parsed = finalize_publication(parsed)
+            profile.append({'stage':'export_readback','wall_seconds':time.perf_counter()-export_started})
+            # Audit is a fatal boundary if it cannot be persisted.
+            audit = root/record.audit_path
+            audit.parent.mkdir(parents=True,exist_ok=True)
+            with audit.open('w',encoding='utf-8',newline='\n') as stream:
+                for diagnostic in parsed.diagnostics: stream.write(_canonical(asdict(diagnostic))+'\n')
+                stream.flush(); os.fsync(stream.fileno())
+            if record.working_path is not None:
+                record.output_sha256[record.audit_path] = _hash(audit)
+                checkpoint = c.CheckpointRecord(arxiv_id=publication.arxiv_id,run_id=run_id,signature=signature,
+                    artifact_path=record.working_path,output_sha256=record.output_sha256)
+                try:
+                    _atomic_json(root/'checkpoints'/(key+'.json'),asdict(checkpoint))
+                except OSError as exc:
+                    io_failed = True
+                    parsed.diagnostics.append(c.Diagnostic(arxiv_id=publication.arxiv_id,code='OUTPUT_WRITE_FAILED',severity='error',
+                        message=f'Checkpoint failed after verified local artifact {record.working_path}: {exc}'))
+                    parsed = finalize_publication(parsed)
+                    record.working_path,record.published_path,record.export_ready,record.output_sha256 = None,None,False,{}
+                    with audit.open('w',encoding='utf-8',newline='\n') as stream:
+                        for diagnostic in parsed.diagnostics: stream.write(_canonical(asdict(diagnostic))+'\n')
+                        stream.flush();os.fsync(stream.fileno())
+            diagnostics.extend(parsed.diagnostics)
+            current = summarize([parsed])
+            summary = _merge_metrics(summary,current)
+            record.wall_seconds = time.perf_counter()-paper_started
+            _atomic_json(root/'profile'/(key+'.json'),{'arxiv_id':publication.arxiv_id,'run_id':run_id,
+                'used_cache':record.used_cache,'stages':profile})
+            manifest.publications.append(record)
+            _atomic_json(manifest_path,asdict(manifest))
+            callback = _BACKUP.get()
+            if callback is not None:
+                try: callback(root,False)
+                except (OSError,ValueError) as exc:
+                    io_failed = True
+                    diagnostics.append(c.Diagnostic(arxiv_id=publication.arxiv_id,code='OUTPUT_BACKUP_FAILED',severity='error',message=str(exc)))
+            del parsed,current,profile
+        write_metrics(summary,root/'metrics',run_id=run_id,snapshot_id=manifest.snapshot_id)
+        _assert_run_inputs(root,config,review_sha,code_sha)
+        manifest.status = 'success' if all(r.export_ready and r.working_path for r in manifest.publications) and not io_failed else 'partial'
+        _atomic_json(manifest_path,asdict(manifest))
+        _atomic_json(root/'timing.json',{'wall_seconds':time.perf_counter()-started,'boundary':'before input validation through output/readback/checkpoints/metrics'})
+        callback = _BACKUP.get()
+        if callback is not None:
+            try: callback(root,True)
+            except (OSError,ValueError) as exc:
+                manifest.status = 'partial'
+                diagnostics.append(c.Diagnostic(arxiv_id='',code='OUTPUT_BACKUP_FAILED',severity='error',message=str(exc)))
+                _atomic_json(manifest_path,asdict(manifest))
+        return ParseRunResult(run_id=run_id,snapshot_id=manifest.snapshot_id,status=manifest.status,manifest_path=manifest_path,
+            metrics_path=metrics_path,processed_publications=len(manifest.publications),diagnostics=diagnostics)
+    except BaseException:
+        manifest.status = 'failed'
+        _atomic_json(manifest_path,asdict(manifest))
+        raise
+    finally:
+        if review_token is not None: _REVIEW.reset(review_token)
+        if code_token is not None: _CODE.reset(code_token)
+        _release_writer(writer)
+
+
+def backup_run_batch(run_root: Path, backup_root: Path, *, arxiv_ids: list[str] | None = None) -> Path | None:
+    """Copy a new immutable ZIP batch, verify destination bytes, then publish its receipt.
+
+    Only completed, hash-verified checkpoints are eligible. A receipt is the durable marker;
+    unreceipted archives are never trusted. Already verified papers are not zipped again.
+    Returns None when no newly completed publication remains. Drive time is separate from parse.
+    """
+    run_root,backup_root = Path(run_root).resolve(),_owned_destination(backup_root).resolve()
+    if (run_root/'cache-invalid.json').exists(): raise ValueError('Run checkpoints were invalidated')
+    if backup_root.is_relative_to(run_root) or run_root.is_relative_to(backup_root): raise ValueError('Backup must be separate from local run')
+    manifest = _hydrate(c.RunManifest,_loads((run_root/'manifest.json').read_text('utf-8')))
+    target = backup_root/manifest.run_id
+    target.mkdir(parents=True,exist_ok=True)
+    completed, backed_metadata = set(), set()
+    for receipt_path in target.glob('batch-*.zip.receipt.json'):
+        receipt = _loads(receipt_path.read_text('utf-8'))
+        archive = target/receipt['archive']
+        if receipt.get('run_id') == manifest.run_id and receipt.get('snapshot_id') == manifest.snapshot_id and archive.is_file() and _hash(archive) == receipt['sha256']:
+            completed.update(receipt['arxiv_ids'])
+            backed_metadata.add(receipt.get('metadata_sha256'))
+    selected = [r for r in manifest.publications if r.working_path and r.arxiv_id not in completed and (arxiv_ids is None or r.arxiv_id in arxiv_ids)]
+    metadata = [p for folder in ('metrics','benchmark') for p in (run_root/folder).rglob('*') if p.is_file()]
+    metadata.extend(p for p in (run_root/'environment.json',run_root/'timing.json') if p.is_file())
+    metadata_hashes = {p.relative_to(run_root).as_posix():_hash(p) for p in metadata}
+    metadata_sha = hashlib.sha256(_canonical(metadata_hashes).encode('utf-8')).hexdigest()
+    if not selected and metadata_sha in backed_metadata: return None
+    if not selected and manifest.status == 'in_progress': return None
+    files = {}
+    files.update(metadata_hashes)
+    for record in selected:
+        checkpoint_path = 'checkpoints/'+_paper_key(record.arxiv_id)+'.json'
+        checkpoint_file = _relative_file(run_root,checkpoint_path)
+        checkpoint = _hydrate(c.CheckpointRecord,_loads(checkpoint_file.read_text('utf-8')))
+        if checkpoint.signature != record.checkpoint_signature or checkpoint.output_sha256 != record.output_sha256:
+            raise ValueError('Checkpoint/manifest mismatch before backup')
+        folder = _relative_file(run_root,record.working_path)
+        actual_files = {p.relative_to(run_root).as_posix() for p in folder.iterdir() if p.is_file()}
+        if not actual_files or not actual_files.issubset(record.output_sha256): raise ValueError('Incomplete publication hash inventory')
+        for path,digest in record.output_sha256.items():
+            if _hash(_relative_file(run_root,path)) != digest: raise ValueError('Output changed before backup')
+            files[path] = digest
+        files[checkpoint_path] = _hash(checkpoint_file)
+        read_publication(_relative_file(run_root,record.working_path))
+    batch_id = 'batch-'+uuid.uuid4().hex
+    staging = run_root/('.'+batch_id+'.zip')
+    archive = target/(batch_id+'.zip')
+    transfer = target/('.'+batch_id+'.part')
+    try:
+        with zipfile.ZipFile(staging,'x',compression=zipfile.ZIP_DEFLATED) as bundle:
+            bundle.writestr('manifest.json',_canonical(asdict(replace(manifest,publications=selected,status='partial'))))
+            for relative in sorted(files): bundle.write(_relative_file(run_root,relative),relative)
+        digest = _hash(staging)
+        shutil.copyfile(staging,transfer)
+        with transfer.open('r+b') as stream: os.fsync(stream.fileno())
+        if _hash(transfer) != digest: raise ValueError('Backup destination checksum mismatch')
+        transfer.rename(archive)
+        if _hash(archive) != digest: raise ValueError('Final backup archive checksum mismatch')
+        receipt = {'kind':'m2-parsed-batch-1.0','run_id':manifest.run_id,'snapshot_id':manifest.snapshot_id,
+            'code_revision':manifest.code_revision,'archive':archive.name,'sha256':digest,
+            'arxiv_ids':[r.arxiv_id for r in selected],'files':files,
+            'metadata_sha256':metadata_sha,
+            'signatures':{r.arxiv_id:r.checkpoint_signature for r in selected}}
+        _atomic_json(Path(str(archive)+'.receipt.json'),receipt)
+    finally:
+        staging.unlink(missing_ok=True); transfer.unlink(missing_ok=True)
+    return archive
+
+
+def restore_run_batch(archive: Path, destination: Path, *, expected_sha256: str) -> Path:
+    """Restore a verified batch into a new local run folder. Revalidate cache on resume.
+
+    Multiple batches may be restored to separate children of OUTPUT_ROOT; resume indexes
+    checkpoints in each child. Their manifest run_id is preserved; no old coverage is assumed.
+    """
+    archive,destination = Path(archive),_owned_destination(destination)
+    receipt = _loads(Path(str(archive)+'.receipt.json').read_text('utf-8'))
+    if receipt.get('kind') != 'm2-parsed-batch-1.0' or receipt.get('sha256') != expected_sha256 or _hash(archive) != expected_sha256:
+        raise ValueError('Invalid batch receipt/checksum')
+    if destination.exists(): raise FileExistsError('Restore requires a new destination')
+    destination.parent.mkdir(parents=True,exist_ok=True)
+    staging = destination.with_name('.'+destination.name+'.restore-'+uuid.uuid4().hex)
+    staging.mkdir()
+    try:
+        with zipfile.ZipFile(archive) as bundle:
+            names = set()
+            for member in bundle.infolist():
+                if member.filename in names or member.is_dir() or (member.external_attr >> 16) & 0o170000 == 0o120000:
+                    raise ValueError('Duplicate/directory/symlink ZIP entry')
+                names.add(member.filename)
+                path = _relative_file(staging,member.filename)
+                path.parent.mkdir(parents=True,exist_ok=True)
+                with bundle.open(member) as source,path.open('xb') as output: shutil.copyfileobj(source,output)
+        if names != set(receipt['files']) | {'manifest.json'}: raise ValueError('Batch inventory mismatch')
+        for relative,digest in receipt['files'].items():
+            if _hash(_relative_file(staging,relative)) != digest: raise ValueError('Restored file checksum mismatch')
+        manifest = _hydrate(c.RunManifest,_loads((staging/'manifest.json').read_text('utf-8')))
+        if manifest.run_id != receipt['run_id'] or manifest.snapshot_id != receipt['snapshot_id']: raise ValueError('Batch identity mismatch')
+        for record in manifest.publications:
+            if receipt['signatures'].get(record.arxiv_id) != record.checkpoint_signature: raise ValueError('Batch signature mismatch')
+            read_publication(_relative_file(staging,record.working_path))
+        staging.rename(destination)
+    finally:
+        if staging.exists(): shutil.rmtree(staging)
+    return destination
+
+
+def run_with_backup(corpus_root: Path, output_root: Path, config: ParseConfig, backup_root: Path, *, resume: bool = False, batch_size: int = 50) -> ParseRunResult:
+    """Run sequentially and back up at publication boundaries, one writer, bounded batches.
+
+    A lost runtime can lose work since the most recent verified receipt. Backup failures keep
+    local good output and make the run partial. Use benchmark_run separately for fresh timings.
+    """
+    if type(batch_size) is not int or batch_size < 1: raise ValueError('batch_size must be positive')
+    raw,backup = Path(corpus_root).resolve(),_owned_destination(backup_root).resolve()
+    if backup.is_relative_to(raw) or raw.is_relative_to(backup): raise ValueError('Backup and raw input must be disjoint')
+    pending = []
+    def callback(root: Path, final: bool) -> None:
+        manifest = _hydrate(c.RunManifest,_loads((root/'manifest.json').read_text('utf-8')))
+        if not final and manifest.publications: pending.append(manifest.publications[-1].arxiv_id)
+        if len(pending) >= batch_size or final:
+            backup_run_batch(root,backup_root,arxiv_ids=list(pending))
+            pending.clear()
+    token = _BACKUP.set(callback)
+    try: return run(corpus_root,output_root,config,resume=resume)
+    finally: _BACKUP.reset(token)
 

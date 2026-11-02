@@ -1,22 +1,17 @@
-"""PROTOTYPE — Danh / DA2.
+"""Exact publication-local element sharing and occurrence projection (Danh / DA2).
 
-Prototype và docstring thuật toán là hướng tham khảo, không giới hạn ở điền thân hàm.
-Đọc contracts.py, phần việc owner và tiêu chí nghiệm thu; hoàn thiện đầy đủ task/đầu ra.
-Nếu có phương án tốt hơn, so sánh lợi ích/đánh đổi, dependencies, ảnh hưởng API và cách kiểm chứng;
-hỏi người phụ trách task chọn hướng trước khi làm phần phụ thuộc, tiếp tục việc độc lập trong lúc chờ.
-Không hỏi lại lựa chọn đã chốt hoặc từng chi tiết nhỏ. Sau khi chốt có thể thêm/thay/tổ chức lại code.
-Test độc lập dùng fixtures trong tests/m2_support/fixtures.py, không chờ module người khác.
-Chỉ sửa phạm vi owner đang thống nhất; mở rộng phạm vi cần phối hợp owner bị ảnh hưởng.
-Ưu tiên giữ nguyên schema, kiểu dữ liệu và API; không cần đổi mà vẫn hoàn thành tốt task thì càng tốt.
-Không khuyến khích đổi; chỉ đổi khi thật sự cần thiết và hạn chế sửa phần chung để tránh conflict. Phối hợp Danh/owner bị ảnh hưởng và đồng bộ consumer, fixtures, tests, notebook, tài liệu.
-Không giảm yêu cầu hay acceptance cases khi đổi thiết kế.
-Tất cả hàm hiện cố ý chưa triển khai; không coi import thành công là parser chạy được.
-
-Hướng hiệu năng đã chọn (kế hoạch 10.0; chưa triển khai):
-Dictionary (kind,content) trong publication, tái sử dụng fingerprint/ID; so content khi hash collision. Không tìm tuyến tính mọi elements trước đó cho mỗi node.
+Dictionary identity is (kind, normalized content); roots remain version-specific.
+Occurrences preserve multiplicity/order/spans even when projected edges collapse or cycle.
+Primary hash collisions are compared by actual content and disambiguated deterministically.
 """
 from __future__ import annotations
 
+import hashlib
+import json
+from collections import Counter, defaultdict
+from copy import deepcopy
+
+from .contracts import DedupCount, ElementOccurrence, ElementRow, HierarchyRow, NODE_KINDS
 from .contracts import ParsedPublication, UnifiedBibliography, VersionTree
 
 
@@ -41,5 +36,70 @@ def assemble_publication(trees: list[VersionTree], bibliography: UnifiedBibliogr
     Dùng make_normalized_tree/make_unified_bibliography trong tests/m2_support/fixtures.py
     để làm độc lập; fixtures IDs là expected minh họa, không ép production theo IDs fixture.
     """
-    raise NotImplementedError("M2 prototype: content_dedup.assemble_publication — Danh / DA2")
+    if not trees: raise ValueError('At least one expected version is required')
+    paper = bibliography.arxiv_id
+    if any(t.arxiv_id != paper for t in trees): raise ValueError('Mixed publications')
+    if any(type(t.version) is not int or t.version < 1 for t in trees): raise ValueError('Invalid version')
+    if len({t.version for t in trees}) != len(trees): raise ValueError('Duplicate version')
+    revisions = {t.normalized_with for t in trees if t.nodes}
+    if revisions and (None in revisions or len(revisions) != 1): raise ValueError('Normalize all body trees with the same revision')
+    prefix = paper.replace('.', '-').replace('/', '-')
+    trees = sorted(trees, key=lambda t:t.version)
+    pairs = {(n.kind,n.content) for t in trees for n in t.nodes if n.local_id != t.root_local_id}
+    buckets: dict[str, list[tuple[str,str]]] = defaultdict(list)
+    for pair in sorted(pairs):
+        payload = json.dumps(pair, ensure_ascii=False, sort_keys=True, allow_nan=False, separators=(',', ':')).encode('utf-8')
+        buckets[pair[0]+'-'+hashlib.sha256(payload).hexdigest()].append(pair)
+    identities = {}
+    for discriminant, bucket in buckets.items():
+        for pair in bucket:
+            suffix = ''
+            if len(bucket) > 1:
+                payload = json.dumps(pair, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+                suffix = '-'+hashlib.sha512(payload).hexdigest()
+            identities[pair] = prefix+'#'+discriminant+suffix
+    elements = {eid:ElementRow(arxiv_id=paper,element_id=eid,kind=kind,content=content)
+                for (kind,content),eid in identities.items()}
+    if len(elements) != len(identities): raise ValueError('Secondary ID collision')
+    occurrences, edges, roots, diagnostics = [], set(), {}, deepcopy(bibliography.diagnostics)
+    for tree in trees:
+        index = {n.local_id:n for n in tree.nodes}
+        if len(index) != len(tree.nodes): raise ValueError('Duplicate occurrence ID')
+        if tree.nodes and tree.root_local_id not in index: raise ValueError('Root not in nodes')
+        local_map = {n.local_id:(prefix+f'#root-v{tree.version}' if n.local_id == tree.root_local_id else identities[n.kind,n.content]) for n in tree.nodes}
+        roots[tree.version] = local_map.get(tree.root_local_id)
+        children = defaultdict(list)
+        for node in tree.nodes: children[node.parent_local_id].append(node)
+        ordered, seen = [], set()
+        stack = sorted(children[None],key=lambda n:(n.position,n.local_id),reverse=True)
+        while stack:
+            node = stack.pop()
+            if node.local_id in seen: raise ValueError('Occurrence cycle')
+            seen.add(node.local_id); ordered.append(node)
+            stack.extend(sorted(children[node.local_id],key=lambda n:(n.position,n.local_id),reverse=True))
+        if len(ordered) != len(tree.nodes): raise ValueError('Unreachable occurrence')
+        for node in ordered:
+            eid = local_map[node.local_id]
+            if node.local_id == tree.root_local_id:
+                if node.kind != 'document' or node.parent_local_id is not None: raise ValueError('Invalid root')
+                elements[eid] = ElementRow(element_id=eid,arxiv_id=paper,kind='document',content=f'Version {tree.version} root')
+            if node.parent_local_id is not None:
+                if node.parent_local_id not in local_map: raise ValueError('Orphan occurrence')
+                edges.add((tree.version,eid,local_map[node.parent_local_id]))
+            occurrences.append(ElementOccurrence(arxiv_id=paper,version=tree.version,local_id=node.local_id,
+                parent_local_id=node.parent_local_id,element_id=eid,position=node.position,
+                source_spans=deepcopy(node.source_spans),heading_level=node.heading_level,subtype=node.subtype))
+        for diagnostic in tree.diagnostics:
+            if diagnostic not in diagnostics: diagnostics.append(deepcopy(diagnostic))
+    before = Counter(n.kind for t in trees for n in t.nodes)
+    after = Counter(e.kind for e in elements.values())
+    counts = [DedupCount(kind=k,before=before[k],after=after[k]) for k in NODE_KINDS if before[k] or after[k]]
+    if bibliography.occurrences or bibliography.entries:
+        counts.append(DedupCount(kind='bibtex',before=len(bibliography.occurrences),after=len(bibliography.entries)))
+    return ParsedPublication(arxiv_id=paper,elements=sorted(elements.values(),key=lambda e:e.element_id),
+        hierarchy=[HierarchyRow(arxiv_id=paper,version=v,element_id=e,parent_id=p) for v,e,p in sorted(edges)],
+        bibtex=deepcopy(bibliography.entries),version_states={t.version:t.status for t in trees},occurrences=occurrences,
+        root_ids=roots,key_map=dict(bibliography.key_map),bib_occurrences=deepcopy(bibliography.occurrences),
+        identity_decisions=deepcopy(bibliography.identity_decisions),conflicts=deepcopy(bibliography.conflicts),
+        diagnostics=diagnostics,counts_before_after=counts,export_ready=False)
 
