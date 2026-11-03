@@ -46,6 +46,7 @@ class TransportTests(unittest.TestCase):
         prepared = prepare_corpus(self.root / 'm1', raw, max_papers=1)
         archive = self.root / 'partial.zip'
         receipt = pack_prepared_corpus(raw, archive)
+        self.assertEqual(receipt['papers_pending'], 1)
         local = stage_prepared_archive(archive, self.root / 'local', expected_sha256=receipt['sha256'])
         check = validate_prepared_corpus(local)
         self.assertTrue(check['valid'], check['issues'])
@@ -117,6 +118,10 @@ class TransportTests(unittest.TestCase):
         import sys
         archive = self.root / 'input.zip'
         pack_prepared_corpus(self.prepared(), archive)
+        receipt_path = Path(str(archive) + '.receipt.json')
+        receipt = json.loads(receipt_path.read_text(encoding='utf-8'))
+        receipt['remote_verified'] = True
+        receipt_path.write_text(json.dumps(receipt), encoding='utf-8')
         notebook = json.loads(Path('src/notebooks/milestone2.ipynb').read_text(encoding='utf-8'))
         scope = {}
         old_path = sys.path[:]
@@ -133,5 +138,57 @@ class TransportTests(unittest.TestCase):
                                      OUTPUT_ROOT=(self.root / 'parsed').resolve())
             self.assertTrue(validate_prepared_corpus(scope['RAW_CORPUS_ROOT'])['valid'])
             self.assertFalse(scope['OUTPUT_ROOT'].exists())
+        finally:
+            sys.path[:] = old_path
+
+    def test_parser_notebook_rejects_forged_partial_receipt_without_opt_in(self):
+        import sys
+        backup(self.root / 'm1', 'a')
+        backup(self.root / 'm1', 'b', identifier='2606.20275')
+        raw = self.root / 'partial-raw'
+        prepare_corpus(self.root / 'm1', raw, max_papers=1)
+        archive = self.root / 'partial.zip'
+        pack_prepared_corpus(raw, archive)
+        receipt_path = Path(str(archive) + '.receipt.json')
+        receipt = json.loads(receipt_path.read_text(encoding='utf-8'))
+        receipt.pop('papers_pending')
+        receipt['remote_verified'] = True
+        receipt_path.write_text(json.dumps(receipt), encoding='utf-8')
+        notebook = json.loads(Path('src/notebooks/milestone2.ipynb').read_text(encoding='utf-8'))
+        scope, old_path = {}, sys.path[:]
+        try:
+            with self.assertRaisesRegex(ValueError, 'partial pilot'):
+                for cell in notebook['cells']:
+                    if cell['cell_type'] != 'code': continue
+                    exec(compile(''.join(cell['source']), cell['id'], 'exec'), scope)
+                    if cell['id'] == 'm2-template-01':
+                        scope.update(PROJECT_DIR=Path.cwd(), STAGE_INPUT=True, RUN_PARSER=False,
+                                     PREPARED_ARCHIVE=archive.resolve(), RAW_CORPUS_ROOT=(self.root / 'partial-local').resolve(),
+                                     OUTPUT_ROOT=(self.root / 'parsed').resolve())
+        finally:
+            sys.path[:] = old_path
+
+    def test_parser_notebook_allows_partial_pilot_with_opt_in(self):
+        import sys
+        backup(self.root / 'm1', 'a')
+        backup(self.root / 'm1', 'b', identifier='2606.20275')
+        raw = self.root / 'partial-raw'
+        prepare_corpus(self.root / 'm1', raw, max_papers=1)
+        archive = self.root / 'partial.zip'; pack_prepared_corpus(raw, archive)
+        receipt_path = Path(str(archive) + '.receipt.json')
+        receipt = json.loads(receipt_path.read_text(encoding='utf-8')); receipt['remote_verified'] = True
+        receipt_path.write_text(json.dumps(receipt), encoding='utf-8')
+        notebook = json.loads(Path('src/notebooks/milestone2.ipynb').read_text(encoding='utf-8'))
+        scope, old_path = {}, sys.path[:]
+        try:
+            with redirect_stdout(io.StringIO()):
+                for cell in notebook['cells']:
+                    if cell['cell_type'] != 'code': continue
+                    exec(compile(''.join(cell['source']), cell['id'], 'exec'), scope)
+                    if cell['id'] == 'm2-template-01':
+                        scope.update(PROJECT_DIR=Path.cwd(), STAGE_INPUT=True, ALLOW_PARTIAL_PILOT=True,
+                                     RUN_PARSER=False, PREPARED_ARCHIVE=archive.resolve(),
+                                     RAW_CORPUS_ROOT=(self.root / 'partial-local').resolve(), OUTPUT_ROOT=(self.root / 'parsed').resolve())
+            self.assertTrue(validate_prepared_corpus(scope['RAW_CORPUS_ROOT'])['valid'])
         finally:
             sys.path[:] = old_path

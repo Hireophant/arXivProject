@@ -4,11 +4,12 @@ import csv
 import hashlib
 import json
 from pathlib import Path, PurePosixPath
+import time
 
 from .milestone2 import SCHEMA, _json_bytes, _load_json, _no_links, _paper_key, _safe_name, _source_receipt, _valid_local
 
 
-def validate_prepared_corpus(root):
+def validate_prepared_corpus(root, *, progress=None, progress_every=50):
     """Return integrity, completeness and a reproducible content snapshot ID.
 
     This is read-only and rehashes source bytes. A partial corpus can be valid:
@@ -16,6 +17,9 @@ def validate_prepared_corpus(root):
     Snapshot identity excludes absolute locations, run IDs and timestamps.
     """
     root = Path(root).absolute()
+    if type(progress_every) is not int or progress_every < 1:
+        raise ValueError("progress_every must be a positive integer")
+    started = time.monotonic()
     issues, snapshots, expected = [], [], {}
     checked_paths = set()  # Scoped to one read-back pass; never reused across runs.
     result = dict(valid=False, complete=False, run_id=None, snapshot_id=None, issues=issues)
@@ -74,7 +78,7 @@ def validate_prepared_corpus(root):
                 issue("INVENTORY_MISMATCH", "Duplicate/noncanonical inventory version")
             inventory[key] = row
 
-        for identifier, paper in sorted(papers.items()):
+        for checked, (identifier, paper) in enumerate(sorted(papers.items()), 1):
             try:
                 key = _paper_key(identifier)
                 record, states = paper["record"], paper["version_states"]
@@ -147,6 +151,9 @@ def validate_prepared_corpus(root):
                 snapshots.append(snapshot)
             except (OSError, ValueError, KeyError, TypeError) as error:
                 issue("PUBLICATION_CONTRACT", error, identifier)
+            if progress and (checked == len(papers) or checked % progress_every == 0):
+                progress(f"[validating_local] checked {checked}/{len(papers)} papers; "
+                         f"issues {len(issues)}; elapsed {time.monotonic() - started:.1f}s")
         if set(inventory) != set(expected):
             issue("INVENTORY_MISMATCH", "Inventory must cover exactly every expected publication/version")
         counts = Counter(expected.values())

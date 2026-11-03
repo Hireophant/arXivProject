@@ -478,6 +478,46 @@ class PreparationTests(unittest.TestCase):
         self.assertEqual(resumed['batch']['selected_ids'], ['2606.20275'])
         self.assertEqual(resumed['batch']['pending_ids'], ['2606.20276'])
 
+    def test_destination_write_failure_does_not_commit_batch_ids(self):
+        prepare, _ = self.api()
+        from src.preparation.milestone2 import _DestinationWriteError
+        backup(self.source, 'a')
+        backup(self.source, 'b', identifier='2606.20275')
+        prepare(self.source, self.output, max_papers=1)
+        checkpoint = (self.output / 'batch_checkpoint.json').read_bytes()
+        original_open = Path.open
+        def disk_full(path, mode='r', *args, **kwargs):
+            if mode == 'wb' and path.name == 'main.tex':
+                raise OSError(28, 'disk full')
+            return original_open(path, mode, *args, **kwargs)
+        with patch.object(Path, 'open', disk_full):
+            with self.assertRaisesRegex(_DestinationWriteError, 'disk full'):
+                prepare(self.source, self.output, max_papers=1)
+        self.assertEqual((self.output / 'batch_checkpoint.json').read_bytes(), checkpoint)
+        resumed = prepare(self.source, self.output, max_papers=1)
+        self.assertEqual(resumed['batch']['selected_ids'], ['2606.20275'])
+
+    def test_progress_reports_only_completed_ids_and_validation_rehash(self):
+        prepare, _ = self.api()
+        backup(self.source, 'a')
+        backup(self.source, 'b', identifier='2606.20275')
+        events = []
+        prepare(self.source, self.output, max_papers=2, progress=events.append, progress_every=1)
+        completed = [event for event in events if event.startswith('Completed ')]
+        self.assertEqual(len(completed), 2)
+        self.assertIn('Completed 2/2 selected papers', completed[-1])
+        self.assertTrue(any(event.startswith('[validating_local] checked 2/2') for event in events))
+
+    def test_version_stage_stays_beside_legacy_output(self):
+        prepare, _ = self.api()
+        from src.preparation.milestone2 import _restore_version
+        backup(self.source, 'a')
+        def same_filesystem_stage(*args):
+            self.assertEqual(args[-1].parent, self.output)
+            return _restore_version(*args)
+        with patch('src.preparation.milestone2._restore_version', side_effect=same_filesystem_stage):
+            prepare(self.source, self.output)
+
     def test_invalid_readback_does_not_advance_batch_checkpoint(self):
         prepare, _ = self.api()
         backup(self.source, 'a')

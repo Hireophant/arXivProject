@@ -4,17 +4,18 @@ One writer only: freeze the prepared source during packing. Archive SHA-256 chec
 transport integrity; it does not replace validate_prepared_corpus before parsing.
 """
 import hashlib
+import json
 from pathlib import Path
 import re
 import shutil
 from uuid import uuid4
 import zipfile
 
-from .milestone2 import _no_links, _safe_members, _write_json
+from .milestone2 import _no_links, _replace, _safe_members, _write_json
 from .validation import validate_prepared_corpus
 
 
-def pack_prepared_corpus(corpus_root: Path, archive_path: Path) -> dict:
+def pack_prepared_corpus(corpus_root: Path, archive_path: Path, *, progress=None) -> dict:
     """Optional step AFTER M1 preparation. Preserve its schema, bytes and empty dirs.
 
     Destination must be new and outside raw. Receipt is <archive>.receipt.json.
@@ -29,24 +30,32 @@ def pack_prepared_corpus(corpus_root: Path, archive_path: Path) -> dict:
     receipt_path = Path(str(archive) + '.receipt.json')
     if archive.exists() or receipt_path.exists():
         raise FileExistsError('Use a new archive path; existing bundles are not overwritten')
-    check = validate_prepared_corpus(root)
+    check = validate_prepared_corpus(root, progress=progress)
     if not check['valid']:
         raise ValueError(f"Prepared raw is invalid: {check['issues']}")
     archive.parent.mkdir(parents=True, exist_ok=True)
     temporary = archive.with_name(archive.name + '.tmp-' + uuid4().hex)
     try:
         checked = set()
+        paths = sorted(root.rglob('*'))
         with zipfile.ZipFile(temporary, 'x', compression=zipfile.ZIP_DEFLATED, compresslevel=1) as zipped:
-            for path in sorted(root.rglob('*')):
+            for number, path in enumerate(paths, 1):
                 _no_links(path, checked)
                 if not path.is_dir() and not path.is_file():
                     raise ValueError('Prepared raw contains a special file')
                 zipped.write(path, path.relative_to(root).as_posix())
+                if progress and (number == len(paths) or number % 100 == 0):
+                    progress(f"[packaging] {number}/{len(paths)} artifacts")
         with temporary.open('rb') as stream:
             digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+        summary = json.loads((root / 'preparation.json').read_text(encoding='utf-8'))
+        pending = summary.get('batch', {}).get('papers_pending', 0)
+        if type(pending) is not int or pending < 0:
+            raise ValueError('Prepared raw has invalid pending-paper count')
         receipt = dict(kind='m2-prepared-transport-1.0', snapshot_id=check['snapshot_id'],
                        sha256=digest, bytes=temporary.stat().st_size,
-                       paper_count=check['paper_count'], versions_expected=check['versions_expected'])
+                       paper_count=check['paper_count'], versions_expected=check['versions_expected'],
+                       papers_pending=pending)
         temporary.rename(archive)
         _write_json(receipt_path, receipt)
         return receipt
@@ -99,7 +108,7 @@ def stage_prepared_archive(archive_path: Path, destination: Path, *, expected_sh
                     path.parent.mkdir(parents=True, exist_ok=True)
                     with zipped.open(info) as source, path.open('xb') as output:
                         shutil.copyfileobj(source, output, length=1024 * 1024)
-        unpacked.rename(target)
+        _replace(unpacked, target)
         return target
     finally:
         shutil.rmtree(work)

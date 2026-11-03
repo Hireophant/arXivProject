@@ -3,14 +3,23 @@
 Notebook: [milestone2_prepare.ipynb](../../src/notebooks/milestone2_prepare.ipynb).
 Helpers: src/preparation/milestone2.py và validation.py, chỉ dùng Python >= 3.11 stdlib.
 
-Thư mục đích đã chốt là **`preparationM2/raw_m1/<DATASET_NAME>/`**. PREPARATION_DIR đặt folder preparationM2; kết quả parser tương lai lưu riêng tại `Milestone2/parsed/<DATASET_NAME>/.`
+Mặc định Colab tạo raw ở local `/content/arXivProject-preparation`; Drive nhận transport ZIP sau remote verification. `preparationM2/raw_m1/<DATASET_NAME>/` chỉ dùng cho legacy batch resume.
+
+## Cập nhật Colab/Drive
+
+- Mặc định raw được tạo ở local `/content`; runtime mất trước khi publish thì bundle local cũng mất. Chọn đủ dung lượng local trước khi chạy và không chạy hai writer cùng dataset.
+- Đặt `DRIVE_TRANSPORT_FOLDER_ID` bằng đoạn sau `/folders/` trong URL Drive đích. Notebook yêu cầu OAuth, upload một ZIP, kiểm size/MD5 qua Drive API, rồi mới publish receipt `remote_verified`.
+- Ghi lại `archive.id`, `sha256`, `snapshot_id` từ trạng thái `remote_verified` để notebook M2 tải trực tiếp bằng API. Khi API lỗi, giữ bundle local và retry publish trong runtime; không cần chạy lại M1 nếu bundle còn.
+- Nguyen1/legacy resume: giữ nguyên folder, đặt `LOCAL_PREPARATION_DIR=PREPARATION_DIR`, `MAX_PAPERS_PER_RUN=100`, rồi chạy lại. Không xóa folder và không chạy concurrent writers.
+- ZIP giảm số object Drive; không cam kết thời gian đồng bộ cụ thể.
+- Pilot 100 bài: `MAX_PAPERS_PER_RUN=100`, `PUBLISH_PARTIAL_PILOT=True`; receipt ghi số pending và M2 mặc định từ chối parse pilot nếu chưa bật `ALLOW_PARTIAL_PILOT=True`.
 
 ## 1. Luồng sử dụng
 
 1. Mở notebook bằng Colab, chọn accelerator None.
 2. Đặt SOURCE_PATH tới **cả thư mục Milestone1** còn nguyên cấu trúc backup trên Drive, hoặc ZIP tải từ Drive chứa thư mục đó. Giữ checkpoint, full backup, session-report, receipts và retry-state.
 3. Đặt PREPARATION_DIR tới thư mục preparationM2 riêng và DATASET_NAME đúng tài khoản, ví dụ Danh2, Khanh1. Một runtime ghi một dataset; không chạy đồng thời hai notebook cùng đích.
-4. Chạy các cell theo thứ tự: cấu hình → setup/mount → preview → prepare → inventory → bàn giao.
+4. Chạy các cell theo thứ tự: cấu hình → setup/mount → preview → prepare/validate local → publish transport → inventory → bàn giao.
 5. Đọc preparation.json, blocked_versions.csv, backup_audit.jsonl. Khi thiếu/hỏng input, tìm lại backup gốc rồi chạy lại; notebook không crawl bù.
 
 Ví dụ đường dẫn theo crawler M1 hiện tại:
@@ -19,8 +28,9 @@ Ví dụ đường dẫn theo crawler M1 hiện tại:
 SOURCE_PATH = Path('/content/drive/MyDrive/arXivProject/Milestone1')
 PREPARATION_DIR = Path('/content/drive/MyDrive/arXivProject/preparationM2')
 DATASET_NAME = 'Danh2'
-MAX_PAPERS_PER_RUN = 100
+MAX_PAPERS_PER_RUN = None
 RETRY_BLOCKED = False
+DRIVE_TRANSPORT_FOLDER_ID = ''  # Đoạn sau /folders/ trong URL Drive đích.
 ~~~
 
 Nếu đã gom backup nhiều tài khoản/người dưới một thư mục cha, SOURCE_PATH có thể trỏ tới thư mục đó. Không bắt buộc folder phải mang tên acc1/danh: helper tìm backup receipts đệ quy. Tên DATASET_NAME chỉ đặt tên bộ output, không chứng minh nó chứa đủ bốn người.
@@ -31,7 +41,7 @@ Notebook clone repo khi chạy Colab mà chưa có checkout. **Code mới phải
 
 ### Chạy theo lượt và tiếp tục ID
 
-Mỗi lượt mặc định xử lý 100 ID duy nhất, gồm mọi version và mọi bản backup trùng của ID đó. Giữ cùng source/dataset/đích rồi chạy lại cell prepare để lấy ID chưa xử lý tiếp theo; có thể đổi số lượng mỗi lượt. Thứ tự chọn theo đường dẫn backup rồi ID tăng dần trong từng manifest, không phải sắp ID toàn corpus.
+Mặc định local xử lý toàn bộ ID pending trong một lượt (`MAX_PAPERS_PER_RUN=None`). Legacy Drive resume mới dùng 100 ID/lượt: giữ `LOCAL_PREPARATION_DIR=PREPARATION_DIR`, đặt `MAX_PAPERS_PER_RUN=100`, giữ cùng source/dataset/đích rồi chạy lại cell prepare. Thứ tự chọn theo đường dẫn backup rồi ID tăng dần trong từng manifest, không phải sắp ID toàn corpus.
 
 `batch_checkpoint.json` chỉ chốt sau khi output được đọc lại và kiểm tra thành công. Nếu ngắt giữa lượt, lần sau chọn lại lượt chưa chốt và tận dụng source hợp lệ đã ghi. Không xóa checkpoint nếu muốn tiếp tục. Các lượt vẫn đọc/kiểm hash archive và kiểm lại output đã có; chia lượt không loại hết chi phí Drive I/O.
 
@@ -39,7 +49,7 @@ Manifest và preparation.json có `batch.selected_ids`, `processed_ids`, `pendin
 
 ID đã thử mà source thiếu/hỏng được tính đã xử lý, vẫn blocked và giữ lý do lỗi. Mặc định không chọn lại để tránh cản ID mới; bật `RETRY_BLOCKED=True` nếu muốn thử lại (cũng tính trong giới hạn lượt). `MAX_PAPERS_PER_RUN=None` làm lại toàn corpus và sửa file output hỏng, không áp dụng giới hạn. Nếu thêm/đổi backup receipt, dùng dataset mới hoặc None để xây lại, tránh dùng nhầm tiến độ cho nguồn mới.
 
-Chạy đến khi `papers_pending == 0`; điều này chưa đảm bảo hết lỗi source. Chỉ `input_validation.complete=True` mới xác nhận toàn bộ input đã phát hiện đủ và hợp lệ. Adapter/parser giữ ID chờ trong coverage/metrics như blocked, không đọc file chưa khôi phục và không bỏ ID khỏi mẫu số. Sau mỗi lượt, snapshot có thể đổi; cần chuyển lại raw/ZIP và kiểm snapshot mới trước khi parse. Bản raw local cũ không tự cập nhật theo Drive.
+`input_validation.valid=True` xác nhận integrity snapshot. `papers_pending=0` xác nhận mọi ID đã được thử; `complete=False` vẫn hợp lệ khi coverage có blocked đã khai báo, như Danh2. Adapter/parser giữ ID chờ trong coverage/metrics như blocked, không đọc file chưa khôi phục và không bỏ ID khỏi mẫu số. Sau mỗi lượt, snapshot có thể đổi; cần chuyển lại raw/ZIP và kiểm snapshot mới trước khi parse. Bản raw local cũ không tự cập nhật theo Drive.
 
 ## 2. Dữ liệu được lưu
 

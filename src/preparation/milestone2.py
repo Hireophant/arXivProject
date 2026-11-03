@@ -6,7 +6,7 @@ require requests/psutil. ZIP/path/hash APIs: docs.python.org/3/library/{zipfile,
 pathlib,hashlib}.html. Only one writer may prepare a destination at a time.
 """
 from collections import Counter
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import csv
 import hashlib
@@ -16,6 +16,7 @@ from pathlib import Path, PurePosixPath
 import re
 import shutil
 import stat
+import sys
 import tempfile
 import time
 from uuid import uuid4
@@ -29,6 +30,10 @@ _MAX_FILE = 64 * 1024**2
 _MAX_VERSION = 512 * 1024**2
 _ID = re.compile(r"(?:[0-9]{4}\.[0-9]{4,5}|[a-zA-Z][a-zA-Z0-9.-]*/[0-9]{7})\Z")
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
+
+
+class _DestinationWriteError(OSError):
+    """A local/output write failed after source input was already verified."""
 
 
 def _json_bytes(value):
@@ -49,16 +54,28 @@ def _replace(source, target):
 
 
 def _atomic_bytes(path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
     pending = path.with_name(path.name + "." + uuid4().hex + ".part")
     try:
-        with pending.open("wb") as stream:
-            stream.write(data)
-            stream.flush()
-            os.fsync(stream.fileno())
-        _replace(pending, path)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with pending.open("wb") as stream:
+                stream.write(data)
+                stream.flush()
+                os.fsync(stream.fileno())
+            _replace(pending, path)
+        except OSError as error:
+            raise _DestinationWriteError(str(error)) from error
     finally:
-        pending.unlink(missing_ok=True)
+        if sys.exc_info()[0] is None:
+            try:
+                pending.unlink(missing_ok=True)
+            except OSError as error:
+                raise _DestinationWriteError(str(error)) from error
+        else:
+            try:
+                pending.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def _write_json(path, value):
@@ -285,14 +302,32 @@ def _copy_source(zipped, info, target=None):
     if info.file_size > _MAX_FILE:
         raise ValueError("Source file exceeds size limit")
     h, size = hashlib.sha256(), 0
-    with zipped.open(info) as source, (target.open("wb") if target else nullcontext()) as output:
-        while chunk := source.read(_CHUNK):
-            size += len(chunk)
-            if size > _MAX_FILE:
-                raise ValueError("Source file exceeds size limit")
-            h.update(chunk)
+    with zipped.open(info) as source:
+        try:
+            output = target.open("wb") if target else None
+        except OSError as error:
+            raise _DestinationWriteError(str(error)) from error
+        try:
+            while True:
+                chunk = source.read(_CHUNK)  # Source read errors stay source errors.
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > _MAX_FILE:
+                    raise ValueError("Source file exceeds size limit")
+                h.update(chunk)
+                if output is not None:
+                    try:
+                        output.write(chunk)
+                    except OSError as error:
+                        raise _DestinationWriteError(str(error)) from error
+        finally:
             if output is not None:
-                output.write(chunk)
+                try:
+                    output.close()
+                except OSError as error:
+                    if sys.exc_info()[0] is None:
+                        raise _DestinationWriteError(str(error)) from error
     return h.hexdigest()
 
 
@@ -310,9 +345,12 @@ def _restore_version(zipped, members, prefix, target, receipt, work):
         _write_json(target.parent / f".v{receipt['version']}.receipt.json", receipt)
         return False
     stage = work / ("version-" + uuid4().hex)
-    stage.mkdir()
-    prepared = stage / "prepared"
-    prepared.mkdir()
+    try:
+        stage.mkdir()
+        prepared = stage / "prepared"
+        prepared.mkdir()
+    except OSError as error:
+        raise _DestinationWriteError(str(error)) from error
     old = stage / "previous"
     try:
         for name, expected_hash in hashes.items():
@@ -323,34 +361,58 @@ def _restore_version(zipped, members, prefix, target, receipt, work):
                 raise ValueError("Source file SHA-256 differs from source receipt")
         if not _valid_local(prepared, receipt):
             raise ValueError("Restored version does not match its source receipt")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        if target.exists():
-            _replace(target, old)
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as error:
+            raise _DestinationWriteError(str(error)) from error
+        try:
+            if target.exists():
+                _replace(target, old)
+        except OSError as error:
+            raise _DestinationWriteError(str(error)) from error
         try:
             _replace(prepared, target)
             _write_json(target.parent / f".v{receipt['version']}.receipt.json", receipt)
         except BaseException:
             if target.exists():
-                shutil.rmtree(target)
+                try:
+                    shutil.rmtree(target)
+                except OSError:
+                    pass
             if old.exists():
-                _replace(old, target)
+                try:
+                    _replace(old, target)
+                except OSError:
+                    pass
             raise
         return True
     finally:
         # Only remove the exact owned stage path, never a computed input directory.
-        shutil.rmtree(stage)
+        if sys.exc_info()[0] is None:
+            try:
+                shutil.rmtree(stage)
+            except OSError as error:
+                raise _DestinationWriteError(str(error)) from error
+        else:
+            try:
+                shutil.rmtree(stage)
+            except OSError:
+                pass
 
 
 def _write_csv(path, fields, rows):
     pending = path.with_name(path.name + ".part")
-    with pending.open("w", encoding="utf-8", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=fields)
-        writer.writeheader()
-        writer.writerows(rows)
-    _replace(pending, path)
+    try:
+        with pending.open("w", encoding="utf-8", newline="") as stream:
+            writer = csv.DictWriter(stream, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(rows)
+        _replace(pending, path)
+    except OSError as error:
+        raise _DestinationWriteError(str(error)) from error
 
 
-def prepare_corpus(source, output, *, progress=None, max_papers=None, retry_blocked=False):
+def prepare_corpus(source, output, *, progress=None, progress_every=10, max_papers=None, retry_blocked=False):
     """Restore raw input, optionally selecting at most max_papers IDs per run.
 
     None rebuilds all IDs. Bounded runs continue the last validated checkpoint;
@@ -367,6 +429,8 @@ def prepare_corpus(source, output, *, progress=None, max_papers=None, retry_bloc
         raise ValueError("max_papers must be a positive integer or None")
     if type(retry_blocked) is not bool:
         raise ValueError("retry_blocked must be boolean")
+    if type(progress_every) is not int or progress_every < 1:
+        raise ValueError("progress_every must be a positive integer")
     source, output = Path(source).absolute(), Path(output).absolute()
     _no_links(output)
     output = output.resolve()
@@ -374,12 +438,17 @@ def prepare_corpus(source, output, *, progress=None, max_papers=None, retry_bloc
     if (output == source_resolved or source_resolved.is_relative_to(output)
             or (source.is_dir() and output.is_relative_to(source_resolved))):
         raise ValueError("M1 source and M2 output must be separate, non-overlapping paths")
+    started = time.monotonic()
     store = _Store(source)
-    work = None
+    work = spool_work = None
     try:
         preview = _preview(store)
         if not preview["backup_count"]:
             raise ValueError("No backup_receipt.json found; choose the full M1 backup folder")
+        estimated_papers = sum(queue.get("assignment_count", 0) for queue in preview["queues"]
+                               if isinstance(queue.get("assignment_count", 0), int))
+        if progress and estimated_papers:
+            progress(f"[scanning] queue estimate {estimated_papers} papers; checking {preview['backup_count']} backups")
         owner = output / ".prepare-owner.json"
         if output.exists() and any(output.iterdir()):
             if not owner.is_file() or json.loads(owner.read_text(encoding="utf-8")).get("schema_version") != SCHEMA:
@@ -406,6 +475,10 @@ def prepare_corpus(source, output, *, progress=None, max_papers=None, retry_bloc
         _write_json(owner, dict(schema_version=SCHEMA))
         run_id = uuid4().hex
         _write_json(output / "preparation.json", dict(status="in_progress", run_id=run_id, schema_version=SCHEMA))
+        # Zip spooling is local in Colab; version publication stages beside output
+        # so os.replace never crosses from /content onto a Drive mount.
+        local_work_parent = Path("/content") if Path("/content").is_dir() else output.parent
+        spool_work = Path(tempfile.mkdtemp(prefix="m2-spool-", dir=local_work_parent))
         work = output / (".prepare-work-" + uuid4().hex)
         work.mkdir()
         papers, selected, conflicts, audit, provenance = {}, {}, set(), [], []
@@ -443,7 +516,7 @@ def prepare_corpus(source, output, *, progress=None, max_papers=None, retry_bloc
                     raise ValueError("Backup timestamp must include timezone")
                 stamp = when.astimezone(timezone.utc).isoformat()
                 corpus_name = str(PurePosixPath(label).parent / "corpus.zip")
-                with store.corpus(corpus_name, receipt["archives"]["corpus"], work) as (zipped, members):
+                with store.corpus(corpus_name, receipt["archives"]["corpus"], spool_work) as (zipped, members):
                     with zipped.open("manifest.json") as stream:
                         manifest = _load_json(stream)
                     if manifest.get("schema_version") != "3.0" or manifest.get("run_id") != receipt.get("run_id"):
@@ -470,7 +543,7 @@ def prepare_corpus(source, output, *, progress=None, max_papers=None, retry_bloc
                                 conflicts = {k for k in conflicts if k[0] != identifier}
                                 provenance = [e for e in provenance if e["arxiv_id"] != identifier]
                                 if progress:
-                                    progress(f"Paper {len(batch_ids)}/{max_papers or 'all'}: {identifier}")
+                                    progress(f"Selected {len(batch_ids)}/{max_papers or 'all'}: {identifier}")
                         active = identifier in batch_ids
                         if identifier in processed_ids and not active:
                             continue
@@ -534,6 +607,8 @@ def prepare_corpus(source, output, *, progress=None, max_papers=None, retry_bloc
                                 selected[version_key] = dict(fingerprint=fingerprint, backup=label, result=result)
                                 provenance.append(dict(arxiv_id=identifier, version=version, backup=label,
                                                        fingerprint=fingerprint, decision="selected" if previous is None else "identical"))
+                            except _DestinationWriteError:
+                                raise
                             except (OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile) as error:
                                 audit.append(dict(backup=label, arxiv_id=identifier, version=version, status="error",
                                                   code="SOURCE_INVALID", detail=str(error)))
@@ -541,6 +616,11 @@ def prepare_corpus(source, output, *, progress=None, max_papers=None, retry_bloc
                                       corpus_sha256=receipt["archives"]["corpus"]["sha256"],
                                       kind="source_backup" if source_receipts else "manifest_only",
                                       publications=len(manifest["papers"])))
+                if progress:
+                    progress(f"[scanning] backup {number}/{preview['backup_count']}; "
+                             f"selected {len(batch_ids)}/{estimated_papers or '?'} estimate; completion waits for all candidates")
+            except _DestinationWriteError:
+                raise
             except (OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile) as error:
                 audit.append(dict(backup=label, status="error", code="BACKUP_INVALID", detail=str(error)))
 
@@ -550,7 +630,7 @@ def prepare_corpus(source, output, *, progress=None, max_papers=None, retry_bloc
                      processed_ids=sorted(processed_ids), pending_ids=pending_ids,
                      papers_processed=len(processed_ids), papers_pending=len(pending_ids),
                      source_signature=source_signature)
-        inventory = []
+        inventory, completed_batch = [], 0
         for identifier, paper in sorted(papers.items()):
             key = _paper_key(identifier)
             paper["record"]["versions"] = sorted(paper.pop("versions"))
@@ -573,6 +653,11 @@ def prepare_corpus(source, output, *, progress=None, max_papers=None, retry_bloc
                                       m1_source_status=evidence.get("result", {}).get("status", ""),
                                       m1_error=evidence.get("result", {}).get("error") or "",
                                       source_fingerprint=chosen["fingerprint"] if chosen else ""))
+            if identifier in batch_ids:
+                completed_batch += 1
+                if progress and (completed_batch == len(batch_ids) or completed_batch % progress_every == 0):
+                    progress(f"Completed {completed_batch}/{len(batch_ids)} selected papers; "
+                             f"processed {len(processed_ids)}/{len(papers)}; elapsed {time.monotonic() - started:.1f}s")
         counts = Counter(row["status"] for row in inventory)
         errors = sum(row["status"] == "error" for row in audit)
         status = "failed" if not papers else "partial" if errors or counts["blocked_input"] else "ready"
@@ -583,6 +668,12 @@ def prepare_corpus(source, output, *, progress=None, max_papers=None, retry_bloc
                        backup_errors=errors, restored_versions=restored, queues=preview["queues"],
                        completed_at_utc=datetime.now(timezone.utc).isoformat())
         summary["batch"] = batch
+        if progress:
+            progress("Prepared {processed}/{total} papers; pending {pending}; "
+                     "ready {ready}, no_tex {no_tex}, blocked {blocked}; elapsed {elapsed:.1f}s".format(
+                         processed=batch["papers_processed"], total=len(papers), pending=batch["papers_pending"],
+                         ready=counts["ready_tex"], no_tex=counts["empty_no_tex"],
+                         blocked=counts["blocked_input"], elapsed=time.monotonic() - started))
         prepared_manifest = dict(schema_version=SCHEMA, run_id=run_id, papers=papers, batch=batch,
                                  source=str(store.source), preparation_file="preparation.json")
         _write_json(output / "manifest.json", prepared_manifest)
@@ -598,7 +689,7 @@ def prepare_corpus(source, output, *, progress=None, max_papers=None, retry_bloc
         from .validation import validate_prepared_corpus
         if progress:
             progress("Read-back validation: checking saved sources, metadata and provenance...")
-        validation = validate_prepared_corpus(output)
+        validation = validate_prepared_corpus(output, progress=progress, progress_every=progress_every)
         _write_json(output / "input_validation.json", validation)
         summary["input_valid"] = validation["valid"]
         summary["snapshot_id"] = validation["snapshot_id"]
@@ -614,4 +705,18 @@ def prepare_corpus(source, output, *, progress=None, max_papers=None, retry_bloc
     finally:
         store.close()
         if work is not None:
-            shutil.rmtree(work)
+            if sys.exc_info()[0] is None:
+                shutil.rmtree(work)
+            else:
+                try:
+                    shutil.rmtree(work)
+                except OSError:
+                    pass
+        if spool_work is not None:
+            if sys.exc_info()[0] is None:
+                shutil.rmtree(spool_work)
+            else:
+                try:
+                    shutil.rmtree(spool_work)
+                except OSError:
+                    pass
