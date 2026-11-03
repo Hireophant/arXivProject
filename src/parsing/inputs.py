@@ -13,7 +13,10 @@ from pathlib import Path
 from typing import Any
 
 from .contracts import Diagnostic, PublicationInput, VersionInput, SourceStatus
-from src.preparation.validation import validate_prepared_corpus
+try:
+    from src.preparation.validation import validate_prepared_corpus
+except ModuleNotFoundError:
+    from preparation.validation import validate_prepared_corpus
 
 
 def _load_manifest_and_inventory(corpus_root: Path) -> tuple[dict[str, Any], dict[str, Any], dict[tuple[str, int], dict[str, str]]]:
