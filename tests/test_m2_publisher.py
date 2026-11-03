@@ -64,7 +64,7 @@ class PublisherTests(unittest.TestCase):
         self.assertTrue(drive.files_api.uploads[0].startswith('prepared.attempt-'))
         self.assertTrue(drive.files_api.uploads[1].startswith(drive.files_api.uploads[0] + '.receipt.json.pending-'))
         self.assertIn(result['archive']['name'] + '.receipt.json', [item['name'] for item in drive.files_api.items.values()])
-        self.assertEqual(result['snapshot_id'], __import__('json').loads(Path(str(self.archive) + '.receipt.json').read_text())['snapshot_id'])
+        self.assertEqual(result['snapshot_id'], __import__('json').loads(Path(str(self.archive) + '.receipt.json').read_text(encoding='utf-8'))['snapshot_id'])
         self.assertEqual(events[-1][0], 'remote_verified')
 
     def test_checksum_mismatch_never_uploads_receipt(self):

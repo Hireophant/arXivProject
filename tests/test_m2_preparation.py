@@ -580,7 +580,7 @@ class PreparationTests(unittest.TestCase):
         backup(self.source, 'a')
         backup(self.source, 'b', identifier='2606.20275')
         repo = Path(__file__).resolve().parents[1]
-        notebook = json.loads((repo / 'src/notebooks/milestone2_prepare.ipynb').read_text())
+        notebook = json.loads((repo / 'src/notebooks/milestone2_prepare.ipynb').read_text(encoding='utf-8'))
         config = (f"from pathlib import Path\nSOURCE_PATH=Path({str(self.source)!r})\n"
                   f"PREPARATION_DIR=Path({str(self.root/'preparationM2')!r})\n"
                   f"PROJECT_DIR=Path({str(repo)!r})\nDATASET_NAME='Danh2'\n"

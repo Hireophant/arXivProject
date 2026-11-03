@@ -52,7 +52,7 @@ class TransportTests(unittest.TestCase):
         self.assertTrue(check['valid'], check['issues'])
         self.assertFalse(check['complete'])
         self.assertEqual(check['snapshot_id'], prepared['snapshot_id'])
-        manifest = json.loads((local / 'manifest.json').read_text())
+        manifest = json.loads((local / 'manifest.json').read_text(encoding='utf-8'))
         self.assertEqual(manifest['batch']['pending_ids'], ['2606.20275'])
         self.assertEqual(manifest['papers']['2606.20275']['version_states'], {'1': 'blocked_input'})
 
