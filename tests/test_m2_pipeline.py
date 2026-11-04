@@ -157,7 +157,9 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(states[0],states[1])
 
     def test_upstream_not_implemented_is_visible(self):
-        with self.assertRaises(NotImplementedError):pipeline.process_publication(make_publication_input(),ParseConfig(code_revision='test'))
+        with patch('src.parsing.gather.gather_version',side_effect=NotImplementedError('upstream unavailable')):
+            with self.assertRaises(NotImplementedError):
+                pipeline.process_publication(make_publication_input(),ParseConfig(code_revision='test'))
 
     def test_owner_version_exception_keeps_other_versions_and_failed_wrapper(self):
         bib=make_unified_bibliography();bib.occurrences=bib.occurrences[:1];bib.key_map={(1,'alpha'):'alpha'};bib.identity_decisions=[]

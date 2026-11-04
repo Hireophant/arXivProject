@@ -1,34 +1,75 @@
-"""PROTOTYPE — Khang / KG2.
+"""Protected, deterministic sentence splitting (Khang / KG2).
 
-Prototype và docstring thuật toán là hướng tham khảo, không giới hạn ở điền thân hàm.
-Đọc contracts.py, phần việc owner và tiêu chí nghiệm thu; hoàn thiện đầy đủ task/đầu ra.
-Nếu có phương án tốt hơn, so sánh lợi ích/đánh đổi, dependencies, ảnh hưởng API và cách kiểm chứng;
-hỏi người phụ trách task chọn hướng trước khi làm phần phụ thuộc, tiếp tục việc độc lập trong lúc chờ.
-Không hỏi lại lựa chọn đã chốt hoặc từng chi tiết nhỏ. Sau khi chốt có thể thêm/thay/tổ chức lại code.
-Test độc lập dùng fixtures trong tests/m2_support/fixtures.py, không chờ module người khác.
-Chỉ sửa phạm vi owner đang thống nhất; mở rộng phạm vi cần phối hợp owner bị ảnh hưởng.
-Ưu tiên giữ nguyên schema, kiểu dữ liệu và API; không cần đổi mà vẫn hoàn thành tốt task thì càng tốt.
-Không khuyến khích đổi; chỉ đổi khi thật sự cần thiết và hạn chế sửa phần chung để tránh conflict. Phối hợp Danh/owner bị ảnh hưởng và đồng bộ consumer, fixtures, tests, notebook, tài liệu.
-Không giảm yêu cầu hay acceptance cases khi đổi thiết kế.
-Tất cả hàm hiện cố ý chưa triển khai; không coi import thành công là parser chạy được.
-
-Hướng hiệu năng đã chọn (kế hoạch 10.0; chưa triển khai):
-Scanner tiến dần trên mỗi prose span; không gọi model/mạng và không chạy lại parser toàn bài cho từng sentence.
+A trailing prose unit needs no final punctuation. Internal bytes/whitespace are
+never rewritten; only whitespace at the ends of returned units is trimmed.
+English scientific abbreviations are heuristic; no language model or network.
 """
 from __future__ import annotations
 
+import re
+from collections.abc import Iterator
 
+from .khang_lex import MATH_ENVS, scan
+
+_ABBREVIATION = re.compile(
+    r"(?<![\w])(?:(?i:i\.e\.|e\.g\.|et\s+al\.|(?:Fig|Figs|Eq|Eqs|Sec|Secs|"
+    r"Ref|Refs|Dr|Prof|Mr|Mrs|Ms|vs|cf|etc|Vol|No|pp)\.)|(?:[A-Z]\.){2,})")
+_URL = re.compile(r"(?:https?://|www\.|doi:|10\.\d{4,9}/)[^\s<>]+", re.IGNORECASE)
+_CLOSERS = '\"\'”’»)]}'
+
+
+def _sentence_ranges(text: str) -> Iterator[tuple[int, int]]:
+    """Offsets into text, using a forward cursor even for repeated sentences."""
+    protected_dots = set()
+    for pattern in (_ABBREVIATION, _URL):
+        for match in pattern.finditer(text):
+            stop = match.end()
+            if pattern is _URL:
+                while stop > match.start() and text[stop-1] in '.,!?;:)\"\'':
+                    stop -= 1
+            protected_dots.update(i for i in range(match.start(), stop) if text[i] in '.!?')
+    start = 0
+    math_depth = 0
+    for token in scan(text):
+        if token.kind == 'begin' and token.name in MATH_ENVS:
+            math_depth += 1
+        elif token.kind == 'end' and token.name in MATH_ENVS:
+            math_depth = max(0, math_depth-1)
+        if math_depth:
+            continue
+        if token.kind not in ('text', 'break'):
+            continue
+        for i in range(token.start, token.end):
+            if text[i] not in '.!?' or i in protected_dots:
+                continue
+            if text[i] == '.' and i and i+1 < len(text) and text[i-1].isdigit() and text[i+1].isdigit():
+                continue
+            end = i+1
+            while end < len(text) and (text[end] in _CLOSERS or text[end] in '.!?'):
+                end += 1
+            if end < len(text) and not text[end].isspace():
+                continue
+            a = start
+            while a < end and text[a].isspace():
+                a += 1
+            if a < end:
+                yield a, end
+            start = end
+    end = len(text)
+    while start < end and text[start].isspace():
+        start += 1
+    while end > start and text[end-1].isspace():
+        end -= 1
+    if start < end:
+        yield start, end
 
 
 def split_sentences(text: str) -> list[str]:
-    """API chính độc lập, giữ nguyên text/math/commands; không cleanup ở đây.
-    Dùng scanner có trạng thái math delimiters, balanced braces, commands, escaped symbols và verbatim.
-    Bảo vệ i.e., e.g., et al., Fig. 1, URL/DOI, số thập phân và dấu chấm trong command arguments.
-    Chỉ tách dấu kết câu ngoài vùng bảo vệ; giữ dấu kết câu; trim whitespace hai đầu mỗi câu.
-    Đoạn cuối không có dấu chấm vẫn là sentence nếu có prose; whitespace-only -> [].
-    Không bắt buộc dùng NLP/model; không gọi mạng. Ghi giới hạn ngôn ngữ/thư viện nếu bổ sung.
-    Test S3 bằng bảng input/expected do người đọc tự viết, gồm hai câu thật xen math/abbreviation.
-    Không split theo regex dấu chấm thuần hoặc xóa math rồi chắp lại.
-    """
-    raise NotImplementedError("M2 prototype: sentences.split_sentences — Khang / KG2")
+    """Keep math, commands, groups, literals, URLs and abbreviations intact.
 
+    Unterminated protected regions remain whole; hierarchy diagnoses these with
+    source locations. Whitespace-only input yields []. A final unpunctuated unit
+    is retained as a sentence. Comments are preserved by this raw-text API;
+    hierarchy masks inactive comments before invoking the splitter.
+    """
+    return [text[a:b] for a,b in _sentence_ranges(text)]
