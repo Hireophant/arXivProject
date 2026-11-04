@@ -142,6 +142,9 @@ def declarations(text: str) -> Declarations:
                     result.math_aliases[name]=('begin',environment[1])
                     result.math_aliases[parameter[1]]=('end',environment[1])
                     result.arities[name]=0
+                    # The delimiter terminates #1; it takes no following group.
+                    # Otherwise scan() can swallow grouped prose after the math.
+                    result.arities[parameter[1]]=0
                 elif not parameters or re.fullmatch(r'(?:#[1-9])+',parameters):
                     result.arities[name]=len(parameters)//2
                     result.bodies[name]=body

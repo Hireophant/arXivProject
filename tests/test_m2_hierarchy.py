@@ -305,6 +305,45 @@ class HierarchyTests(unittest.TestCase):
         self.assertEqual([n.content for n in t.nodes if n.kind=='block_formula'],[r'\be x=1\ee'])
         self.assertFalse(any('Unsupported environment claimbox' in d.message for d in t.diagnostics))
 
+    def test_delimited_math_terminator_does_not_consume_following_group(self):
+        g=gathered(r'Before.\al {x}&=1\eal{After.} Tail.')
+        g.latex=r'\def\al#1\eal{\begin{align}#1\end{align}}'+g.latex
+        g.source_map=[SourceSpan(path='main.tex',start=0,end=len(g.latex),flat_start=0,flat_end=len(g.latex))]
+        before=deepcopy(g)
+        t=parse_version(g)
+        formula=next(n for n in t.nodes if n.kind=='block_formula')
+        self.assertEqual(formula.content,r'\al {x}&=1\eal')
+        self.assertEqual(formula.subtype,'align')
+        self.assertEqual([n.content for n in t.nodes if n.kind=='sentence'],
+                         ['Before.','{After.} Tail.'])
+        self.assertEqual(formula.source_spans[0].end,g.latex.index('{After.}'))
+        self.assertEqual(g,before)
+        self.assert_invariants(t)
+
+    def test_nested_itemize_retains_adjacent_tail_and_formula_source_ranges(self):
+        body=(r'\begin{itemize}\item Outer.\begin{itemize}\item Inner.'
+              r'\[x=1\]\end{itemize}After.\end{itemize}')
+        g=gathered(body)
+        t=parse_version(g)
+        outer,inner=[n for n in t.nodes if n.kind=='itemize']
+        outer_item,inner_item=[n for n in t.nodes if n.kind=='item']
+        tail=next(n for n in t.nodes if n.kind=='sentence' and n.content=='After.')
+        tail_paragraph=next(n for n in t.nodes if n.local_id==tail.parent_local_id)
+        formula=next(n for n in t.nodes if n.kind=='block_formula')
+        self.assertEqual(t.status,'parsed')
+        self.assertEqual(t.diagnostics,[])
+        self.assertEqual(outer.content,body)
+        self.assertEqual(inner.parent_local_id,outer_item.local_id)
+        self.assertEqual(inner_item.parent_local_id,inner.local_id)
+        self.assertEqual(formula.parent_local_id,inner_item.local_id)
+        self.assertEqual(tail_paragraph.parent_local_id,outer_item.local_id)
+        self.assertEqual([n.kind for n in t.nodes if n.parent_local_id==outer_item.local_id],
+                         ['paragraph','itemize','paragraph'])
+        self.assertEqual(formula.content,r'\[x=1\]')
+        self.assertEqual(tail.source_spans[0].start,g.latex.index('After.'))
+        self.assertEqual(formula.source_spans[0].start,g.latex.index(r'\[x=1\]'))
+        self.assert_invariants(t)
+
     def test_declared_inline_macro_and_standard_author_commands(self):
         g=gathered(r'\title{A title}\author{A Name}\textup{Upright.} A \modelname{arg.} works.')
         g.latex=r'\newcommand{\modelname}[1]{\textbf{#1}}'+g.latex
