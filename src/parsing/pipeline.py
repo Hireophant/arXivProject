@@ -307,6 +307,11 @@ def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bo
     manifest_path,metrics_path = root/'manifest.json',root/'metrics/run_summary.json'
     diagnostics, summary, seen, io_failed = [],_empty_metrics(),set(),False
     review_token,code_token = None,None
+    def runtime_issue(code: str, message: str, arxiv_id: str = '') -> None:
+        issue=c.Diagnostic(arxiv_id=arxiv_id,code=code,severity='error',message=message)
+        diagnostics.append(issue)
+        with (root/'run_errors.jsonl').open('a',encoding='utf-8',newline='\n') as stream:
+            stream.write(_canonical(asdict(issue))+'\n');stream.flush();os.fsync(stream.fileno())
     try:
         _atomic_json(manifest_path,asdict(manifest))
         publications = _stage('validation_inputs',lambda:load_publications(corpus_root))
@@ -403,7 +408,7 @@ def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bo
                 try: callback(root,False)
                 except (OSError,ValueError) as exc:
                     io_failed = True
-                    diagnostics.append(c.Diagnostic(arxiv_id=publication.arxiv_id,code='OUTPUT_BACKUP_FAILED',severity='error',message=str(exc)))
+                    runtime_issue('OUTPUT_BACKUP_FAILED',str(exc),publication.arxiv_id)
             del parsed,current,profile
         write_metrics(summary,root/'metrics',run_id=run_id,snapshot_id=manifest.snapshot_id)
         _assert_run_inputs(root,config,review_sha,code_sha)
@@ -415,13 +420,19 @@ def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bo
             try: callback(root,True)
             except (OSError,ValueError) as exc:
                 manifest.status = 'partial'
-                diagnostics.append(c.Diagnostic(arxiv_id='',code='OUTPUT_BACKUP_FAILED',severity='error',message=str(exc)))
+                runtime_issue('OUTPUT_BACKUP_FAILED',str(exc))
                 _atomic_json(manifest_path,asdict(manifest))
         return ParseRunResult(run_id=run_id,snapshot_id=manifest.snapshot_id,status=manifest.status,manifest_path=manifest_path,
             metrics_path=metrics_path,processed_publications=len(manifest.publications),diagnostics=diagnostics)
-    except BaseException:
+    except BaseException as exc:
         manifest.status = 'failed'
-        _atomic_json(manifest_path,asdict(manifest))
+        # Preserve the original exception even when local/Drive persistence fails.
+        callback = _BACKUP.get()
+        for action in (lambda: runtime_issue('RUN_FATAL',f'{type(exc).__name__}: {exc}'),
+                       lambda: _atomic_json(manifest_path,asdict(manifest)),
+                       lambda: callback(root,True) if callback is not None else None):
+            try: action()
+            except BaseException: pass
         raise
     finally:
         if review_token is not None: _REVIEW.reset(review_token)
@@ -442,22 +453,37 @@ def backup_run_batch(run_root: Path, backup_root: Path, *, arxiv_ids: list[str] 
     manifest = _hydrate(c.RunManifest,_loads((run_root/'manifest.json').read_text('utf-8')))
     target = backup_root/manifest.run_id
     target.mkdir(parents=True,exist_ok=True)
-    completed, backed_metadata = set(), set()
+    completed, backed_files = set(), {}
+    latest_backup, latest_metadata, batch_number = (-1,-1), None, 0
     for receipt_path in target.glob('batch-*.zip.receipt.json'):
         receipt = _loads(receipt_path.read_text('utf-8'))
         archive = target/receipt['archive']
         if receipt.get('run_id') == manifest.run_id and receipt.get('snapshot_id') == manifest.snapshot_id and archive.is_file() and _hash(archive) == receipt['sha256']:
             completed.update(receipt['arxiv_ids'])
-            backed_metadata.add(receipt.get('metadata_sha256'))
+            number=receipt.get('batch_number',0)
+            if type(number) is not int or number < 0: raise ValueError('Invalid backup batch number')
+            batch_number=max(batch_number,number)
+            order=(number,receipt_path.stat().st_mtime_ns)
+            if order>latest_backup:
+                latest_backup,latest_metadata=order,receipt.get('metadata_sha256')
+            for relative,digest in receipt.get('files',{}).items():
+                backed_files.setdefault(relative,set()).add(digest)
     selected = [r for r in manifest.publications if r.working_path and r.arxiv_id not in completed and (arxiv_ids is None or r.arxiv_id in arxiv_ids)]
-    metadata = [p for folder in ('metrics','benchmark') for p in (run_root/folder).rglob('*') if p.is_file()]
-    metadata.extend(p for p in (run_root/'environment.json',run_root/'timing.json') if p.is_file())
-    metadata_hashes = {p.relative_to(run_root).as_posix():_hash(p) for p in metadata}
+    # Preserve evidence for every attempted publication, including ones without
+    # valid working tables. Checkpoint manifests remain batch-local for restore;
+    # run_manifest.json separately preserves the full run and its actual status.
+    metadata = [p for folder in ('metrics','benchmark','audit','profile') for p in (run_root/folder).rglob('*') if p.is_file()]
+    metadata.extend(p for p in (run_root/'environment.json',run_root/'timing.json',run_root/'run_errors.jsonl') if p.is_file())
+    metadata_hashes = {p.relative_to(run_root).as_posix():_hash(_relative_file(run_root,p.relative_to(run_root).as_posix())) for p in metadata}
+    run_manifest = (_canonical(asdict(manifest))+'\n').encode('utf-8')
+    metadata_hashes['run_manifest.json'] = hashlib.sha256(run_manifest).hexdigest()
     metadata_sha = hashlib.sha256(_canonical(metadata_hashes).encode('utf-8')).hexdigest()
-    if not selected and metadata_sha in backed_metadata: return None
-    if not selected and manifest.status == 'in_progress': return None
+    if not selected and metadata_sha == latest_metadata: return None
     files = {}
-    files.update(metadata_hashes)
+    # Keep all batches: unchanged metadata already has a verified durable copy.
+    # Full run context stays in every new batch, while large audits/profiles are deltas.
+    files.update({path:digest for path,digest in metadata_hashes.items()
+                  if path=='run_manifest.json' or digest not in backed_files.get(path,set())})
     for record in selected:
         checkpoint_path = 'checkpoints/'+_paper_key(record.arxiv_id)+'.json'
         checkpoint_file = _relative_file(run_root,checkpoint_path)
@@ -479,7 +505,9 @@ def backup_run_batch(run_root: Path, backup_root: Path, *, arxiv_ids: list[str] 
     try:
         with zipfile.ZipFile(staging,'x',compression=zipfile.ZIP_DEFLATED) as bundle:
             bundle.writestr('manifest.json',_canonical(asdict(replace(manifest,publications=selected,status='partial'))))
-            for relative in sorted(files): bundle.write(_relative_file(run_root,relative),relative)
+            for relative in sorted(files):
+                if relative == 'run_manifest.json': bundle.writestr(relative,run_manifest)
+                else: bundle.write(_relative_file(run_root,relative),relative)
         digest = _hash(staging)
         shutil.copyfile(staging,transfer)
         with transfer.open('r+b') as stream: os.fsync(stream.fileno())
@@ -487,6 +515,7 @@ def backup_run_batch(run_root: Path, backup_root: Path, *, arxiv_ids: list[str] 
         transfer.rename(archive)
         if _hash(archive) != digest: raise ValueError('Final backup archive checksum mismatch')
         receipt = {'kind':'m2-parsed-batch-1.0','run_id':manifest.run_id,'snapshot_id':manifest.snapshot_id,
+            'batch_number':batch_number+1,'metadata_files':metadata_hashes,
             'code_revision':manifest.code_revision,'archive':archive.name,'sha256':digest,
             'arxiv_ids':[r.arxiv_id for r in selected],'files':files,
             'metadata_sha256':metadata_sha,

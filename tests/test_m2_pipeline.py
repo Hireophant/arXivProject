@@ -198,4 +198,79 @@ class PipelineTests(unittest.TestCase):
             checkpoint=next((root/'checkpoints').glob('*.json'));cp=json.loads(checkpoint.read_text('utf-8'));cp['output_sha256']=record['output_sha256'];checkpoint.write_text(json.dumps(cp),'utf-8')
             with self.assertRaises(ValueError):pipeline.backup_run_batch(root,Path(tmp)/'drive')
 
+    def test_backup_preserves_failed_audits_profiles_and_full_manifest(self):
+        import zipfile
+        with TemporaryDirectory(dir=SCRATCH) as tmp:
+            with patch('src.parsing.pipeline.write_publication',side_effect=OSError('disk full')):
+                result=self.execute(tmp)
+            manifest=json.loads(result.manifest_path.read_text('utf-8'))
+            record=manifest['publications'][0]
+            self.assertIsNone(record['working_path'])
+            archive=pipeline.backup_run_batch(result.manifest_path.parent,Path(tmp)/'drive')
+            with zipfile.ZipFile(archive) as bundle:
+                self.assertEqual(json.loads(bundle.read('run_manifest.json')),manifest)
+                self.assertIn(record['audit_path'],bundle.namelist())
+                self.assertTrue(any(p.startswith('profile/') for p in bundle.namelist()))
+                self.assertIn(b'disk full',bundle.read(record['audit_path']))
+            receipt=json.loads(Path(str(archive)+'.receipt.json').read_text('utf-8'))
+            self.assertIn('run_manifest.json',receipt['files'])
+            restored=pipeline.restore_run_batch(archive,Path(tmp)/'restored',expected_sha256=receipt['sha256'])
+            self.assertEqual(json.loads((restored/'run_manifest.json').read_text('utf-8')),manifest)
+
+    def test_failed_only_in_progress_batch_keeps_its_evidence(self):
+        with TemporaryDirectory(dir=SCRATCH) as tmp:
+            with patch('src.parsing.pipeline.write_publication',side_effect=OSError('disk full')):
+                result=self.execute(tmp)
+            manifest=json.loads(result.manifest_path.read_text('utf-8'));manifest['status']='in_progress'
+            result.manifest_path.write_text(json.dumps(manifest),'utf-8')
+            archive=pipeline.backup_run_batch(result.manifest_path.parent,Path(tmp)/'drive')
+            self.assertIsNotNone(archive)
+
+    def test_metadata_update_does_not_rezip_unchanged_audit_and_profile(self):
+        import zipfile
+        with TemporaryDirectory(dir=SCRATCH) as tmp:
+            result=self.execute(tmp);root=result.manifest_path.parent
+            first=pipeline.backup_run_batch(root,Path(tmp)/'drive')
+            (root/'timing.json').write_text('{"wall_seconds":123}','utf-8')
+            second=pipeline.backup_run_batch(root,Path(tmp)/'drive')
+            self.assertIsNotNone(second)
+            with zipfile.ZipFile(second) as bundle:
+                self.assertIn('run_manifest.json',bundle.namelist())
+                self.assertIn('timing.json',bundle.namelist())
+                self.assertFalse(any(p.startswith(('audit/','profile/')) for p in bundle.namelist()))
+
+    def test_interrupted_run_attempts_backup_of_failed_manifest_and_reason(self):
+        import zipfile
+        with TemporaryDirectory(dir=SCRATCH) as tmp:
+            p=make_publication_input()
+            with patch('src.parsing.inputs.load_publications',return_value=[p]),patch('src.parsing.pipeline.process_publication',side_effect=KeyboardInterrupt('manual stop')):
+                with self.assertRaises(KeyboardInterrupt):
+                    pipeline.run_with_backup(Path(tmp)/'raw',Path(tmp)/'out',ParseConfig(code_revision='test'),Path(tmp)/'drive',batch_size=1)
+            archives=list((Path(tmp)/'drive').glob('*/*.zip'))
+            self.assertEqual(len(archives),1)
+            with zipfile.ZipFile(archives[0]) as bundle:
+                self.assertEqual(json.loads(bundle.read('run_manifest.json'))['status'],'failed')
+                self.assertIn(b'manual stop',bundle.read('run_errors.jsonl'))
+
+    def test_backup_failure_does_not_replace_original_interrupt(self):
+        with TemporaryDirectory(dir=SCRATCH) as tmp:
+            with patch('src.parsing.inputs.load_publications',return_value=[make_publication_input()]),patch('src.parsing.pipeline.process_publication',side_effect=KeyboardInterrupt('original stop')),patch('src.parsing.pipeline.backup_run_batch',side_effect=KeyError('archive')):
+                with self.assertRaisesRegex(KeyboardInterrupt,'original stop'):
+                    pipeline.run_with_backup(Path(tmp)/'raw',Path(tmp)/'out',ParseConfig(code_revision='test'),Path(tmp)/'drive',batch_size=1)
+
+    def test_metadata_reversion_still_publishes_current_inventory(self):
+        with TemporaryDirectory(dir=SCRATCH) as tmp:
+            result=self.execute(tmp);root=result.manifest_path.parent;drive=Path(tmp)/'drive'
+            first=pipeline.backup_run_batch(root,drive)
+            original=(root/'timing.json').read_bytes()
+            (root/'timing.json').write_text('{"wall_seconds":123}','utf-8')
+            second=pipeline.backup_run_batch(root,drive)
+            (root/'timing.json').write_bytes(original)
+            third=pipeline.backup_run_batch(root,drive)
+            self.assertIsNotNone(third)
+            receipts=[json.loads(Path(str(p)+'.receipt.json').read_text('utf-8')) for p in (first,second,third)]
+            self.assertEqual([r['batch_number'] for r in receipts],[1,2,3])
+            self.assertEqual(receipts[0]['metadata_files'],receipts[2]['metadata_files'])
+            self.assertNotEqual(receipts[1]['metadata_files'],receipts[2]['metadata_files'])
+
 if __name__=='__main__':unittest.main()

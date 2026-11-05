@@ -95,10 +95,33 @@ Open [milestone2.ipynb](src/notebooks/milestone2.ipynb) in the reviewed checkout
 Install `src/requirements.txt`, set `PROJECT_DIR` if it cannot be found automatically,
 then select `RAW_CORPUS_ROOT` and a separate local `OUTPUT_ROOT`. For a verified
 transport archive, configure its receipt values and `STAGE_INPUT=True` first.
-On Colab mount Drive before reading a mounted archive or enabling batch backup.
+Set `MEMBER_NAME` (`Danh`, `Khanh`, `Khang`, or `Nguyen`) and `DATASET_NAME` for
+your own input. Drive batch backup is enabled by default; an actual parser or
+benchmark run mounts Drive before starting on Colab. Mount Drive before staging
+input from a mounted archive as well.
 Set `RUN_PARSER=True` for parsing; keep `RUN_BENCHMARK=False` for ordinary runs.
 `RESUME=True` revalidates input and verifies current signatures/artifacts before reuse.
-The defaults leave parsing/Drive/benchmark disabled until input is selected.
+Parsing and benchmarking remain disabled until input is selected. Outside Colab,
+choose a real backup directory or explicitly disable backup for local checks.
+
+Verified ZIP batches and their `.receipt.json` files are saved under
+`MyDrive/arXivProject/Milestone2/parsed/<MEMBER_NAME>/<DATASET_NAME>/<run_id>/`.
+Use one writer per run and retain **all batches and receipts**, including final
+metadata-only batches. Alongside working/exported publication tables, checkpoints
+and identity decisions, backups retain metrics, audit diagnostics (including failed
+publications), profiles, environment/timing data and a complete `run_manifest.json`.
+Large unchanged metadata files are stored once across batches; each receipt's
+`batch_number` orders snapshots and `metadata_files` describes the full current
+metadata inventory. The archive's `manifest.json` covers only its own publication
+batch for restoration; it is not the full-run acceptance report.
+
+For M3, keep each member's full M2 backup tree **and the original `preparationM2`
+input/receipts**. Restore verified batches, deduplicate overlapping publications
+and versions, and inspect the latest full-run manifest and review decisions before
+selecting accepted inputs. Partial/failed results remain available for repair;
+their presence on Drive does not make them export-ready. Hard runtime loss can
+only recover batches already verified on Drive, so confirm the final backup and
+receipt before closing Colab.
 
 The manifest lists every expected publication/version, working/published locations
 and audit files. `metrics/run_summary.json` stores counts under `summary`;

@@ -125,3 +125,26 @@ gọi toàn bộ M2 hoàn thành hay mọi publication export-ready**.
   `appendix-repair/` trong thư mục prepared-check. Chưa chạy lại toàn bộ pilot50
   sau sửa heading này; giữ thống kê pilot cũ với đúng source hashes của nó.
 - Trạng thái tại lượt kiểm thử trước yêu cầu push: chưa commit/push. Nguồn thiếu và review của người phụ trách vẫn pending.
+
+## Bàn giao Drive cho bốn người và M3 — 05/11/2026
+
+- Bản parser trước phần cập nhật Drive đã push trong commit `92d4def`.
+- Notebook M2 bật backup mặc định, mount Drive khi bắt đầu parse/benchmark trên
+  Colab. Chọn `MEMBER_NAME` và `DATASET_NAME`; đích lưu là
+  `MyDrive/arXivProject/Milestone2/parsed/<member>/<dataset>/<run_id>/`.
+- Giữ mọi ZIP và receipt, kể cả batch chỉ có metadata. Backup bao gồm working/
+  published/checkpoints, audit của bài lỗi, profile, metrics, environment/timing,
+  lỗi cấp run và `run_manifest.json` đầy đủ. `manifest.json` trong từng ZIP vẫn là
+  manifest của riêng batch, tương thích restore hiện tại.
+- Metadata không đổi có thể nằm trong batch trước. Receipt có `batch_number`
+  và `metadata_files` đầy đủ để xác định trạng thái và hash cần dùng; không chỉ
+  lấy ZIP cuối, không cộng trùng metrics tích lũy của cùng một run.
+- Cho M3, giữ cả preparationM2 gốc/receipts và backup M2 của cả bốn người. Chọn
+  publication export-ready sau review; giữ partial/failed làm bằng chứng sửa tiếp.
+  Không thay đổi preparation hay schema/API consumer trong lượt cập nhật này.
+- Kiểm cuối: **303 tests PASS, 0 fail/skip**, gồm M1 regression, notebook smoke và
+  pipeline thật xuyên parse/export/read-back/backup/restore trên filesystem local.
+  Reviewer không còn phát hiện chặn. Log local:
+  `data/milestone2-dev/prepared-check-e63280e6/drive-handoff-final-regression.log`.
+  Chưa kiểm Google Drive thật/Colab, toàn corpus, Book/Pages và review tay; bảy
+  phiên bản thiếu nguồn vẫn giữ nguyên trạng thái. Chưa gọi M2 hoàn thành.

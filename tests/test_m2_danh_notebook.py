@@ -9,6 +9,25 @@ from tempfile import TemporaryDirectory
 from m2_support.integration import prepared_input
 
 class NotebookTests(unittest.TestCase):
+    def test_colab_setup_mounts_drive_for_enabled_backup(self):
+        repo=Path(__file__).resolve().parents[1]
+        code="""import json,sys,types
+from pathlib import Path
+nb=json.loads(Path('src/notebooks/milestone2.ipynb').read_text('utf-8'))
+cells=[c for c in nb['cells'] if c['cell_type']=='code']
+ns={};exec(''.join(cells[0]['source']),ns)
+assert ns['BACKUP_ENABLED'] is True
+assert ns['DRIVE_BACKUP_ROOT'].parts[-2:]==('Danh','Danh2')
+calls=[];google=types.ModuleType('google');google.__path__=[]
+colab=types.ModuleType('google.colab');colab.drive=types.SimpleNamespace(mount=lambda p:calls.append(p))
+google.colab=colab;sys.modules['google']=google;sys.modules['google.colab']=colab
+ns.update(PROJECT_DIR=Path.cwd(),RUN_PARSER=True)
+exec(''.join(cells[1]['source']),ns)
+assert calls==['/content/drive'],calls
+"""
+        completed=subprocess.run([sys.executable,'-X','utf8','-c',code],cwd=repo,capture_output=True,text=True,encoding='utf-8',errors='replace')
+        self.assertEqual(completed.returncode,0,completed.stdout+completed.stderr)
+
     def test_notebook_runs_real_owners_and_reads_back_two_versions(self):
         repo=Path(__file__).resolve().parents[1]
         scratch=repo/'data/milestone2-dev/integration'

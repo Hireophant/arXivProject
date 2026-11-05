@@ -7,13 +7,38 @@ import unittest
 
 from m2_support.integration import prepared_input
 from src.parsing.contracts import ParseConfig
-from src.parsing.pipeline import run
+from src.parsing.pipeline import run,run_with_backup,restore_run_batch
 from src.parsing.serialization import read_publication
 
 SCRATCH = Path(__file__).resolve().parents[1] / 'data/milestone2-dev/integration'
 
 
 class IntegrationTests(unittest.TestCase):
+    def test_real_pipeline_drive_batches_keep_all_handoff_artifacts(self):
+        import zipfile
+        SCRATCH.mkdir(parents=True,exist_ok=True)
+        with TemporaryDirectory(dir=SCRATCH) as temporary:
+            root=Path(temporary);raw=prepared_input(root)
+            result=run_with_backup(raw,root/'output',ParseConfig(code_revision='real-backup-test'),
+                                   root/'drive',batch_size=1)
+            self.assertEqual(result.status,'success',result.diagnostics)
+            names=set();full_manifests=[];publications=0
+            for archive in (root/'drive').glob('*/*.zip'):
+                receipt=json.loads(Path(str(archive)+'.receipt.json').read_text('utf-8'))
+                restored=restore_run_batch(archive,root/('restore-'+archive.stem),expected_sha256=receipt['sha256'])
+                with zipfile.ZipFile(archive) as bundle:
+                    names.update(bundle.namelist())
+                    full_manifests.append(json.loads(bundle.read('run_manifest.json')))
+                for path in restored.glob('working/*/publication.json'):
+                    self.assertTrue(read_publication(path.parent).export_ready);publications+=1
+            self.assertEqual(publications,1)
+            self.assertIn('metrics/run_summary.json',names)
+            self.assertIn('timing.json',names)
+            self.assertTrue(any(p.startswith('audit/') for p in names))
+            self.assertTrue(any(p.startswith('profile/') for p in names))
+            final,=[m for m in full_manifests if m['status']=='success']
+            self.assertEqual(final['publications'][0]['expected_versions'],[1,2])
+
     def test_multifile_two_versions_export_metrics_readback_and_resume(self):
         SCRATCH.mkdir(parents=True, exist_ok=True)
         with TemporaryDirectory(dir=SCRATCH) as temporary:
