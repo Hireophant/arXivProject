@@ -215,9 +215,8 @@ class HierarchyTests(unittest.TestCase):
         self.assertTrue(any('Grouped text.' in n.content for n in t.nodes if n.kind=='sentence'))
         self.assert_invariants(t)
 
-    def test_labelled_and_other_lists_do_not_claim_normalizer_compatibility(self):
-        for body in (r'\begin{itemize}\item[L] Text.\end{itemize}',
-                     r'\begin{itemize}[nosep]\item Text.\end{itemize}',
+    def test_semantic_list_styles_and_numbering_still_need_review(self):
+        for body in (r'\begin{itemize}[label=\alph*]\item Text.\end{itemize}',
                      r'\begin{enumerate}\item Text.\end{enumerate}'):
             t=parse_version(gathered(body))
             self.assertEqual(t.status,'partial')
@@ -272,6 +271,29 @@ class HierarchyTests(unittest.TestCase):
         g=gathered('α.\r\nNext.')
         ss=[n for n in parse_version(g).nodes if n.kind=='sentence']
         self.assertEqual(ss[1].source_spans[0].start,g.latex.index('Next.'))
+
+    def test_comment_between_short_and_long_heading_arguments(self):
+        for heading in ('\\section[Short]% hidden\n{Long title}',
+                        '\\section% hidden\n{Long title}'):
+            with self.subTest(heading=heading):
+                g=gathered(heading+'Body.')
+                tree=parse_version(g)
+                self.assertEqual([n.content for n in tree.nodes if n.kind=='heading'],['Long title'])
+                self.assertEqual([n.content for n in tree.nodes if n.kind=='sentence'],['Body.'])
+                self.assertEqual(tree.status,'parsed')
+
+    def test_standalone_appendix_heading_is_outline_metadata_not_a_body_leaf(self):
+        from src.parsing.contracts import UnifiedBibliography
+        raw=parse_version(gathered(r'Body.\section*{Appendix}\appendix\section{Proof}Proof body.'))
+        bib=UnifiedBibliography(arxiv_id=raw.arxiv_id,entries=[],key_map={},occurrences=[])
+        publication=finalize_publication(assemble_publication([normalize_tree(raw,bib,ParseConfig())],bib))
+        self.assertTrue(publication.export_ready,publication.diagnostics)
+        self.assertTrue(any(e.kind=='heading' and e.content=='Appendix' for e in publication.elements))
+        self.assertTrue(any(e.kind=='sentence' and e.content=='Proof body.' for e in publication.elements))
+        empty=parse_version(gathered(r'\section{}Body.'))
+        rejected=finalize_publication(assemble_publication([normalize_tree(empty,bib,ParseConfig())],bib))
+        self.assertFalse(rejected.export_ready)
+        self.assertTrue(any(d.code=='INVALID_SCHEMA' for d in rejected.diagnostics))
 
     def test_missing_document_is_failed_with_evidence(self):
         g=make_gathered();g.latex=r'\section{A}No document.'

@@ -4,7 +4,7 @@ Only composes public owner APIs; no gathering/hierarchy/bibliography/metrics dup
 All versions of one publication remain together; outputs are finalized and read back
 before checkpoints. Source/config/code/review signatures and artifact hashes gate resume.
 Prepare M1 separately. Backup batches are verified after copy before a receipt is published.
-Upstream stubs raise visibly; unit orchestration tests do not prove real raw integration.
+Owner exceptions remain visible; unit orchestration tests are separate from raw integration evidence.
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from typing import BinaryIO
 from .contracts import ParseConfig, ParsedPublication, ParseRunResult, PublicationInput
 from . import contracts as c
 from .serialization import (_canonical, _hydrate, _loads, _owned_destination, _write_json,
-                            read_publication, read_review_decisions, write_publication)
+                            read_publication, read_review_decisions, write_publication, _retry_sharing_violation)
 from .validation import finalize_publication
 
 _REVIEW: ContextVar[tuple | None] = ContextVar('m2_review',default=None)
@@ -88,7 +88,7 @@ def _atomic_json(path: Path, value: object) -> None:
     staging = path.with_name('.'+path.name+'.'+uuid.uuid4().hex+'.tmp')
     try:
         _write_json(staging,value)
-        os.replace(staging,path)
+        _retry_sharing_violation(lambda: os.replace(staging,path))
     finally:
         if staging.exists(): staging.unlink()
 
@@ -206,6 +206,7 @@ def process_publication(publication: PublicationInput, config: ParseConfig) -> P
     from .reference_dedup import unify_entries
     from .normalize import normalize_tree
     from .content_dedup import assemble_publication
+    from .khang_macros import declarations
     if not publication.versions or len({v.version for v in publication.versions}) != len(publication.versions):
         raise ValueError('Expected versions must be nonempty and unique')
     if any(v.arxiv_id != publication.arxiv_id for v in publication.versions): raise ValueError('Mixed publication versions')
@@ -214,11 +215,12 @@ def process_publication(publication: PublicationInput, config: ParseConfig) -> P
         decisions = cached_review[2].get(publication.arxiv_id,[])
     else:
         decisions = [d for d in read_review_decisions(config.reference_review_path,snapshot_id=publication.snapshot_id) if d.arxiv_id == publication.arxiv_id]
-    trees, extractions = [], []
+    trees, extractions, macro_contexts = [], [], {}
     for version in sorted(publication.versions,key=lambda v:v.version):
         try:
             gathered = _stage('gather',lambda:gather_version(version))
             tree = _stage('tree',lambda:parse_version(gathered))
+            macro_contexts[version.version] = declarations(gathered.latex)
             if tree.arxiv_id != publication.arxiv_id or tree.version != version.version: raise ValueError('Owner returned wrong version identity')
         except NotImplementedError: raise
         except Exception as exc:
@@ -238,7 +240,8 @@ def process_publication(publication: PublicationInput, config: ParseConfig) -> P
                 extraction = c.BibliographyExtraction(arxiv_id=publication.arxiv_id,version=version.version,occurrences=[],diagnostics=[diagnostic])
         trees.append(tree); extractions.append(extraction)
     bibliography = _stage('unify',lambda:unify_entries(publication.arxiv_id,extractions,review_decisions=decisions))
-    normalized = _stage('normalize',lambda:[normalize_tree(tree,bibliography,config) for tree in trees])
+    normalized = _stage('normalize',lambda:[normalize_tree(tree,bibliography,config,
+        macro_context=macro_contexts.get(tree.version)) for tree in trees])
     return _stage('assemble_finalize',lambda:finalize_publication(assemble_publication(normalized,bibliography)))
 
 
@@ -265,7 +268,7 @@ def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bo
     Đòi input/output tách biệt, không ghi đè raw; một writer một run. Ghi run_id/snapshot/config/code environment.
     Mỗi bài all versions -> process_publication; working/audit giữ lỗi; strict=True chỉ publish export_ready.
     strict=False lưu working partial hợp lệ nhưng không quảng cáo export_ready; schema hỏng chỉ audit, không tables hỏng.
-    Lỗi bài độc lập vẫn tiếp tục, lỗi đọc input toàn run/không ghi audit thì fatal. NotImplementedError phải báo scaffold chưa làm.
+    Lỗi bài độc lập vẫn tiếp tục, lỗi đọc input toàn run/không ghi audit thì fatal. NotImplementedError từ owner phải propagate.
     Resume kiểm signature + read_publication + validator, không tin marker cũ; output/audit xong mới checkpoint.
     Gộp metrics từ TỪNG working publication, kể cả blocked/error, không giữ tables toàn corpus; chỉ success khi mọi expected bài export_ready và ghi thành công.
     RunManifest đúng fields/docstrings trong contracts.py. Run mới giữ run namespace riêng để không dùng output cũ tăng coverage.

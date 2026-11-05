@@ -121,13 +121,16 @@ def declarations(text: str) -> Declarations:
                 if target is None: continue
                 name=target[1]; cursor=target.end()
                 result.math_aliases.pop(name,None)
+                result.bodies.pop(name,None)
+                result.arities.pop(name,None)
                 if token.name=='let':
                     cursor=_space(text,cursor)
                     if cursor<len(text) and text[cursor]=='=': cursor+=1
                     alias=_CONTROL.match(text,_space(text,cursor))
                     if alias:
-                        result.bodies[name]='\\'+alias[1]
-                        result.arities[name]=result.arities.get(alias[1],0)
+                        if alias[1] in result.bodies:
+                            result.bodies[name]=result.bodies[alias[1]]
+                            result.arities[name]=result.arities.get(alias[1],0)
                         result.ranges.append((token.start,alias.end()))
                         covered=alias.end()
                     continue
@@ -160,7 +163,11 @@ def declarations(text: str) -> Declarations:
                     if command: cursor=command.end()
                 if command is None: continue
                 name=command[1];arity=0
+                if token.name=='providecommand' and (name in result.bodies or name in result.math_aliases):
+                    continue
                 result.math_aliases.pop(name,None)
+                result.bodies.pop(name,None)
+                result.arities.pop(name,None)
                 cursor=_space(text,cursor)
                 if cursor<len(text) and text[cursor]=='[':
                     count,cursor=_group(text,cursor)

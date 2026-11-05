@@ -111,7 +111,7 @@ def benchmark_run(corpus_root: Path, output_root: Path, config: ParseConfig) -> 
     Mean denominator là publications thực xử lý; công bố blocked/cache riêng, không chia tổng versions.
     Không gọi run nhiều lần để lấy số đẹp; sampler có exception phải giữ measurement error, không số giả.
     BenchmarkResult.run_id phải khớp pipeline manifest và per-publication measurements cùng run.
-    Sau return có receipt/files raw để viết Book; notebook scaffold chưa được xem benchmark thật.
+    Sau return có receipt/files raw để viết Book; chỉ chạy notebook không thay bằng chứng benchmark Colab CPU.
 
     Receipt benchmark/receipt.json = asdict(BenchmarkResult); publications.csv đúng fields
     PublicationMeasurement + run_id/snapshot_id, resource_samples.csv đúng ResourceSample + run_id.

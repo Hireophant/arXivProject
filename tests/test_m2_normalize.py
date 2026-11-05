@@ -116,4 +116,10 @@ class NormalizeTests(unittest.TestCase):
         self.assertEqual(self.clean('$x % comment\n$'),'$x$')
         self.assertEqual(self.clean('\\begin{equation}x % \\end{equation}\n+y\\end{equation}','block_formula'),r'\begin{equation}x +y\end{equation}')
 
+    def test_comment_between_command_and_argument_is_tex_whitespace(self):
+        text='See \\cite% alpha stays in this raw comment\n{beta}.'
+        self.assertEqual(rewrite_citations(text,version=2,bibliography=self.bib),
+                         'See \\cite% alpha stays in this raw comment\n{alpha}.')
+        self.assertEqual(self.clean('A \\textbf% formatting comment\n{bold} word.'),'A bold word.')
+
 if __name__=='__main__': unittest.main()

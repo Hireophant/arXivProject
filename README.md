@@ -79,31 +79,55 @@ Colab Secrets or the `S2_API_KEY` environment variable can provide an optional S
 See the [notebook usage guide](docs/milestone1/HUONG_DAN_SU_DUNG_NOTEBOOK.md), [plan, method and full citations](docs/milestone1/KE_HOACH_MILESTONE_1.md) and [four-member responsibilities](docs/milestone1/PHAN_CONG_MILESTONE_1_4_NGUOI.md).
 
 
-## Milestone 2 implementation scaffold
+## Milestone 2 integrated parser
 
 The input preparation notebook stays separate: M1 backups → verified raw in
 `preparationM2` → optional transport ZIP/checksum → local Colab parsing.
 `src/preparation/transport.py` implements packaging/staging; the parser notebook
-uses local raw/output paths. Parser owners still implement once-per-run validation,
-indexed processing, bounded per-publication memory and verified batch Drive backup;
-these are specified in plan section 10.0 and are not completed parser features.
+uses local raw/output paths. `src/parsing/` now includes all four owners' implementations:
+input validation/gathering, hierarchy/sentences, bibliography identity/key maps,
+normalization/deduplication, final validation, export/read-back, metrics, checkpoints
+and verified batch backup. See [contracts.py](src/parsing/contracts.py) for the unchanged
+shared schema and the [assignment](docs/milestone2/PHAN_CONG_MILESTONE_2_4_NGUOI.md)
+for ownership and human acceptance checks.
 
-`src/parsing/` contains typed prototypes; business functions raise `NotImplementedError`.
-Read [contracts.py](src/parsing/contracts.py) for the shared schema and each function's
-docstring for its inputs, implementation steps, edge cases and manual checks.
-Prototypes and suggested implementation steps are starting points. If an AI finds
-a worthwhile alternative, it should explain the tradeoffs and ask the task owner
-which approach to use before implementing the affected work. The goal remains
-completing every assigned requirement and acceptance criterion, beyond filling stubs.
-Prefer keeping existing schemas, data types and APIs unchanged. Changes are not
-encouraged; make them only when truly necessary. Completing the task without these
-changes is preferable, reducing shared-file edits and conflicts. Coordinate affected changes with
-Danh and relevant owners, and update consumers, fixtures, tests, notebooks and docs.
-The [assignment](docs/milestone2/PHAN_CONG_MILESTONE_2_4_NGUOI.md) includes per-member
-AI prompts and Danh's final merge/cleanup prompt (sections 14–15).
-[Synthetic fixtures](tests/m2_support/fixtures.py) let members test independently.
-The [M2 notebook template](src/notebooks/milestone2.ipynb) defaults to `RUN_PARSER=False`.
-Owner tests currently have skipped placeholders; these are not completed parser tests.
+Open [milestone2.ipynb](src/notebooks/milestone2.ipynb) in the reviewed checkout.
+Install `src/requirements.txt`, set `PROJECT_DIR` if it cannot be found automatically,
+then select `RAW_CORPUS_ROOT` and a separate local `OUTPUT_ROOT`. For a verified
+transport archive, configure its receipt values and `STAGE_INPUT=True` first.
+On Colab mount Drive before reading a mounted archive or enabling batch backup.
+Set `RUN_PARSER=True` for parsing; keep `RUN_BENCHMARK=False` for ordinary runs.
+`RESUME=True` revalidates input and verifies current signatures/artifacts before reuse.
+The defaults leave parsing/Drive/benchmark disabled until input is selected.
+
+The manifest lists every expected publication/version, working/published locations
+and audit files. `metrics/run_summary.json` stores counts under `summary`;
+`versions.csv` and `dedup.csv` retain numeric results. Inspect partial/failed runs
+and their diagnostics before using output. Unsupported macros or bibliography
+identity conflicts remain visible; a completed notebook run does not imply full
+corpus acceptance. Review the raw source, math/table/citation meaning and occurrence
+order with the owners before a full run. A 50–100-publication pilot, actual CPU Colab
+benchmark and Book/Pages checks remain separate acceptance work.
+
+The unit suite retains useful synthetic fixtures and service/fault-injection doubles.
+The integration test runs all owners on a signed synthetic multi-file/two-version
+input, including notebook execution, export/read-back and resume. To exercise the
+same notebook cells on your own **prepared local snapshot**, without owner mocks:
+
+```bash
+python -m unittest discover -s tests -v
+python tests/validate_m2_notebook.py --raw <prepared-local-root> --output <new-local-output>
+```
+
+This smoke command leaves the source notebook without embedded outputs and stores
+all run artifacts under the supplied output. It disables Drive and official
+benchmarking; partial data stays partial. Keep test evidence separate from real
+corpus measurements and human review.
+
+The [prepared Danh2 audit and fixes](docs/milestone2/KIEM_TRA_PREPARATION_M2_20261104.md)
+records the supplied transport receipt, actual local pilot, remaining input/review
+gaps and local notebook presets. A valid prepared snapshot can still contain
+blocked versions; `papers_pending=0` does not mean every source is available.
 
 
 ## Modules and local outputs

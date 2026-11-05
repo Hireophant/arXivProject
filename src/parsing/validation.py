@@ -125,6 +125,7 @@ def validate_publication(publication: ParsedPublication) -> list[ValidationIssue
             if (span.flat_start is None) != (span.flat_end is None) or (span.flat_start is not None and (span.flat_start < 0 or span.flat_end < span.flat_start)):
                 add('INVALID_STRUCTURE','Invalid flattened source span',occurrence.version)
     expected_edges, referenced = set(), set()
+    citation_cache: dict[str, tuple[tuple[str, ...], str | None]] = {}
     for version,state in publication.version_states.items():
         occurrences = by_version[version]
         index = {o.local_id:o for o in occurrences}
@@ -157,11 +158,16 @@ def validate_publication(publication: ParsedPublication) -> list[ValidationIssue
             if element:
                 if element.kind == 'document' and (not roots or o is not roots[0]): add('INVALID_STRUCTURE','Non-root document',version)
                 if element.kind == 'heading' and (o.heading_level is None or o.heading_level < 0): add('INVALID_STRUCTURE','Heading level missing',version)
-                try:
-                    for _,_,keys in _citation_spans(element.content):
-                        for key in keys:
-                            if key != '*' and key not in bibkeys: add('CITATION_UNRESOLVED',f'Citation {key!r} absent from unified bibliography',version)
-                except ValueError as exc: add('CITATION_UNRESOLVED',str(exc),version)
+                if element.element_id not in citation_cache:
+                    keys, error = [], None
+                    try:
+                        for _,_,group in _citation_spans(element.content): keys.extend(group)
+                    except ValueError as exc: error = str(exc)
+                    citation_cache[element.element_id] = (tuple(keys), error)
+                keys, error = citation_cache[element.element_id]
+                for key in keys:
+                    if key != '*' and key not in bibkeys: add('CITATION_UNRESOLVED',f'Citation {key!r} absent from unified bibliography',version)
+                if error is not None: add('CITATION_UNRESOLVED',error,version)
         reached, stack = set(), [o.local_id for o in roots]
         while stack:
             local = stack.pop()
@@ -174,7 +180,7 @@ def validate_publication(publication: ParsedPublication) -> list[ValidationIssue
             element = elements.get(o.element_id)
             if not element: continue
             descendants = children[o.local_id]
-            if not descendants and element.kind not in ('sentence','block_formula','figure'):
+            if not descendants and element.kind not in ('sentence','block_formula','figure','heading'):
                 add('INVALID_STRUCTURE','Container is a leaf without semantic children',version)
             if descendants and element.kind in ('sentence','block_formula','figure'):
                 add('INVALID_STRUCTURE','Semantic leaf has children',version)

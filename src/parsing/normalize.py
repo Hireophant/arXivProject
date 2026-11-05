@@ -14,6 +14,8 @@ from typing import Iterator
 
 from .contracts import Diagnostic
 from .contracts import ParseConfig, RawNode, UnifiedBibliography, VersionTree
+from .khang_lex import _layout_list_options, _argument_space, scan, FLOAT_ENVS
+from .khang_macros import Declarations
 
 _CITES = frozenset(('cite', 'citep', 'citet', 'citealt', 'citealp', 'citeauthor',
                     'citeyear', 'citeyearpar', 'Citep', 'Citet', 'Cite', 'nocite',
@@ -23,7 +25,7 @@ _WRAPPERS = frozenset(('textbf', 'textit', 'emph', 'textrm', 'textsf', 'texttt',
 _COMMAND = re.compile(r'\\([A-Za-z@]+|[^A-Za-z])')
 _BEGIN = re.compile(r'\\begin\{([^}]+)\}')
 _END = re.compile(r'\\end\{([^}]+)\}')
-_LIST_WRAPPER = re.compile(r'\\(?:begin|end)\{itemize\}|\\item\b')
+_LIST_WRAPPER = re.compile(r'\\(?:begin|end)\{(?:itemize|description|enumerate)\}|\\item\b')
 _MATH_ENVS = {'equation', 'equation*', 'displaymath', 'align', 'align*',
               'gather', 'gather*', 'eqnarray', 'eqnarray*', 'multline', 'multline*',
               'alignat', 'alignat*', 'flalign', 'flalign*'}
@@ -56,8 +58,7 @@ def _balanced(text: str, start: int, opener: str = '{', closer: str = '}') -> in
 
 
 def _skip_space(text: str, i: int) -> int:
-    while i < len(text) and text[i].isspace(): i += 1
-    return i
+    return _argument_space(text,i)
 
 
 def _protected_end(text: str, i: int) -> int | None:
@@ -185,6 +186,11 @@ def _clean(text: str, *, table: bool = False, trim: bool = True) -> str:
             continue
         name = match.group(1)
         start = _skip_space(text, match.end())
+        if name == 'item' and start < len(text) and text[start] == '[':
+            end = _balanced(text,start,'[',']')
+            out.append('\\item {'+_clean(text[start+1:end-1],table=table)+'} ')
+            i = end
+            continue
         if name in _WRAPPERS and start < len(text) and text[start] == '{':
             end = _balanced(text, start)
             fragment = _clean(text[start+1:end-1], table=table, trim=False)
@@ -198,6 +204,13 @@ def _clean(text: str, *, table: bool = False, trim: bool = True) -> str:
                 i = _balanced(text,start,'[',']')
             continue
         env = _BEGIN.match(text, i)
+        if env and env.group(1) in ('itemize','description','enumerate'):
+            out.append(env.group());i=env.end()
+            start=_skip_space(text,i)
+            if start<len(text) and text[start]=='[':
+                end=_balanced(text,start,'[',']')
+                if _layout_list_options(text[start+1:end-1]): i=end
+            continue
         if env and env.group(1) in _MATH_ENVS:
             name = env.group(1)
             closing = '\\end{' + name + '}'
@@ -242,12 +255,15 @@ def _content_tokens(text: str) -> list[tuple[str,str]]:
             end = _math_end(text,i+len(delimiter),closing)+len(closing)
             protected(text[i:end]);i = end;continue
         env = _BEGIN.match(text,i)
-        if env and env.group(1) in _MATH_ENVS:
+        if env and env.group(1) in _MATH_ENVS | FLOAT_ENVS:
             closing = '\\end{'+env.group(1)+'}'
             end = _environment_end(text,env.end(),env.group(1))
             end += len(closing);protected(text[i:end]);i = end;continue
         wrapper = _LIST_WRAPPER.match(text,i)
         if wrapper:
+            # List boundaries separate fragments even without source whitespace:
+            # \end{itemize}After. must not compare as Inner.After.
+            prose.append(' ')
             i = wrapper.end();continue
         match = _COMMAND.match(text,i)
         if match:
@@ -305,6 +321,37 @@ def normalize_leaf(node: RawNode, *, version: int, bibliography: UnifiedBibliogr
                    source_spans=deepcopy(node.source_spans))
 
 
+def _expand_math_aliases(text: str, context: Declarations, depth: int = 0) -> str:
+    """Expand only math aliases proved by gathered preamble declarations.
+
+    Literal/URL/command argument tokens remain opaque. This is not general TeX
+    expansion: unsafe/body-local definitions stay unsupported in hierarchy.
+    """
+    if depth >= 32: raise ValueError('Math alias expansion cycle/depth exceeded')
+    parts=[];cursor=0
+    for token in scan(text,arities=context.arities):
+        if token.kind!='command' or token.name not in context.math_aliases: continue
+        kind,environment=context.math_aliases[token.name]
+        body=context.bodies.get(token.name)
+        if body is None:
+            # Exact delimited display macros: the opener/terminator are tokens,
+            # not executable commands with arguments of their own.
+            expanded='\\'+kind+'{'+environment+'}'
+        else:
+            if '##' in body: raise ValueError('Unsupported literal parameter in math alias')
+            end=_COMMAND.match(text,token.start).end()
+            arguments={}
+            for number in range(1,context.arities.get(token.name,0)+1):
+                start=_skip_space(text,end)
+                end=_balanced(text,start)
+                arguments[str(number)]=text[start+1:end-1]
+            body=re.sub(r'#([1-9])',lambda match:arguments.get(match[1],match[0]),body)
+            expanded=_expand_math_aliases(body,context,depth+1)+text[end:token.end]
+        parts.extend((text[cursor:token.start],expanded));cursor=token.end
+    parts.append(text[cursor:])
+    return ''.join(parts)
+
+
 def rebuild_component_content(nodes: list[RawNode]) -> list[RawNode]:
     """Bottom-up theo occurrence tree, không theo thứ tự list tùy ý; trả copies.
     D3: paragraph nối sentences bằng space, block/list bằng newline; item nối paragraphs bằng blank line;
@@ -350,14 +397,15 @@ def rebuild_component_content(nodes: list[RawNode]) -> list[RawNode]:
                     parts.append(separator)
                 parts.append(child.content)
             content = ''.join(parts)
-        if node.content and _content_tokens(node.content) != _content_tokens(content):
+        if node.content and node.content != content and _content_tokens(node.content) != _content_tokens(content):
             raise ValueError(f'Uncovered or inconsistent component body: {node.local_id}')
         node.content = content
     if len(visited) != len(copied): raise ValueError('Unreachable nodes or cycle')
     return copied
 
 
-def normalize_tree(tree: VersionTree, bibliography: UnifiedBibliography, config: ParseConfig) -> VersionTree:
+def normalize_tree(tree: VersionTree, bibliography: UnifiedBibliography, config: ParseConfig, *,
+                   macro_context: Declarations | None = None) -> VersionTree:
     """API chính; không gọi hierarchy/bibliography. Nhận fixtures raw tree/unified bib.
     Kiểm arxiv_id, rewrite/cleanup leaves và headings, rebuild containers bottom-up.
     Giữ diagnostics gốc và bổ sung cite unresolved/unsupported; bibliography errors propagate theo affected_versions.
@@ -365,6 +413,8 @@ def normalize_tree(tree: VersionTree, bibliography: UnifiedBibliography, config:
     Set normalized_with=config.normalization_version, cây raw không bị mutate.
     Status chưa là kết luận cuối; validation.finalize_publication xử lý sau assemble.
     Test S4/S7/S11: hai sentences chỉ khác cite key sau rewrite phải có cùng normalized content.
+    Optional macro_context comes from the same version's gathered preamble; it
+    allows declared math aliases without guessing delimiters or changing wire schemas.
     """
     if tree.arxiv_id != bibliography.arxiv_id: raise ValueError('Publication identity mismatch')
     if tree.normalized_with is not None and tree.normalized_with != config.normalization_version:
@@ -387,7 +437,12 @@ def normalize_tree(tree: VersionTree, bibliography: UnifiedBibliography, config:
                                version=tree.version, path=span.path if span else None, offset=span.start if span else None)
             if issue not in diagnostics: diagnostics.append(issue)
         try:
-            cleaned = normalize_leaf(node, version=tree.version, bibliography=rewrite_bibliography, config=config)
+            if node.kind=='itemize' and node.subtype=='enumerate':
+                report('UNSUPPORTED_CONTENT','Enumeration numbering/style requires review; ordered body and raw source spans retained')
+            expanded = replace(node,content=_expand_math_aliases(node.content,macro_context)) if macro_context else node
+            cleaned = normalize_leaf(expanded, version=tree.version, bibliography=rewrite_bibliography, config=config)
+            if node.kind=='block_formula' and node.subtype in _MATH_ENVS and not cleaned.content.startswith('\\begin{equation}'):
+                report('UNSUPPORTED_CONTENT','Math alias requires matching gathered declaration context')
             if node.kind == 'document': cleaned.content = f'Version {tree.version} root'
             for _, _, keys in _citation_spans(node.content):
                 for key in keys:

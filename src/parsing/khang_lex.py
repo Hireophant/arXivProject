@@ -14,10 +14,21 @@ _COMMAND = re.compile(r'\\([A-Za-z@]+|[^A-Za-z@])')
 _NEWLINE = re.compile(r'\r\n|\r|\n')
 _NL = r'(?:\r\n|\r(?!\n)|(?<!\r)\n)'
 _BLANK = re.compile(_NL+r'[ \t]*'+_NL+r'(?:[ \t]*'+_NL+r')*')
+_LENGTH = r'[+-]?(?:\d+(?:\.\d*)?|\.\d+)\s*(?:pt|pc|in|bp|cm|mm|dd|cc|sp|ex|em)(?![A-Za-z])'
+_LAYOUT_LENGTH = re.compile(r'\s*'+_LENGTH)
+_STRETCH = r'(?:'+_LENGTH+r'|[+-]?(?:\d+(?:\.\d*)?|\.\d+)\s*fil{1,3}(?![A-Za-z]))'
+_LAYOUT_GLUE = re.compile(r'\s*'+_LENGTH+r'(?:\s+plus\s+'+_STRETCH+r')?(?:\s+minus\s+'+_STRETCH+r')?')
+_LIST_LAYOUT_KEYS = frozenset(('itemindent','labelindent','labelwidth','labelsep',
+    'leftmargin','rightmargin','listparindent','itemsep','parsep','topsep','partopsep',
+    'nosep','noitemsep'))
 LITERAL_ENVS = frozenset(('verbatim', 'verbatim*', 'Verbatim', 'lstlisting', 'minted', 'comment'))
 MATH_ENVS = frozenset(('equation', 'equation*', 'displaymath', 'align', 'align*',
                        'alignat', 'alignat*', 'gather', 'gather*', 'multline', 'multline*',
                        'eqnarray', 'eqnarray*', 'flalign', 'flalign*', 'math'))
+FLOAT_ENVS = frozenset(('figure','figure*','table','table*','tabular','tabular*','longtable',
+    'Figure','deluxetable','deluxetable*','tabularx','tabularx*','tabulary','sidewaystable',
+    'sidewaystable*','sidewaysfigure','wrapfigure','wraptable','algorithm','algorithm*',
+    'algorithm2e','algorithmic','algorithmicx','tikzpicture','tikzcd'))
 _HEADINGS = frozenset(('part', 'chapter', 'section', 'subsection', 'subsubsection', 'paragraph', 'subparagraph'))
 _NO_ARGS = frozenset(('appendix', 'par', 'maketitle', 'centering', 'noindent', 'newpage',
                       'clearpage', 'smallskip', 'medskip', 'bigskip', 'hfill', 'vfill',
@@ -41,7 +52,7 @@ _OPTIONAL = _HEADINGS | _DECLARATIONS | frozenset(('cite','citep','citet','citea
     'citeauthor','citeyear','citeyearpar','Cite','Citep','Citet','autocite','parencite',
     'textcite','footcite','smartcite','item','bibitem','sqrt','includegraphics',
     'footnote','footnotetext','author','title','lstinline'))
-_OPTIONAL = _OPTIONAL | frozenset(('printbibliography','addbibresource'))
+_OPTIONAL = _OPTIONAL | frozenset(('printbibliography','addbibresource','documentclass'))
 
 
 @dataclass(frozen=True)
@@ -58,6 +69,15 @@ def line_end(text: str, start: int) -> int:
     """First physical newline, preserving LF/CRLF/CR offsets without conversion."""
     match=_NEWLINE.search(text,start)
     return match.start() if match else len(text)
+
+
+def _argument_space(text: str, start: int) -> int:
+    """TeX ignores comments as well as whitespace before command arguments."""
+    while start<len(text):
+        if text[start].isspace(): start+=1
+        elif text[start]=='%': start=line_end(text,start)
+        else: break
+    return start
 
 
 def group_end(text: str, start: int, opener: str = '{', closer: str = '}', *, comments: bool = True) -> tuple[int, bool]:
@@ -97,6 +117,20 @@ def group_end(text: str, start: int, opener: str = '{', closer: str = '}', *, co
                 return i + 1, True
         i += 1
     return len(text), False
+
+
+def _layout_list_options(options: str) -> bool:
+    """Accept only known spacing keys; semantic label/start/resume options need review."""
+    parts=[];start=i=0
+    while i<len(options):
+        if options[i] in '{[':
+            i,ok=group_end(options,i,options[i],'}' if options[i]=='{' else ']')
+            if not ok: return False
+        elif options[i]==',':
+            parts.append(options[start:i]);i+=1;start=i
+        else: i+=1
+    parts.append(options[start:])
+    return all(not part.strip() or part.split('=',1)[0].strip() in _LIST_LAYOUT_KEYS for part in parts)
 
 
 def _verb_end(text: str, start: int) -> tuple[int, bool]:
@@ -140,9 +174,10 @@ def scan(text: str, *, arities: dict[str,int] | None = None) -> Iterator[Token]:
                 token = Token('command', i, i+1, malformed=True)
             else:
                 name, end = m[1], m.end()
-                if name in ('def','gdef','edef','xdef'):
-                    p=end
-                    while p<len(text) and text[p].isspace(): p+=1
+                if name in ('vskip','hskip','kern') and (length := (_LAYOUT_LENGTH if name=='kern' else _LAYOUT_GLUE).match(text,end)):
+                    token=Token('layout',i,length.end(),name)
+                elif name in ('def','gdef','edef','xdef'):
+                    p=_argument_space(text,end)
                     target=_COMMAND.match(text,p)
                     opening=text.find('{',target.end()) if target else -1
                     if opening>=0:
@@ -159,7 +194,8 @@ def scan(text: str, *, arities: dict[str,int] | None = None) -> Iterator[Token]:
                     end, ok = _verb_end(text, end)
                     token = Token('literal', i, end, name, malformed=not ok)
                 else:
-                    if end < len(text) and text[end] == '*':
+                    if end < len(text) and text[end] == '*' and (
+                            name not in (arities or {}) or name in _HEADINGS or name in _DECLARATIONS or name in _OPTIONAL):
                         end += 1
                     argument = None
                     malformed = False
@@ -173,9 +209,7 @@ def scan(text: str, *, arities: dict[str,int] | None = None) -> Iterator[Token]:
                     if name=='item': limit=1
                     count = 0
                     while count < limit:
-                        p = end
-                        while p < len(text) and text[p].isspace():
-                            p += 1
+                        p = _argument_space(text,end)
                         if p >= len(text) or text[p] not in ('{', '['):
                             break
                         if text[p]=='[' and name not in _OPTIONAL:
@@ -196,14 +230,12 @@ def scan(text: str, *, arities: dict[str,int] | None = None) -> Iterator[Token]:
                     if name in ('begin', 'end') and argument is not None:
                         env = text[argument[0]:argument[1]].strip()
                         if name=='begin' and env in ('itemize','enumerate','description','minipage'):
-                            p=end
-                            while p<len(text) and text[p].isspace(): p+=1
+                            p=_argument_space(text,end)
                             if p<len(text) and text[p]=='[':
                                 end,ok=group_end(text,p,'[',']')
                                 malformed=malformed or not ok
                             if env=='minipage':
-                                p=end
-                                while p<len(text) and text[p].isspace(): p+=1
+                                p=_argument_space(text,end)
                                 if p<len(text) and text[p]=='{':
                                     end,ok=group_end(text,p)
                                     malformed=malformed or not ok

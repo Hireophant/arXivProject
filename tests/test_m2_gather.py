@@ -101,6 +101,33 @@ class TestGather(unittest.TestCase):
         with self.assertRaises(ValueError):
             find_root(self.test_dir)
 
+    def test_documentclass_in_included_preamble_selects_unique_document_owner(self):
+        (self.test_dir/'sections').mkdir()
+        (self.test_dir/'sections/packages.tex').write_text(r'\documentclass{article}\usepackage{amsmath}',encoding='utf-8')
+        (self.test_dir/'paper.tex').write_text(r'\input{sections/packages}\begin{document}Actual body.\end{document}',encoding='utf-8')
+        self.assertEqual(find_root(self.test_dir),'paper.tex')
+        gathered=gather_version(self._make_version())
+        self.assertIn('Actual body.',gathered.latex)
+        self.assertIn(r'\documentclass{article}',gathered.latex)
+
+    def test_two_documents_sharing_a_preamble_remain_ambiguous(self):
+        (self.test_dir/'packages.tex').write_text(r'\documentclass{article}',encoding='utf-8')
+        for name in ('paper.tex','supplement.tex'):
+            (self.test_dir/name).write_text(r'\input{packages}\begin{document}Body.\end{document}',encoding='utf-8')
+        with self.assertRaises(ValueError):find_root(self.test_dir)
+
+    def test_literal_documentclass_example_does_not_create_a_second_root(self):
+        (self.test_dir/'paper.tex').write_text(r'\documentclass{article}\begin{document}Body.\end{document}',encoding='utf-8')
+        (self.test_dir/'example.tex').write_text(r'\verb|\documentclass{fake}|',encoding='utf-8')
+        self.assertEqual(find_root(self.test_dir),'paper.tex')
+
+    def test_documentclass_options_and_comment_before_class_name(self):
+        for command in ('\\documentclass[12pt]{article}',
+                        '\\documentclass[a4paper,twocolumn]% note\n{article}'):
+            with self.subTest(command=command):
+                (self.test_dir/'paper.tex').write_text(command+r'\begin{document}Body.\end{document}',encoding='utf-8')
+                self.assertEqual(find_root(self.test_dir),'paper.tex')
+
     # -------------------------------------------------------------------------
     # 3. expand_includes (S1, repeated, cycle, missing)
     # -------------------------------------------------------------------------

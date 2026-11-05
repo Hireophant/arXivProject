@@ -11,6 +11,8 @@ from pathlib import Path, PurePosixPath
 import re
 from typing import Literal
 
+from .khang_lex import scan
+
 from .contracts import (
     BibliographyLocation,
     Diagnostic,
@@ -50,28 +52,46 @@ def read_source(source_dir: Path, relative_path: str) -> tuple[str, SourceFile]:
     return text, SourceFile(path=rel_posix, encoding=encoding, sha256=sha256_hash)
 
 
-def _strip_line_comment(line: str) -> str:
-    """Loại bỏ phần comment % (chỉ khi % không bị escape bởi số lẻ dấu backslash)."""
-    in_escape = 0
-    for i, ch in enumerate(line):
-        if ch == "\\":
-            in_escape += 1
-        elif ch == "%":
-            if in_escape % 2 == 0:
-                return line[:i]
-            in_escape = 0
-        else:
-            in_escape = 0
-    return line
+def _resolve_include_path(source_dir: Path, raw_target: str, current_file: str) -> tuple[str | None, str | None]:
+    raw_clean = raw_target.strip().strip('"').strip("'")
+    if "\\" in raw_clean:
+        # Dynamic macro path
+        return None, "UNSUPPORTED_CONTENT"
+
+    # 1. Thử root-relative
+    candidates: list[Path] = []
+    if not raw_clean.endswith(".tex") and not PurePosixPath(raw_clean).suffix:
+        candidates.append(source_dir / f"{raw_clean}.tex")
+        candidates.append(source_dir / raw_clean)
+    else:
+        candidates.append(source_dir / raw_clean)
+
+    for cand in candidates:
+        cand_res = cand.resolve()
+        if cand_res.is_file() and cand_res.is_relative_to(source_dir.resolve()):
+            return cand_res.relative_to(source_dir.resolve()).as_posix(), None
+
+    # 2. Fallback relative to current file
+    current_dir = (source_dir / current_file).parent
+    fallback_candidates: list[Path] = []
+    if not raw_clean.endswith(".tex") and not PurePosixPath(raw_clean).suffix:
+        fallback_candidates.append(current_dir / f"{raw_clean}.tex")
+        fallback_candidates.append(current_dir / raw_clean)
+    else:
+        fallback_candidates.append(current_dir / raw_clean)
+
+    for cand in fallback_candidates:
+        cand_res = cand.resolve()
+        if cand_res.is_file() and cand_res.is_relative_to(source_dir.resolve()):
+            return cand_res.relative_to(source_dir.resolve()).as_posix(), "INCLUDE_PATH_FALLBACK"
+
+    return None, "INCLUDE_MISSING"
 
 
 def _has_active_documentclass(text: str) -> bool:
-    """Kiểm tra xem text có chứa lệnh \\documentclass hợp lệ ngoài comment hay không."""
-    for line in text.splitlines():
-        active = _strip_line_comment(line)
-        if re.search(r"\\documentclass(\s*\[[^\]]*\])?\s*\{", active):
-            return True
-    return False
+    """Recognize an active declaration, excluding literal/comment examples."""
+    return any(t.kind == 'command' and t.name == 'documentclass' and t.argument is not None
+               for t in scan(text))
 
 
 def find_root(source_dir: Path) -> str:
@@ -85,17 +105,42 @@ def find_root(source_dir: Path) -> str:
         raise ValueError(f"Source directory does not exist: {source_dir}")
 
     candidates: list[str] = []
+    texts: dict[str, str] = {}
     for tex_path in sorted(source_dir.rglob("*.tex")):
         if not tex_path.is_file():
             continue
         rel_posix = tex_path.relative_to(source_dir).as_posix()
         try:
             text, _ = read_source(source_dir, rel_posix)
+            texts[rel_posix] = text
             if _has_active_documentclass(text):
                 candidates.append(rel_posix)
         except Exception:
             continue
 
+    if len(candidates) == 1:
+        declaration = candidates[0]
+        if not any(t.kind == 'begin' and t.name == 'document' for t in scan(texts[declaration])):
+            tokens = {path: list(scan(text)) for path, text in texts.items()}
+            document_files = {path for path, stream in tokens.items()
+                              if any(t.kind == 'begin' and t.name == 'document' for t in stream)}
+            # A package fragment can own documentclass while its unique parent
+            # owns the actual document. Follow active include evidence, not names.
+            parents: dict[str, set[str]] = {}
+            for path, stream in tokens.items():
+                for token in stream:
+                    if token.kind == 'command' and token.name in ('input', 'include') and token.argument:
+                        target, _ = _resolve_include_path(source_dir, texts[path][slice(*token.argument)], path)
+                        if target is not None: parents.setdefault(target, set()).add(path)
+            owners, seen, pending = set(), set(), [declaration]
+            while pending:
+                path = pending.pop()
+                if path in seen: continue
+                seen.add(path)
+                for parent in parents.get(path, ()):
+                    if parent in document_files: owners.add(parent)
+                    pending.append(parent)
+            if owners: candidates = sorted(owners)
     if len(candidates) == 0:
         raise ValueError(f"No active \\documentclass found in {source_dir}")
     if len(candidates) > 1:
@@ -140,41 +185,6 @@ def expand_includes(version: VersionInput, root_path: str) -> GatherResult:
     bib_paths: list[BibliographyLocation] = []
     diagnostics: list[Diagnostic] = list(version.diagnostics)
     current_flat_len = 0
-
-    def resolve_include_path(raw_target: str, current_file: str) -> tuple[str | None, str | None]:
-        raw_clean = raw_target.strip().strip('"').strip("'")
-        if "\\" in raw_clean:
-            # Dynamic macro path
-            return None, "UNSUPPORTED_CONTENT"
-
-        # 1. Thử root-relative
-        candidates: list[Path] = []
-        if not raw_clean.endswith(".tex") and not PurePosixPath(raw_clean).suffix:
-            candidates.append(source_dir / f"{raw_clean}.tex")
-            candidates.append(source_dir / raw_clean)
-        else:
-            candidates.append(source_dir / raw_clean)
-
-        for cand in candidates:
-            cand_res = cand.resolve()
-            if cand_res.is_file() and cand_res.is_relative_to(source_dir.resolve()):
-                return cand_res.relative_to(source_dir.resolve()).as_posix(), None
-
-        # 2. Fallback relative to current file
-        current_dir = (source_dir / current_file).parent
-        fallback_candidates: list[Path] = []
-        if not raw_clean.endswith(".tex") and not PurePosixPath(raw_clean).suffix:
-            fallback_candidates.append(current_dir / f"{raw_clean}.tex")
-            fallback_candidates.append(current_dir / raw_clean)
-        else:
-            fallback_candidates.append(current_dir / raw_clean)
-
-        for cand in fallback_candidates:
-            cand_res = cand.resolve()
-            if cand_res.is_file() and cand_res.is_relative_to(source_dir.resolve()):
-                return cand_res.relative_to(source_dir.resolve()).as_posix(), "INCLUDE_PATH_FALLBACK"
-
-        return None, "INCLUDE_MISSING"
 
     def traverse(rel_path: str, recursion_stack: list[str]) -> None:
         nonlocal current_flat_len
@@ -284,7 +294,7 @@ def expand_includes(version: VersionInput, root_path: str) -> GatherResult:
                                         )
                                     else:
                                         # Resolve và expand include
-                                        resolved, err_code = resolve_include_path(arg_str, rel_path)
+                                        resolved, err_code = _resolve_include_path(source_dir, arg_str, rel_path)
                                         if err_code == "INCLUDE_PATH_FALLBACK" and resolved:
                                             diagnostics.append(
                                                 Diagnostic(

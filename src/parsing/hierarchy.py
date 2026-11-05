@@ -13,17 +13,14 @@ from dataclasses import replace
 import re
 
 from .contracts import BibliographyBlock, Diagnostic, GatherResult, RawNode, SourceSpan, VersionTree
-from .khang_lex import MATH_ENVS, Token, scan
+from .khang_lex import MATH_ENVS, FLOAT_ENVS, Token, scan, _layout_list_options
 from .khang_macros import declarations
 from .sentences import _sentence_ranges
 
 _HEADINGS = {'part': 0, 'chapter': 0, 'section': 1, 'subsection': 2,
              'subsubsection': 3, 'paragraph': 4, 'subparagraph': 5}
 _LISTS = frozenset(('itemize', 'enumerate', 'description'))
-_FLOATS = frozenset(('figure', 'figure*', 'table', 'table*', 'tabular', 'tabular*', 'longtable'))
-_FLOATS = _FLOATS | frozenset(('Figure','deluxetable','deluxetable*','tabularx','tabularx*',
-    'tabulary','sidewaystable','sidewaystable*','sidewaysfigure','wrapfigure','wraptable',
-    'algorithm','algorithm*','algorithm2e','algorithmic','algorithmicx','tikzpicture','tikzcd'))
+_FLOATS = FLOAT_ENVS
 _TRANSPARENT = frozenset(('center', 'flushleft', 'flushright', 'quote', 'quotation',
                           'abstract', 'proof', 'theorem', 'lemma', 'proposition',
                           'corollary', 'definition', 'remark', 'example', 'claim',
@@ -208,8 +205,17 @@ class _Parser:
                 end = self.tokens[boundaries[k+1]].start if k+1<len(boundaries) else len(self.text)
                 self.reference_sections[t.start] = end
         self.mask = []
-        for t in self.tokens:
-            if t.kind in ('comment','group_delimiter','declaration') or (t.kind == 'command' and t.name in _METADATA):
+        leaf_end = 0
+        for i,t in enumerate(self.tokens):
+            if t.kind=='begin' and (t.name in MATH_ENVS or
+                    (t.name in _FLOATS and t.name not in self.declared.environments)):
+                closing=self.pairs.get(i)
+                leaf_end=max(leaf_end,self.tokens[closing].end if closing is not None else len(self.text))
+            if t.start < leaf_end:
+                # Formula/float leaves keep their exact raw content. Their
+                # containers must keep the same labels/layout/comments too.
+                continue
+            if t.kind in ('comment','group_delimiter','declaration','layout') or (t.kind == 'command' and t.name in _METADATA):
                 self.mask.append((t.start,t.end))
         self.mask_ends = [b for a,b in self.mask]
         self.reported = set()
@@ -261,6 +267,17 @@ class _Parser:
         paragraph = self.add('paragraph',parent,start+a,start+b,content=text[a:b])
         for x,y in _sentence_ranges(text[a:b]):
             self.add('sentence',paragraph.local_id,start+a+x,start+a+y,content=text[a+x:a+y])
+
+    def check_prose_token(self, t: Token) -> None:
+        """Apply the same supported-command policy to prose and explicit labels."""
+        if t.kind=='command' and t.name not in _PROSE_COMMANDS and t.name not in _METADATA and len(t.name)>1:
+            if self.declared.inline(t.name):
+                self.report(t,'Declared inline macro \\'+t.name+' retained with its raw arguments',
+                            'MACRO_PRESERVED',severity='warning')
+            else:
+                self.report(t,'Unexpanded command \\'+t.name+'; raw arguments retained')
+        elif t.kind=='declaration':
+            self.report(t,'Body-local macro definition retained in source; dynamic scope needs review')
 
     def body(self, lo: int, hi: int, parent: str, *, headings: bool = True) -> None:
         i = bisect_right(self.starts,lo-1)
@@ -314,7 +331,8 @@ class _Parser:
                             subtype='table' if t.name.lower().startswith(('table','tabular','longtable','deluxetable','sidewaystable','wraptable')) else t.name
                             self.add(kind,current(),t.start,stop,content=self.text[t.start:stop],subtype=subtype)
                             if not self.text[t.start:t.end].startswith('\\begin'):
-                                self.report(t,'Declared math alias parsed as '+t.name+'; raw delimiters need normalization')
+                                self.report(t,'Declared math alias parsed as '+t.name+'; raw delimiters need normalization',
+                                            'MATH_ALIAS_PRESERVED',severity='warning')
                     elif t.name in _LISTS:
                         self.list_body(i,close,current(),stop)
                     elif t.name=='document':
@@ -336,14 +354,8 @@ class _Parser:
                     cursor=t.end
                 else:
                     cursor=t.end
-            elif t.kind=='command' and t.name not in _PROSE_COMMANDS and t.name not in _METADATA and len(t.name)>1:
-                if self.declared.inline(t.name):
-                    self.report(t,'Declared inline macro \\'+t.name+' retained with its raw arguments',
-                                'MACRO_PRESERVED',severity='warning')
-                else:
-                    self.report(t,'Unexpanded command \\'+t.name+'; raw arguments retained')
-            elif t.kind=='declaration':
-                self.report(t,'Body-local macro definition retained in source; dynamic scope needs review')
+            else:
+                self.check_prose_token(t)
             i+=1
         self.prose(cursor,hi,current())
 
@@ -352,7 +364,7 @@ class _Parser:
         last=close if close is not None else bisect_right(self.starts,stop-1)
         inner_end=self.tokens[close].start if close is not None else stop
         list_node=self.add('itemize',parent,t.start,stop,subtype=t.name)
-        if t.name!='itemize':
+        if t.name not in ('itemize','description'):
             self.report(t,'List '+t.name+' preserved; current component_content_v1 normalizer only supports itemize')
         items=[]; i=begin+1
         while i < last:
@@ -367,8 +379,9 @@ class _Parser:
         prefix=self.content(t.end,first).strip()
         # List placement options are not prose. Any genuine pre-item text must survive.
         prefix=re.sub(r'^\[[^\]]*\]\s*','',prefix)
-        if '[' in self.text[t.start:t.end]:
-            self.report(t,'List options retained in raw content; normalizer support required')
+        option_start=self.text.find('[',t.argument[1]+1 if t.argument else t.end,t.end)
+        if option_start>=0 and not _layout_list_options(self.text[option_start+1:t.end-1]):
+            self.report(t,'Semantic list options retained in raw content; normalizer support required')
         if prefix:
             self.report(t,'Text before first list item retained in a synthetic item')
             item=self.add('item',list_node.local_id,t.end,first,content=prefix)
@@ -382,7 +395,14 @@ class _Parser:
             if it.argument:
                 label=_title(self.text,it)
                 content=label+' '+self.content(it.end,end).strip()
-                self.report(it,'Explicit item label retained; component_content_v1 normalizer support required')
+                label_raw=self.text[slice(*it.argument)]
+                for label_token in scan(label_raw,arities=self.declared.arities):
+                    shifted=replace(label_token,start=it.argument[0]+label_token.start,end=it.argument[0]+label_token.end)
+                    if label_token.malformed or label_token.kind in ('begin','end','block'):
+                        self.report(shifted,'Unsupported structure or malformed content in item label')
+                    else:
+                        self.check_prose_token(shifted)
+                self.report(it,'Explicit item label retained in item content', 'LIST_LABEL_PRESERVED',severity='warning')
             if not content:
                 self.report(it,'Empty list item omitted from semantic tree')
                 continue

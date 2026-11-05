@@ -13,6 +13,35 @@ SCRATCH=Path(__file__).resolve().parents[1]/'data/milestone2-dev/danh'
 SCRATCH.mkdir(parents=True,exist_ok=True)
 
 class SerializationTests(unittest.TestCase):
+    def test_transient_windows_sharing_lock_retries_immutable_publish(self):
+        with TemporaryDirectory(dir=SCRATCH) as tmp:
+            dest=Path(tmp)/'p';publication=make_expected_publication();attempts=[]
+            original=Path.rename
+            def rename(source,target):
+                if '.staging-' in source.name:
+                    attempts.append(source)
+                    if len(attempts)==1:
+                        error=PermissionError('Temporary Windows sharing lock');error.winerror=32
+                        raise error
+                return original(source,target)
+            with patch.object(Path,'rename',rename):
+                write_publication(publication,dest)
+            self.assertEqual(len(attempts),2)
+            self.assertEqual(read_publication(dest),publication)
+
+    def test_persistent_windows_publish_lock_stays_bounded_and_unpublished(self):
+        with TemporaryDirectory(dir=SCRATCH) as tmp:
+            dest=Path(tmp)/'p';attempts=[]
+            def rename(source,target):
+                attempts.append(source)
+                error=PermissionError('Persistent Windows sharing lock');error.winerror=32
+                raise error
+            with patch.object(Path,'rename',rename),patch('time.sleep'):
+                with self.assertRaises(PermissionError):write_publication(make_expected_publication(),dest)
+            self.assertEqual(len(attempts),5)
+            self.assertFalse(dest.exists())
+            self.assertFalse(list(Path(tmp).glob('*.staging-*')))
+
     def test_never_write_inside_prepared_raw_with_arbitrary_folder_name(self):
         with TemporaryDirectory(dir=SCRATCH) as tmp:
             raw=Path(tmp)/'prepared-snapshot';raw.mkdir()

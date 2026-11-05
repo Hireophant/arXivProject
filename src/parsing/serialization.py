@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import time
 import types
 import uuid
 from dataclasses import asdict, fields, is_dataclass, replace
@@ -23,6 +24,17 @@ _JSON_OPTIONS = dict(ensure_ascii=False,sort_keys=True,allow_nan=False,separator
 _JSONL = {'elements':c.ElementRow,'hierarchy':c.HierarchyRow,'bibtex':c.BibEntry,
           'occurrences':c.ElementOccurrence,'bib_occurrences':c.BibOccurrence,'diagnostics':c.Diagnostic}
 _JSON_LISTS = {'identity_decisions':c.IdentityDecision,'conflicts':c.FieldConflict}
+
+
+def _retry_sharing_violation(operation):
+    """Bounded retry for publishing M2 output under transient Windows locks."""
+    for attempt,delay in enumerate((0,.1,.2,.4,.8)):
+        if delay: time.sleep(delay)
+        try:
+            return operation()
+        except PermissionError as error:
+            if getattr(error,'winerror',None) not in {5,32,33} or attempt==4:
+                raise
 
 
 def _canonical(value: object) -> str:
@@ -142,7 +154,7 @@ def write_publication(publication: ParsedPublication, destination: Path) -> list
         _write_json(staging/'citation_key_map.json',{'schema_version':c.OUTPUT_SCHEMA_VERSION,'arxiv_id':publication.arxiv_id,
             'rows':[{'version':v,'old_key':key,'canonical_key':canonical} for (v,key),canonical in sorted(publication.key_map.items())]})
         if read_publication(staging) != publication: raise ValueError('Publication round-trip mismatch')
-        staging.rename(destination)
+        _retry_sharing_violation(lambda: staging.rename(destination))
     finally:
         if staging.exists(): shutil.rmtree(staging)
     return sorted(p for p in destination.iterdir() if p.is_file())
