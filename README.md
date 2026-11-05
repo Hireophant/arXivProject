@@ -92,9 +92,12 @@ shared schema and the [assignment](docs/milestone2/PHAN_CONG_MILESTONE_2_4_NGUOI
 for ownership and human acceptance checks.
 
 Open [milestone2.ipynb](src/notebooks/milestone2.ipynb) in the reviewed checkout.
-Install `src/requirements.txt`, set `PROJECT_DIR` if it cannot be found automatically,
-then set `DATASET_NAME` to the prepared input name, such as `Danh`, `Danh1` or
-`Danh2`, and `PAPERS_THIS_RUN` to the maximum number of publications for this visit.
+On Colab, leave `PROJECT_DIR=None` so setup can clone `master` from GitHub into
+`/content/arXivProject` if needed and install `src/requirements.txt` automatically.
+On a local runtime, install those dependencies yourself and set `PROJECT_DIR` if
+the checkout cannot be found automatically. Set `DATASET_NAME` to the prepared
+input name, such as `Danh`, `Danh1` or `Danh2`, and `PAPERS_THIS_RUN` to the
+maximum number of publications for this visit.
 By default, M2 selects the unique matching ZIP in Drive `preparationM2/transport`,
 reads its verified receipt and stages it locally. It reuses the local staged raw
 within a runtime and validates the whole corpus once per parser run. This does
