@@ -130,8 +130,9 @@ gọi toàn bộ M2 hoàn thành hay mọi publication export-ready**.
 
 - Bản parser trước phần cập nhật Drive đã push trong commit `92d4def`.
 - Notebook M2 bật backup mặc định, mount Drive khi bắt đầu parse/benchmark trên
-  Colab. Chọn `MEMBER_NAME` và `DATASET_NAME`; đích lưu là
-  `MyDrive/arXivProject/Milestone2/parsed/<member>/<dataset>/<run_id>/`.
+  Colab. Theo chỉnh lại của Danh, chỉ chọn `DATASET_NAME` (Danh/Danh1/Danh2...),
+  không chọn người riêng; đích lưu là
+  `MyDrive/arXivProject/Milestone2/<dataset>/<run_id>/`.
 - Giữ mọi ZIP và receipt, kể cả batch chỉ có metadata. Backup bao gồm working/
   published/checkpoints, audit của bài lỗi, profile, metrics, environment/timing,
   lỗi cấp run và `run_manifest.json` đầy đủ. `manifest.json` trong từng ZIP vẫn là
@@ -148,3 +149,32 @@ gọi toàn bộ M2 hoàn thành hay mọi publication export-ready**.
   `data/milestone2-dev/prepared-check-e63280e6/drive-handoff-final-regression.log`.
   Chưa kiểm Google Drive thật/Colab, toàn corpus, Book/Pages và review tay; bảy
   phiên bản thiếu nguồn vẫn giữ nguyên trạng thái. Chưa gọi M2 hoàn thành.
+
+## Lượt chạy tiếp theo và retry — theo Danh 05/11/2026
+
+- Chỉ chọn `DATASET_NAME` và `PAPERS_THIS_RUN`, rồi bật `RUN_PARSER`. Notebook
+  chọn ZIP duy nhất đúng dataset trong `preparationM2/transport`; nếu có nhiều
+  bản thì dừng để chỉ rõ `PREPARED_ARCHIVE`. Stage xuống local một lần/runtime,
+  kiểm toàn raw một lần/run; không thay đổi hay chạy lại preparation.
+- Lượt sau dựng queue từ ZIP/receipts đã kiểm hash trên Drive, không tin marker
+  hoặc queue JSON đơn lẻ. Bài pending được ưu tiên, rồi bài chưa chạy; mỗi bài
+  chạy đủ versions và chỉ thử một lần trong cùng lượt. Thành công export-ready
+  thì done; partial/blocked/lỗi ghi output thì pending.
+- Sau **4 lần thử thất bại đã backup**, chuyển deferred trong `review_later.csv`
+  để xử lý sau. Không đổi lỗi thành thành công, không xóa dữ liệu. Metadata-only
+  batches không tăng số lần thử; mất backup không tiêu tốn lượt thử bền vững.
+  Queue JSON/report chỉ là báo cáo; mỗi lần khởi động lại dựng từ evidence thật.
+- Thay source/config/code/review signature sẽ mở lịch sử mới để không bỏ qua
+  bài dựa trên output không còn phù hợp. Fresh benchmark vẫn tách riêng, unbounded
+  (`PAPERS_THIS_RUN=None`), không lấy retry làm benchmark fresh.
+- Test tích hợp không mock owner: 3 bài × 2 versions, 7 lượt local độc lập,
+  một bài thật có unsupported command retry 4 lần → deferred, hai bài khác
+  export/read-back đạt, lượt cuối không còn bài eligible. Raw hash trước/sau
+  bằng nhau. Notebook cũng stage ZIP prepared thật, chạy/backup rồi lượt sau bỏ
+  qua bài đã đạt. Đây là bằng chứng local; không thay Google Drive/Colab thực.
+- Kiểm cuối lượt này: **311 tests PASS, 0 fail/skip**, gồm regression M1. Giữ
+  acceptance staging-only trong notebook và kiểm partial receipt thật; không sửa
+  tests để bỏ các assertions này. Log local: `data/milestone2-dev/prepared-check-e63280e6/continuation-final-regression.log`.
+  Review không còn blocking finding. Nếu đã chạy layout Drive cũ, giữ root cũ
+  bằng cấu hình `DRIVE_BACKUP_ROOT` để tiếp tục lịch sử; đổi root không tự di dời
+  dữ liệu. Bảy phiên bản thiếu nguồn, review tay, Colab CPU và Book/Pages vẫn pending.

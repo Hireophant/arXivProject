@@ -14,6 +14,42 @@ SCRATCH = Path(__file__).resolve().parents[1] / 'data/milestone2-dev/integration
 
 
 class IntegrationTests(unittest.TestCase):
+    def test_real_visits_defer_four_failures_then_continue_other_publications(self):
+        from test_m2_preparation import backup
+        from src.preparation import prepare_corpus
+        SCRATCH.mkdir(parents=True,exist_ok=True)
+        with TemporaryDirectory(dir=SCRATCH) as temporary:
+            root=Path(temporary)
+            identifiers=['2606.20271','2606.20272','2606.20273']
+            for index,identifier in enumerate(identifiers):
+                text=(r'\documentclass{article}\begin{document}'+
+                      (r'Broken \unsupportedcommand text.' if index==0 else 'A complete sentence.')+
+                      r'\end{document}').encode()
+                backup(root/'m1',f'input-{index}',identifier=identifier,versions=(1,2),sources={1:text,2:text})
+            prepare_corpus(root/'m1',root/'raw')
+            before={p.relative_to(root/'raw'):hashlib.sha256(p.read_bytes()).hexdigest()
+                    for p in (root/'raw').rglob('*') if p.is_file()}
+            config=ParseConfig(code_revision='real-continuation-test')
+            expected_ids=[identifiers[0]]*4+identifiers[1:]+[None]
+            for visit,identifier in enumerate(expected_ids):
+                # Distinct local roots emulate cold Colab runtimes; only Drive persists progress.
+                result=run_with_backup(root/'raw',root/f'local-{visit}',config,root/'drive',
+                                       max_publications=1,batch_size=1)
+                manifest=json.loads(result.manifest_path.read_text('utf-8'))
+                records=manifest['publications']
+                self.assertEqual([r['arxiv_id'] for r in records],[] if identifier is None else [identifier])
+                if records:
+                    self.assertEqual(records[0]['expected_versions'],[1,2])
+                    if identifier!=identifiers[0]:
+                        self.assertTrue(records[0]['export_ready'],result.diagnostics)
+                        read_publication(result.manifest_path.parent/records[0]['working_path'])
+            queue=json.loads((result.manifest_path.parent/'queue.json').read_text('utf-8'))
+            self.assertEqual(queue['status_counts'],{'deferred':1,'done':2})
+            self.assertEqual(queue['remaining_eligible'],0)
+            self.assertEqual(queue['publications'][0]['attempts'],4)
+            self.assertEqual(before,{p.relative_to(root/'raw'):hashlib.sha256(p.read_bytes()).hexdigest()
+                                     for p in (root/'raw').rglob('*') if p.is_file()})
+
     def test_real_pipeline_drive_batches_keep_all_handoff_artifacts(self):
         import zipfile
         SCRATCH.mkdir(parents=True,exist_ok=True)

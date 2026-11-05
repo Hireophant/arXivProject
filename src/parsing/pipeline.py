@@ -263,7 +263,8 @@ def checkpoint_signature(publication: PublicationInput, config: ParseConfig) -> 
     return hashlib.sha256(_canonical(payload).encode('utf-8')).hexdigest()
 
 
-def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bool = False) -> ParseRunResult:
+def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bool = False,
+        max_publications: int | None = None, progress_root: Path | None = None) -> ParseRunResult:
     """API notebook. Timer bắt đầu TRƯỚC inputs.load_publications (bao gồm xác minh raw), kết thúc sau output/checkpoint.
     Đòi input/output tách biệt, không ghi đè raw; một writer một run. Ghi run_id/snapshot/config/code environment.
     Mỗi bài all versions -> process_publication; working/audit giữ lỗi; strict=True chỉ publish export_ready.
@@ -286,9 +287,18 @@ def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bo
     fixtures/evidence, không git clean/reset --hard hay hook tự xóa khi merge. Ghi cleanup list trong
     phản hồi bàn giao; kiểm conflicts thủ công nếu ai sửa ngoài ownership, không hứa zero conflict.
     Người thật cuối cùng so xuyên raw->tree->normalize->tables/bib/cites, reviewer từng phần xác nhận.
+
+    max_publications selects a visit from verified progress_root backups: pending
+    before unseen, all versions together; four failed durable attempts defer a
+    publication. queue.json describes full input scope separately from this visit's
+    RunManifest. Omit the limit for the existing full-corpus/benchmark behavior.
     """
     from .inputs import load_publications
     from .metrics import summarize,write_metrics
+    if max_publications is not None and (type(max_publications) is not int or max_publications < 1):
+        raise ValueError('max_publications must be a positive integer')
+    if max_publications is not None and progress_root is None:
+        raise ValueError('Bounded visits require a verified backup progress_root')
     started = time.perf_counter()
     corpus_root,output_root = Path(corpus_root).resolve(),_owned_destination(output_root).resolve()
     if corpus_root.is_relative_to(output_root) or output_root.is_relative_to(corpus_root): raise ValueError('Input/output trees must be disjoint')
@@ -329,6 +339,17 @@ def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bo
         review_token = _REVIEW.set((config.reference_review_path,review_sha,review_index,manifest.snapshot_id))
         code_sha = _code_hash()
         code_token = _CODE.set(code_sha)
+        if len({p.arxiv_id for p in publications}) != len(publications):
+            raise ValueError('Duplicate publication in input')
+        queue = None
+        if max_publications is not None:
+            from .continuation import read_history,build_queue,write_queue,MAX_ATTEMPTS
+            signatures = {p.arxiv_id:checkpoint_signature(p,config) for p in publications}
+            publications,queue = build_queue(publications,signatures,
+                read_history(progress_root,manifest.snapshot_id),max_publications)
+            queue.update(run_id=run_id,snapshot_id=manifest.snapshot_id)
+            write_queue(root,queue)
+        queue_rows = {r['arxiv_id']:r for r in queue['publications']} if queue is not None else {}
         cache_index = _cache_candidates(output_root) if resume else {}
         _atomic_json(root/'environment.json',{'python':platform.python_version(),'platform':platform.platform(),
             'raw_corpus_root':str(corpus_root),'code_revision':config.code_revision,'code_sha256':code_sha,'config':{
@@ -349,6 +370,8 @@ def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bo
             parsed = None
             try:
                 parsed = _cached_publication(cache_index.get((publication.arxiv_id,signature),[]),publication) if resume else None
+                if queue is not None and parsed is not None and not parsed.export_ready:
+                    parsed = None  # A retry must execute owners, not replay a cached failure.
                 record.used_cache = parsed is not None
                 if parsed is None: parsed = process_publication(publication,config)
                 if parsed.arxiv_id != publication.arxiv_id or set(parsed.version_states) != {v.version for v in publication.versions}:
@@ -403,6 +426,13 @@ def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bo
                 'used_cache':record.used_cache,'stages':profile})
             manifest.publications.append(record)
             _atomic_json(manifest_path,asdict(manifest))
+            if queue is not None:
+                row = queue_rows[publication.arxiv_id]
+                row['attempts'] += 1
+                row['status'] = 'done' if record.export_ready and record.working_path else ('deferred' if row['attempts'] >= MAX_ATTEMPTS else 'pending')
+                row.setdefault('evidence',[]).append({'run_id':run_id,'audit_path':record.audit_path,
+                    'audit_sha256':_hash(audit),'export_ready':record.export_ready})
+                write_queue(root,queue)
             callback = _BACKUP.get()
             if callback is not None:
                 try: callback(root,False)
@@ -473,7 +503,8 @@ def backup_run_batch(run_root: Path, backup_root: Path, *, arxiv_ids: list[str] 
     # valid working tables. Checkpoint manifests remain batch-local for restore;
     # run_manifest.json separately preserves the full run and its actual status.
     metadata = [p for folder in ('metrics','benchmark','audit','profile') for p in (run_root/folder).rglob('*') if p.is_file()]
-    metadata.extend(p for p in (run_root/'environment.json',run_root/'timing.json',run_root/'run_errors.jsonl') if p.is_file())
+    metadata.extend(p for p in (run_root/'environment.json',run_root/'timing.json',run_root/'run_errors.jsonl',
+                                run_root/'queue.json',run_root/'review_later.csv') if p.is_file())
     metadata_hashes = {p.relative_to(run_root).as_posix():_hash(_relative_file(run_root,p.relative_to(run_root).as_posix())) for p in metadata}
     run_manifest = (_canonical(asdict(manifest))+'\n').encode('utf-8')
     metadata_hashes['run_manifest.json'] = hashlib.sha256(run_manifest).hexdigest()
@@ -564,7 +595,8 @@ def restore_run_batch(archive: Path, destination: Path, *, expected_sha256: str)
     return destination
 
 
-def run_with_backup(corpus_root: Path, output_root: Path, config: ParseConfig, backup_root: Path, *, resume: bool = False, batch_size: int = 50) -> ParseRunResult:
+def run_with_backup(corpus_root: Path, output_root: Path, config: ParseConfig, backup_root: Path, *, resume: bool = False,
+                    batch_size: int = 50, max_publications: int | None = None) -> ParseRunResult:
     """Run sequentially and back up at publication boundaries, one writer, bounded batches.
 
     A lost runtime can lose work since the most recent verified receipt. Backup failures keep
@@ -581,6 +613,7 @@ def run_with_backup(corpus_root: Path, output_root: Path, config: ParseConfig, b
             backup_run_batch(root,backup_root,arxiv_ids=list(pending))
             pending.clear()
     token = _BACKUP.set(callback)
-    try: return run(corpus_root,output_root,config,resume=resume)
+    try: return run(corpus_root,output_root,config,resume=resume,
+                    max_publications=max_publications,progress_root=backup_root if max_publications is not None else None)
     finally: _BACKUP.reset(token)
 

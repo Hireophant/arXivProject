@@ -93,10 +93,15 @@ for ownership and human acceptance checks.
 
 Open [milestone2.ipynb](src/notebooks/milestone2.ipynb) in the reviewed checkout.
 Install `src/requirements.txt`, set `PROJECT_DIR` if it cannot be found automatically,
-then select `RAW_CORPUS_ROOT` and a separate local `OUTPUT_ROOT`. For a verified
-transport archive, configure its receipt values and `STAGE_INPUT=True` first.
-Set `MEMBER_NAME` (`Danh`, `Khanh`, `Khang`, or `Nguyen`) and `DATASET_NAME` for
-your own input. Drive batch backup is enabled by default; an actual parser or
+then set `DATASET_NAME` to the prepared input name, such as `Danh`, `Danh1` or
+`Danh2`, and `PAPERS_THIS_RUN` to the maximum number of publications for this visit.
+By default, M2 selects the unique matching ZIP in Drive `preparationM2/transport`,
+reads its verified receipt and stages it locally. It reuses the local staged raw
+within a runtime and validates the whole corpus once per parser run. This does
+not rerun preparation. If several ZIPs match, select `PREPARED_ARCHIVE` explicitly;
+M2 does not guess a snapshot. Advanced direct-local input uses `STAGE_INPUT=False`,
+`RAW_CORPUS_ROOT` and a separate `OUTPUT_ROOT`.
+Drive batch backup is enabled by default; an actual parser or
 benchmark run mounts Drive before starting on Colab. Mount Drive before staging
 input from a mounted archive as well.
 Set `RUN_PARSER=True` for parsing; keep `RUN_BENCHMARK=False` for ordinary runs.
@@ -104,12 +109,34 @@ Set `RUN_PARSER=True` for parsing; keep `RUN_BENCHMARK=False` for ordinary runs.
 Parsing and benchmarking remain disabled until input is selected. Outside Colab,
 choose a real backup directory or explicitly disable backup for local checks.
 
+Ordinary bounded visits reconstruct progress from verified Drive ZIPs/receipts.
+Pending publications run first, then unseen ones, once per publication per visit;
+all versions of a publication stay together. Successful export-ready publications
+are skipped. Partial/blocked/failed publications remain pending; after **four
+failed durable attempts** they are deferred in `review_later.csv` for later manual
+work. They are not accepted or deleted. A retry executes the parser instead of
+replaying a partial cache. Backup failure does not consume a durable attempt.
+`queue.json` reports the full snapshot's done/pending/unseen/deferred counts,
+selected IDs and audit references, separately from the selected visit's manifest.
+It is a report; verified artifacts determine progress. Raw/config/code/review
+signature changes start a separate history. Run one runtime per dataset.
+
+Keep `BACKUP_ENABLED=True` for automatic bounded continuation. Set
+`PAPERS_THIS_RUN=None` for an unbounded local check or a fresh full-corpus benchmark;
+fresh benchmarking is separate from the continuation queue. Queue exhaustion or
+a successful selected visit does not establish full-dataset/M2 acceptance.
+
 Verified ZIP batches and their `.receipt.json` files are saved under
-`MyDrive/arXivProject/Milestone2/parsed/<MEMBER_NAME>/<DATASET_NAME>/<run_id>/`.
+`MyDrive/arXivProject/Milestone2/<DATASET_NAME>/<run_id>/`.
+If you already ran the previous notebook layout
+(`Milestone2/parsed/<member>/<dataset>/`), explicitly keep that directory as
+`DRIVE_BACKUP_ROOT` to continue its history; a different root starts a new history
+and leaves the old outputs intact.
 Use one writer per run and retain **all batches and receipts**, including final
 metadata-only batches. Alongside working/exported publication tables, checkpoints
 and identity decisions, backups retain metrics, audit diagnostics (including failed
-publications), profiles, environment/timing data and a complete `run_manifest.json`.
+publications), profiles, queue/review-later reports, environment/timing data and a
+complete `run_manifest.json`.
 Large unchanged metadata files are stored once across batches; each receipt's
 `batch_number` orders snapshots and `metadata_files` describes the full current
 metadata inventory. The archive's `manifest.json` covers only its own publication

@@ -29,7 +29,7 @@ def execute(raw: Path, output: Path) -> dict:
         if not configured:
             namespace.update(PROJECT_DIR=repo, RAW_CORPUS_ROOT=raw, OUTPUT_ROOT=output,
                              STAGE_INPUT=False, RUN_PARSER=True, RUN_BENCHMARK=False,
-                             RESUME=False, BACKUP_ENABLED=False, RESTORE_ARCHIVES=[])
+                             RESUME=False, BACKUP_ENABLED=False, RESTORE_ARCHIVES=[], PAPERS_THIS_RUN=None)
             configured = True
     result = namespace['result']
     if result is None:
