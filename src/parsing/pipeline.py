@@ -16,6 +16,7 @@ import shutil
 import time
 import uuid
 import zipfile
+from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextvars import ContextVar
 from copy import deepcopy
@@ -266,7 +267,8 @@ def checkpoint_signature(publication: PublicationInput, config: ParseConfig) -> 
 
 
 def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bool = False,
-        max_publications: int | None = None, progress_root: Path | None = None) -> ParseRunResult:
+        max_publications: int | None = None, progress_root: Path | None = None,
+        progress: Callable[[str], None] | None = None) -> ParseRunResult:
     """API notebook. Timer bắt đầu TRƯỚC inputs.load_publications (bao gồm xác minh raw), kết thúc sau output/checkpoint.
     Đòi input/output tách biệt, không ghi đè raw; một writer một run. Ghi run_id/snapshot/config/code environment.
     Mỗi bài all versions -> process_publication; working/audit giữ lỗi; strict=True chỉ publish export_ready.
@@ -333,6 +335,8 @@ def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bo
             runtime_issue('OUTPUT_BACKUP_FAILED',str(exc),arxiv_id)
     try:
         _atomic_json(manifest_path,asdict(manifest))
+        if progress is not None:
+            progress(f'[M2] Validating prepared input: {corpus_root}')
         publications = _stage('validation_inputs',lambda:load_publications(corpus_root))
         if not publications: raise ValueError('No expected publications')
         contexts = {(p.snapshot_id,p.preparation_run_id) for p in publications}
@@ -366,7 +370,10 @@ def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bo
                 'ram_sample_interval_seconds':config.ram_sample_interval_seconds}})
         _atomic_json(root/'profile/run.json',{'stage':'validation_inputs','wall_seconds':time.perf_counter()-started,
             'note':'Run startup through full input validation/review/cache index; not a fresh-network prepare measurement'})
-        for publication in publications:
+        total_publications = len(publications)
+        if progress is not None and publications:
+            progress(f'[M2] Starting {total_publications} publications at {publications[0].arxiv_id}. Local run: {root}')
+        for index, publication in enumerate(publications, 1):
             if publication.arxiv_id in seen: raise ValueError('Duplicate publication in input')
             seen.add(publication.arxiv_id)
             signature = checkpoint_signature(publication,config)
@@ -442,6 +449,11 @@ def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bo
                 row.setdefault('evidence',[]).append({'run_id':run_id,'audit_path':record.audit_path,
                     'audit_sha256':_hash(audit),'export_ready':record.export_ready})
                 write_queue(root,queue)
+            if progress is not None and (index % 50 == 0 or index == total_publications):
+                local_output = str(root/record.working_path) if record.working_path else 'tables unavailable'
+                next_id = publications[index].arxiv_id if index < total_publications else 'finished parsing'
+                progress(f'[M2] {index}/{total_publications} processed | last ID {record.arxiv_id} '
+                         f'| local tables: {local_output} | audit: {root/record.audit_path} | next: {next_id}')
             if backup is not None and backup.add(publication.arxiv_id):
                 backup_step(backup.wait)
                 backup_step(lambda: backup.submit(root), publication.arxiv_id)
@@ -626,8 +638,10 @@ def restore_run_batch(archive: Path, destination: Path, *, expected_sha256: str)
 
 
 class _BackgroundBackup:
-    def __init__(self, pool: ThreadPoolExecutor, root: Path, batch_size: int):
+    def __init__(self, pool: ThreadPoolExecutor, root: Path, batch_size: int,
+                 progress: Callable[[str], None] | None):
         self.pool, self.root, self.batch_size = pool, root, batch_size
+        self.progress = progress
         self.pending: list[str] = []
         self.retry: list[str] = []
         self.active_ids: list[str] = []
@@ -640,9 +654,22 @@ class _BackgroundBackup:
     def submit(self, run_root: Path) -> None:
         snapshot = _snapshot_backup(run_root)
         self.active_ids = self.pending[:self.batch_size]
-        self.future = self.pool.submit(backup_run_batch,run_root,self.root,
-                                       arxiv_ids=self.active_ids,_snapshot=snapshot)
+        self.future = self.pool.submit(self.upload,run_root,self.active_ids,snapshot)
         del self.pending[:self.batch_size]
+
+    def upload(self, run_root: Path, arxiv_ids: list[str], snapshot: _BackupSnapshot | None = None) -> None:
+        batch = (f'{len(arxiv_ids)} processed publications ({arxiv_ids[0]} to {arxiv_ids[-1]})'
+                 if arxiv_ids else 'run metadata')
+        if self.progress is not None:
+            self.progress(f'[Drive] Backing up {batch} to {self.root/run_root.name}')
+        try:
+            archive = backup_run_batch(run_root,self.root,arxiv_ids=arxiv_ids,_snapshot=snapshot)
+        except (OSError, ValueError) as exc:
+            if self.progress is not None:
+                self.progress(f'[Drive] Backup failed for {batch}: {exc}')
+            raise
+        if archive is not None and self.progress is not None:
+            self.progress(f'[Drive] Verified ZIP: {archive} | receipt: {archive}.receipt.json')
 
     def wait(self) -> None:
         if self.future is None: return
@@ -658,13 +685,14 @@ class _BackgroundBackup:
         remaining = self.retry + self.pending
         # Keep recovery ZIPs bounded even after multiple failed background uploads.
         for start in range(0,len(remaining),self.batch_size):
-            backup_run_batch(run_root,self.root,arxiv_ids=remaining[start:start+self.batch_size])
+            self.upload(run_root,remaining[start:start+self.batch_size])
         if not remaining:
-            backup_run_batch(run_root,self.root,arxiv_ids=[])
+            self.upload(run_root,[])
 
 
 def run_with_backup(corpus_root: Path, output_root: Path, config: ParseConfig, backup_root: Path, *, resume: bool = False,
-                    batch_size: int = 50, max_publications: int | None = None) -> ParseRunResult:
+                    batch_size: int = 50, max_publications: int | None = None,
+                    progress: Callable[[str], None] | None = None) -> ParseRunResult:
     """Parse sequentially while one worker uploads completed, bounded batches.
 
     A lost runtime can lose work since the most recent verified receipt. Backup failures keep
@@ -674,8 +702,9 @@ def run_with_backup(corpus_root: Path, output_root: Path, config: ParseConfig, b
     raw,backup = Path(corpus_root).resolve(),_owned_destination(backup_root).resolve()
     if backup.is_relative_to(raw) or raw.is_relative_to(backup): raise ValueError('Backup and raw input must be disjoint')
     with ThreadPoolExecutor(max_workers=1,thread_name_prefix='m2-drive-backup') as pool:
-        token = _BACKUP.set(_BackgroundBackup(pool,backup,batch_size))
+        token = _BACKUP.set(_BackgroundBackup(pool,backup,batch_size,progress))
         try: return run(corpus_root,output_root,config,resume=resume,
-                        max_publications=max_publications,progress_root=backup_root if max_publications is not None else None)
+                        max_publications=max_publications,progress_root=backup_root if max_publications is not None else None,
+                        progress=progress)
         finally: _BACKUP.reset(token)
 

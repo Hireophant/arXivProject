@@ -129,6 +129,17 @@ Keep `BACKUP_ENABLED=True` for automatic bounded continuation. Set
 fresh benchmarking is separate from the continuation queue. Queue exhaustion or
 a successful selected visit does not establish full-dataset/M2 acceptance.
 
+To measure one fresh full parse and keep its output for M3, enable
+`RUN_BENCHMARK` and `BACKUP_ENABLED`, use a new `OUTPUT_ROOT`, set
+`PAPERS_THIS_RUN=None`, and leave resume and restore disabled. `RUN_PARSER`
+can also be enabled. The benchmark branch parses once and backs up each batch
+in the background. Its wall time and RSS include backup work and waiting for
+the final parser backup. After measurement, the notebook saves benchmark
+files and any working outputs still awaiting verified backup in the same Drive
+run. Progress logs show
+the publication IDs and local output every 50 publications, and each verified
+Drive ZIP and receipt as it becomes available.
+
 Verified ZIP batches and their `.receipt.json` files are saved under
 `MyDrive/arXivProject/Milestone2/<DATASET_NAME>/<run_id>/`.
 One background worker backs up a completed batch while the parser processes the

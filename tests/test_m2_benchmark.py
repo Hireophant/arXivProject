@@ -15,7 +15,7 @@ SCRATCH=Path(__file__).resolve().parents[1]/'data/milestone2-dev/danh'
 SCRATCH.mkdir(parents=True,exist_ok=True)
 
 class BenchmarkTests(unittest.TestCase):
-    def make_run(self,corpus,output,config,resume=False):
+    def make_run(self,corpus,output,config,resume=False,progress=None):
         root=Path(output)/'local-unit-run';root.mkdir(parents=True)
         files=write_publication(make_expected_publication(),root/'working/paper')
         hashes={p.relative_to(root).as_posix():_hash(p) for p in files}

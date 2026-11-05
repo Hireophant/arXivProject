@@ -1,7 +1,7 @@
 """Fresh-run measurement and raw evidence receipts (Danh / DA4).
 
 Measures wall/per-publication time, sampled process-tree RSS and manifest-bounded output
-bytes. Setup/stage/backup are separate. Unknown measurements retain null/error, never
+bytes. Setup and input staging are outside measurement. Unknown measurements retain null/error, never
 zero placeholders. cpu_only_colab requires runtime signals plus operator CPU-settings evidence;
 local fixture smoke cannot substitute for the required actual Colab CPU benchmark.
 """
@@ -15,6 +15,7 @@ import platform
 import sys
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
 from .contracts import BenchmarkResult, ParseConfig, ResourceSample
@@ -46,7 +47,7 @@ def _environment() -> tuple[dict[str,str],bool]:
     environment = {'python':sys.version,'platform':platform.platform(),'machine':platform.machine(),
         'processor':platform.processor(),'cpu_count':str(os.cpu_count()),
         'output_boundary':'Unique files in manifest working/published publication artifacts; excludes audit/checkpoint/metrics/benchmark/raw/backup',
-        'wall_boundary':'perf_counter immediately before pipeline.run validation through return after outputs/readback/checkpoints/metrics; excludes setup/stage/backup'}
+        'wall_boundary':'Before input validation through pipeline return after outputs, read-back, checkpoints and metrics. Excludes setup, input staging and benchmark report export.'}
     for package in ('psutil','requests','pandas'):
         try: environment['package.'+package] = importlib.metadata.version(package)
         except importlib.metadata.PackageNotFoundError: environment['package.'+package] = 'unavailable'
@@ -103,7 +104,9 @@ def measure_output_bytes(output_root: Path) -> int:
     return sum(row['bytes'] for row in _output_inventory(output_root))
 
 
-def benchmark_run(corpus_root: Path, output_root: Path, config: ParseConfig) -> BenchmarkResult:
+def benchmark_run(corpus_root: Path, output_root: Path, config: ParseConfig, *,
+                  backup_root: Path | None = None, batch_size: int = 50,
+                  progress: Callable[[str], None] | None = None) -> BenchmarkResult:
     """Fresh pipeline run trên output mới, resume=False; nguồn input đã prepare trước timer.
     Dùng perf_counter + sampler process-tree, ghi peak observed, wall, mean/publication, final output bytes.
     Ghi environment CPU/RAM/packages/Colab accelerator và commit/input snapshot/config cùng raw samples.
@@ -117,7 +120,7 @@ def benchmark_run(corpus_root: Path, output_root: Path, config: ParseConfig) -> 
     PublicationMeasurement + run_id/snapshot_id, resource_samples.csv đúng ResourceSample + run_id.
     Tự mở CPU settings Colab và đối chiếu một measurement với raw samples; không AI ký thay người kiểm.
     """
-    from .pipeline import run,_atomic_json
+    from .pipeline import run,run_with_backup,_atomic_json
     from .serialization import _hydrate,_loads
     interval = config.ram_sample_interval_seconds
     if not isinstance(interval,(int,float)) or isinstance(interval,bool) or not math.isfinite(interval) or interval <= 0:
@@ -125,6 +128,8 @@ def benchmark_run(corpus_root: Path, output_root: Path, config: ParseConfig) -> 
     output_root = Path(output_root)
     if output_root.exists(): raise ValueError('Fresh benchmark requires a new output root')
     environment,cpu_only = _environment()
+    environment['drive_backup'] = ('Background batches and final parser backup included in wall time and RSS sampling.'
+                                   if backup_root is not None else 'Disabled during measurement.')
     stop,samples = threading.Event(),[]
     started = time.perf_counter()
     def sample() -> None:
@@ -134,7 +139,11 @@ def benchmark_run(corpus_root: Path, output_root: Path, config: ParseConfig) -> 
     sampler = threading.Thread(target=sample,name='m2-rss-sampler',daemon=True)
     sampler.start()
     try:
-        result = run(corpus_root,output_root,config,resume=False)
+        if backup_root is None:
+            result = run(corpus_root,output_root,config,resume=False,progress=progress)
+        else:
+            result = run_with_backup(corpus_root,output_root,config,backup_root,
+                                     batch_size=batch_size,progress=progress)
         wall = time.perf_counter()-started
     finally:
         stop.set();sampler.join()
@@ -154,6 +163,7 @@ def benchmark_run(corpus_root: Path, output_root: Path, config: ParseConfig) -> 
             wall_seconds=record.wall_seconds,used_cache=record.used_cache,status=status))
     observed = [sample.rss_bytes for sample in samples if sample.rss_bytes is not None]
     environment['run_status'] = result.status
+    environment['backup_errors'] = str(sum(issue.code == 'OUTPUT_BACKUP_FAILED' for issue in result.diagnostics))
     environment['sampling_errors'] = str(sum(sample.error is not None for sample in samples))
     inventory = _output_inventory(root)
     receipt = BenchmarkResult(run_id=result.run_id,snapshot_id=result.snapshot_id,code_revision=config.code_revision,

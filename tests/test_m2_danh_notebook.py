@@ -114,6 +114,53 @@ with TemporaryDirectory() as temporary:
             self.assertTrue(record['export_ready'])
             self.assertIsNotNone(record['published_path'])
 
+    def test_full_benchmark_and_parser_share_one_run_and_verified_drive_backup(self):
+        repo = Path(__file__).resolve().parents[1]
+        scratch = repo/'data/milestone2-dev/integration'
+        scratch.mkdir(parents=True, exist_ok=True)
+        with TemporaryDirectory(dir=scratch) as temporary:
+            root = Path(temporary)
+            prepared_input(root)
+            code = """import hashlib,json,sys,zipfile
+from pathlib import Path
+from unittest.mock import patch
+root=Path(sys.argv[1])
+notebook=json.loads(Path('src/notebooks/milestone2.ipynb').read_text('utf-8'))
+cells=[''.join(c['source']) for c in notebook['cells'] if c['cell_type']=='code']
+scope={}
+exec(cells[0],scope)
+scope.update(PROJECT_DIR=Path.cwd(),RAW_CORPUS_ROOT=root/'raw',OUTPUT_ROOT=root/'out',
+             DRIVE_BACKUP_ROOT=root/'drive',STAGE_INPUT=False,RUN_PARSER=True,RUN_BENCHMARK=True,
+             BACKUP_ENABLED=True,BACKUP_BATCH_SIZE=1,PAPERS_THIS_RUN=None)
+exec(cells[1],scope)
+exec(cells[2],scope)
+from parsing import pipeline
+with patch.object(pipeline,'process_publication',wraps=pipeline.process_publication) as parse:
+    exec(cells[3],scope)
+    parse.assert_called_once()
+receipt=scope['receipt']
+assert len(receipt.publications)==1 and receipt.environment['backup_errors']=='0'
+assert 'included in wall time' in receipt.environment['drive_backup']
+run_root=root/'out'/receipt.run_id
+drive=root/'drive'/receipt.run_id
+receipts=sorted((json.loads(p.read_text()) for p in drive.glob('*.receipt.json')),key=lambda r:r['batch_number'])
+assert receipts[0]['arxiv_ids']==['2606.20274']
+assert receipts[-1]['arxiv_ids']==[]
+assert 'benchmark/receipt.json' in receipts[-1]['files']
+for record in receipts:
+    archive=drive/record['archive']
+    assert hashlib.sha256(archive.read_bytes()).hexdigest()==record['sha256']
+with zipfile.ZipFile(drive/receipts[-1]['archive']) as bundle:
+    assert bundle.read('benchmark/receipt.json')==(run_root/'benchmark/receipt.json').read_bytes()
+assert len(list((root/'out').glob('m2-*')))==1
+"""
+            completed = subprocess.run([sys.executable, '-X', 'utf8', '-c', code, str(root)],
+                                       cwd=repo, capture_output=True, text=True, encoding='utf-8')
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+            self.assertIn('1/1 processed | last ID 2606.20274 | local tables:', completed.stdout)
+            self.assertIn('[Drive] Verified ZIP:', completed.stdout)
+            self.assertIn('[Drive] Verified benchmark ZIP:', completed.stdout)
+
     def test_default_notebook_executes_without_corpus_or_fake_results(self):
         repo=Path(__file__).resolve().parents[1]
         code="import json; from pathlib import Path; nb=json.loads(Path('src/notebooks/milestone2.ipynb').read_text('utf-8')); ns={}; [exec(compile(''.join(c['source']),'<notebook>','exec'),ns) for c in nb['cells'] if c['cell_type']=='code']; assert ns['result'] is None; assert ns['RUN_BENCHMARK'] is False"
