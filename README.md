@@ -131,6 +131,11 @@ a successful selected visit does not establish full-dataset/M2 acceptance.
 
 Verified ZIP batches and their `.receipt.json` files are saved under
 `MyDrive/arXivProject/Milestone2/<DATASET_NAME>/<run_id>/`.
+One background worker backs up a completed batch while the parser processes the
+next batch. With the default size of 50, a sudden runtime loss can require
+reprocessing up to two batches during normal backup operation. Only verified
+receipts count. The parser waits at the next batch boundary if the worker is
+still busy. A normal return waits for final backup and reports backup errors.
 If you already ran the previous notebook layout
 (`Milestone2/parsed/<member>/<dataset>/`), explicitly keep that directory as
 `DRIVE_BACKUP_ROOT` to continue its history; a different root starts a new history

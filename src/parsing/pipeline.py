@@ -16,9 +16,10 @@ import shutil
 import time
 import uuid
 import zipfile
+from concurrent.futures import Future, ThreadPoolExecutor
 from contextvars import ContextVar
 from copy import deepcopy
-from dataclasses import asdict, replace
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import BinaryIO
 from .contracts import ParseConfig, ParsedPublication, ParseRunResult, PublicationInput
@@ -28,7 +29,7 @@ from .serialization import (_canonical, _hydrate, _loads, _owned_destination, _w
 from .validation import finalize_publication
 
 _REVIEW: ContextVar[tuple | None] = ContextVar('m2_review',default=None)
-_BACKUP: ContextVar[object] = ContextVar('m2_backup',default=None)
+_BACKUP: ContextVar[_BackgroundBackup | None] = ContextVar('m2_backup',default=None)
 _PROFILE: ContextVar[list | None] = ContextVar('m2_profile',default=None)
 _CODE: ContextVar[str | None] = ContextVar('m2_code_hash',default=None)
 
@@ -219,8 +220,9 @@ def process_publication(publication: PublicationInput, config: ParseConfig) -> P
     for version in sorted(publication.versions,key=lambda v:v.version):
         try:
             gathered = _stage('gather',lambda:gather_version(version))
-            tree = _stage('tree',lambda:parse_version(gathered))
-            macro_contexts[version.version] = declarations(gathered.latex)
+            macro_context = declarations(gathered.latex)
+            tree = _stage('tree',lambda:parse_version(gathered,macro_context=macro_context))
+            macro_contexts[version.version] = macro_context
             if tree.arxiv_id != publication.arxiv_id or tree.version != version.version: raise ValueError('Owner returned wrong version identity')
         except NotImplementedError: raise
         except Exception as exc:
@@ -317,11 +319,18 @@ def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bo
     manifest_path,metrics_path = root/'manifest.json',root/'metrics/run_summary.json'
     diagnostics, summary, seen, io_failed = [],_empty_metrics(),set(),False
     review_token,code_token = None,None
+    backup = _BACKUP.get()
     def runtime_issue(code: str, message: str, arxiv_id: str = '') -> None:
         issue=c.Diagnostic(arxiv_id=arxiv_id,code=code,severity='error',message=message)
         diagnostics.append(issue)
         with (root/'run_errors.jsonl').open('a',encoding='utf-8',newline='\n') as stream:
             stream.write(_canonical(asdict(issue))+'\n');stream.flush();os.fsync(stream.fileno())
+    def backup_step(action, arxiv_id: str = '') -> None:
+        nonlocal io_failed
+        try: action()
+        except (OSError, ValueError) as exc:
+            io_failed = True
+            runtime_issue('OUTPUT_BACKUP_FAILED',str(exc),arxiv_id)
     try:
         _atomic_json(manifest_path,asdict(manifest))
         publications = _stage('validation_inputs',lambda:load_publications(corpus_root))
@@ -433,21 +442,19 @@ def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bo
                 row.setdefault('evidence',[]).append({'run_id':run_id,'audit_path':record.audit_path,
                     'audit_sha256':_hash(audit),'export_ready':record.export_ready})
                 write_queue(root,queue)
-            callback = _BACKUP.get()
-            if callback is not None:
-                try: callback(root,False)
-                except (OSError,ValueError) as exc:
-                    io_failed = True
-                    runtime_issue('OUTPUT_BACKUP_FAILED',str(exc),publication.arxiv_id)
+            if backup is not None and backup.add(publication.arxiv_id):
+                backup_step(backup.wait)
+                backup_step(lambda: backup.submit(root), publication.arxiv_id)
             del parsed,current,profile
         write_metrics(summary,root/'metrics',run_id=run_id,snapshot_id=manifest.snapshot_id)
+        if backup is not None:
+            backup_step(backup.wait)
         _assert_run_inputs(root,config,review_sha,code_sha)
         manifest.status = 'success' if all(r.export_ready and r.working_path for r in manifest.publications) and not io_failed else 'partial'
         _atomic_json(manifest_path,asdict(manifest))
         _atomic_json(root/'timing.json',{'wall_seconds':time.perf_counter()-started,'boundary':'before input validation through output/readback/checkpoints/metrics'})
-        callback = _BACKUP.get()
-        if callback is not None:
-            try: callback(root,True)
+        if backup is not None:
+            try: backup.finish(root)
             except (OSError,ValueError) as exc:
                 manifest.status = 'partial'
                 runtime_issue('OUTPUT_BACKUP_FAILED',str(exc))
@@ -457,10 +464,11 @@ def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bo
     except BaseException as exc:
         manifest.status = 'failed'
         # Preserve the original exception even when local/Drive persistence fails.
-        callback = _BACKUP.get()
-        for action in (lambda: runtime_issue('RUN_FATAL',f'{type(exc).__name__}: {exc}'),
-                       lambda: _atomic_json(manifest_path,asdict(manifest)),
-                       lambda: callback(root,True) if callback is not None else None):
+        actions = [lambda: runtime_issue('RUN_FATAL',f'{type(exc).__name__}: {exc}'),
+                   lambda: _atomic_json(manifest_path,asdict(manifest))]
+        if backup is not None:
+            actions.extend((lambda: backup_step(backup.wait), lambda: backup.finish(root)))
+        for action in actions:
             try: action()
             except BaseException: pass
         raise
@@ -470,7 +478,27 @@ def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bo
         _release_writer(writer)
 
 
-def backup_run_batch(run_root: Path, backup_root: Path, *, arxiv_ids: list[str] | None = None) -> Path | None:
+@dataclass(frozen=True)
+class _BackupSnapshot:
+    manifest: str
+    immutable_metadata: tuple[str, ...]
+    mutable_metadata: dict[str, bytes]
+
+
+def _snapshot_backup(run_root: Path) -> _BackupSnapshot:
+    # Committed audit/profile files are immutable. Capture their names before the
+    # parser writes the next publication, and freeze metadata that it may rewrite.
+    immutable = tuple(p.relative_to(run_root).as_posix()
+                      for folder in ('metrics','benchmark','audit','profile')
+                      for p in (run_root/folder).rglob('*') if p.is_file())
+    mutable = {name: _relative_file(run_root,name).read_bytes()
+               for name in ('environment.json','timing.json','run_errors.jsonl',
+                            'queue.json','review_later.csv') if (run_root/name).is_file()}
+    return _BackupSnapshot((run_root/'manifest.json').read_text('utf-8'), immutable, mutable)
+
+
+def backup_run_batch(run_root: Path, backup_root: Path, *, arxiv_ids: list[str] | None = None,
+                     _snapshot: _BackupSnapshot | None = None) -> Path | None:
     """Copy a new immutable ZIP batch, verify destination bytes, then publish its receipt.
 
     Only completed, hash-verified checkpoints are eligible. A receipt is the durable marker;
@@ -480,7 +508,8 @@ def backup_run_batch(run_root: Path, backup_root: Path, *, arxiv_ids: list[str] 
     run_root,backup_root = Path(run_root).resolve(),_owned_destination(backup_root).resolve()
     if (run_root/'cache-invalid.json').exists(): raise ValueError('Run checkpoints were invalidated')
     if backup_root.is_relative_to(run_root) or run_root.is_relative_to(backup_root): raise ValueError('Backup must be separate from local run')
-    manifest = _hydrate(c.RunManifest,_loads((run_root/'manifest.json').read_text('utf-8')))
+    snapshot = _snapshot if _snapshot is not None else _snapshot_backup(run_root)
+    manifest = _hydrate(c.RunManifest,_loads(snapshot.manifest))
     target = backup_root/manifest.run_id
     target.mkdir(parents=True,exist_ok=True)
     completed, backed_files = set(), {}
@@ -502,10 +531,9 @@ def backup_run_batch(run_root: Path, backup_root: Path, *, arxiv_ids: list[str] 
     # Preserve evidence for every attempted publication, including ones without
     # valid working tables. Checkpoint manifests remain batch-local for restore;
     # run_manifest.json separately preserves the full run and its actual status.
-    metadata = [p for folder in ('metrics','benchmark','audit','profile') for p in (run_root/folder).rglob('*') if p.is_file()]
-    metadata.extend(p for p in (run_root/'environment.json',run_root/'timing.json',run_root/'run_errors.jsonl',
-                                run_root/'queue.json',run_root/'review_later.csv') if p.is_file())
-    metadata_hashes = {p.relative_to(run_root).as_posix():_hash(_relative_file(run_root,p.relative_to(run_root).as_posix())) for p in metadata}
+    metadata_hashes = {path: _hash(_relative_file(run_root,path)) for path in snapshot.immutable_metadata}
+    metadata_hashes.update({path: hashlib.sha256(content).hexdigest()
+                            for path, content in snapshot.mutable_metadata.items()})
     run_manifest = (_canonical(asdict(manifest))+'\n').encode('utf-8')
     metadata_hashes['run_manifest.json'] = hashlib.sha256(run_manifest).hexdigest()
     metadata_sha = hashlib.sha256(_canonical(metadata_hashes).encode('utf-8')).hexdigest()
@@ -538,6 +566,7 @@ def backup_run_batch(run_root: Path, backup_root: Path, *, arxiv_ids: list[str] 
             bundle.writestr('manifest.json',_canonical(asdict(replace(manifest,publications=selected,status='partial'))))
             for relative in sorted(files):
                 if relative == 'run_manifest.json': bundle.writestr(relative,run_manifest)
+                elif relative in snapshot.mutable_metadata: bundle.writestr(relative,snapshot.mutable_metadata[relative])
                 else: bundle.write(_relative_file(run_root,relative),relative)
         digest = _hash(staging)
         shutil.copyfile(staging,transfer)
@@ -545,6 +574,7 @@ def backup_run_batch(run_root: Path, backup_root: Path, *, arxiv_ids: list[str] 
         if _hash(transfer) != digest: raise ValueError('Backup destination checksum mismatch')
         transfer.rename(archive)
         if _hash(archive) != digest: raise ValueError('Final backup archive checksum mismatch')
+        if (run_root/'cache-invalid.json').exists(): raise ValueError('Run checkpoints were invalidated')
         receipt = {'kind':'m2-parsed-batch-1.0','run_id':manifest.run_id,'snapshot_id':manifest.snapshot_id,
             'batch_number':batch_number+1,'metadata_files':metadata_hashes,
             'code_revision':manifest.code_revision,'archive':archive.name,'sha256':digest,
@@ -595,9 +625,47 @@ def restore_run_batch(archive: Path, destination: Path, *, expected_sha256: str)
     return destination
 
 
+class _BackgroundBackup:
+    def __init__(self, pool: ThreadPoolExecutor, root: Path, batch_size: int):
+        self.pool, self.root, self.batch_size = pool, root, batch_size
+        self.pending: list[str] = []
+        self.retry: list[str] = []
+        self.active_ids: list[str] = []
+        self.future: Future | None = None
+
+    def add(self, arxiv_id: str) -> bool:
+        self.pending.append(arxiv_id)
+        return len(self.pending) >= self.batch_size
+
+    def submit(self, run_root: Path) -> None:
+        snapshot = _snapshot_backup(run_root)
+        self.active_ids = self.pending[:self.batch_size]
+        self.future = self.pool.submit(backup_run_batch,run_root,self.root,
+                                       arxiv_ids=self.active_ids,_snapshot=snapshot)
+        del self.pending[:self.batch_size]
+
+    def wait(self) -> None:
+        if self.future is None: return
+        try:
+            self.future.result()
+        except (OSError, ValueError):
+            self.retry.extend(self.active_ids)
+            self.future = None
+            raise
+        self.future = None
+
+    def finish(self, run_root: Path) -> None:
+        remaining = self.retry + self.pending
+        # Keep recovery ZIPs bounded even after multiple failed background uploads.
+        for start in range(0,len(remaining),self.batch_size):
+            backup_run_batch(run_root,self.root,arxiv_ids=remaining[start:start+self.batch_size])
+        if not remaining:
+            backup_run_batch(run_root,self.root,arxiv_ids=[])
+
+
 def run_with_backup(corpus_root: Path, output_root: Path, config: ParseConfig, backup_root: Path, *, resume: bool = False,
                     batch_size: int = 50, max_publications: int | None = None) -> ParseRunResult:
-    """Run sequentially and back up at publication boundaries, one writer, bounded batches.
+    """Parse sequentially while one worker uploads completed, bounded batches.
 
     A lost runtime can lose work since the most recent verified receipt. Backup failures keep
     local good output and make the run partial. Use benchmark_run separately for fresh timings.
@@ -605,15 +673,9 @@ def run_with_backup(corpus_root: Path, output_root: Path, config: ParseConfig, b
     if type(batch_size) is not int or batch_size < 1: raise ValueError('batch_size must be positive')
     raw,backup = Path(corpus_root).resolve(),_owned_destination(backup_root).resolve()
     if backup.is_relative_to(raw) or raw.is_relative_to(backup): raise ValueError('Backup and raw input must be disjoint')
-    pending = []
-    def callback(root: Path, final: bool) -> None:
-        manifest = _hydrate(c.RunManifest,_loads((root/'manifest.json').read_text('utf-8')))
-        if not final and manifest.publications: pending.append(manifest.publications[-1].arxiv_id)
-        if len(pending) >= batch_size or final:
-            backup_run_batch(root,backup_root,arxiv_ids=list(pending))
-            pending.clear()
-    token = _BACKUP.set(callback)
-    try: return run(corpus_root,output_root,config,resume=resume,
-                    max_publications=max_publications,progress_root=backup_root if max_publications is not None else None)
-    finally: _BACKUP.reset(token)
+    with ThreadPoolExecutor(max_workers=1,thread_name_prefix='m2-drive-backup') as pool:
+        token = _BACKUP.set(_BackgroundBackup(pool,backup,batch_size))
+        try: return run(corpus_root,output_root,config,resume=resume,
+                        max_publications=max_publications,progress_root=backup_root if max_publications is not None else None)
+        finally: _BACKUP.reset(token)
 

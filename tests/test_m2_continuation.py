@@ -74,6 +74,26 @@ class ContinuationTests(unittest.TestCase):
             row,=json.loads((next_result.manifest_path.parent/'queue.json').read_text('utf-8'))['publications']
             self.assertEqual(row['attempts'],1)
 
+    def test_transient_background_backup_failure_is_retried_before_return(self):
+        SCRATCH.mkdir(parents=True, exist_ok=True)
+        with TemporaryDirectory(dir=SCRATCH) as tmp:
+            root = Path(tmp)
+            upload = pipeline.backup_run_batch
+
+            def fail_in_background(run_root, drive, **kwargs):
+                if kwargs.get('_snapshot') is not None:
+                    raise OSError('Transient upload failure')
+                return upload(run_root, drive, **kwargs)
+
+            with patch('src.parsing.pipeline.backup_run_batch', side_effect=fail_in_background):
+                result, _ = self.visit(root)
+            self.assertEqual(result.status, 'partial')
+            self.assertIn('OUTPUT_BACKUP_FAILED', [issue.code for issue in result.diagnostics])
+            receipt, = (root/'drive'/result.run_id).glob('*.receipt.json')
+            self.assertEqual(json.loads(receipt.read_text('utf-8'))['arxiv_ids'], [make_publication_input().arxiv_id])
+            _, calls = self.visit(root)
+            self.assertEqual(calls, 0)
+
     def test_pending_can_recover_and_stop_retrying(self):
         SCRATCH.mkdir(parents=True,exist_ok=True)
         with TemporaryDirectory(dir=SCRATCH) as tmp:

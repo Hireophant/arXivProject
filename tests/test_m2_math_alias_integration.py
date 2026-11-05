@@ -3,7 +3,9 @@ import hashlib
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
+from src.parsing import hierarchy, khang_macros
 from src.parsing.contracts import ParseConfig,PublicationInput,VersionInput
 from src.parsing.pipeline import process_publication
 
@@ -24,8 +26,13 @@ class MathAliasIntegrationTests(unittest.TestCase):
             return process_publication(publication,ParseConfig(code_revision='test-aliases'))
 
     def test_delimited_align_macro_becomes_equation_and_keeps_following_text(self):
-        out=self.parse(r'\def\al#1\eal{\begin{align}#1\end{align}}',
-                       r'Before.\al x&=1\\y&=2\eal{After.} Tail.')
+        scan_declarations = khang_macros.declarations
+        with patch.object(khang_macros, 'declarations', wraps=scan_declarations) as scan, \
+             patch.object(hierarchy, 'declarations', wraps=scan_declarations) as rescan:
+            out=self.parse(r'\def\al#1\eal{\begin{align}#1\end{align}}',
+                           r'Before.\al x&=1\\y&=2\eal{After.} Tail.')
+        scan.assert_called_once()
+        rescan.assert_not_called()
         self.assertTrue(out.export_ready,out.diagnostics)
         formula,=[e.content for e in out.elements if e.kind=='block_formula']
         self.assertEqual(formula,r'\begin{equation}\begin{aligned}x&=1\\y&=2\end{aligned}\end{equation}')

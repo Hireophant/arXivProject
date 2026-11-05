@@ -14,7 +14,7 @@ import re
 
 from .contracts import BibliographyBlock, Diagnostic, GatherResult, RawNode, SourceSpan, VersionTree
 from .khang_lex import MATH_ENVS, FLOAT_ENVS, Token, scan, _layout_list_options
-from .khang_macros import declarations
+from .khang_macros import Declarations, declarations
 from .sentences import _sentence_ranges
 
 _HEADINGS = {'part': 0, 'chapter': 0, 'section': 1, 'subsection': 2,
@@ -57,13 +57,12 @@ _PROSE_COMMANDS = _PROSE_COMMANDS | frozenset(('textup','textsl','title','author
 _REF_TITLES = frozenset(('references', 'bibliography', 'literature cited', r'\refname', r'\bibname'))
 
 
-def _tokens(text: str) -> list[Token]:
+def _tokens(text: str, declared: Declarations) -> list[Token]:
     r"""Open standalone TeX groups containing structure, never command arguments.
 
     A formatting scope such as {\small \begin{table}...} must still yield a
     figure. Ordinary prose groups stay opaque to the sentence splitter.
     """
-    declared=declarations(text)
     def expand(token: Token, depth: int) -> list[Token]:
         if token.kind=='command' and token.name in declared.math_aliases:
             kind,name=declared.math_aliases[token.name]
@@ -171,7 +170,7 @@ def extract_bibliography_blocks(gathered: GatherResult) -> list[BibliographyBloc
     Literal/comment examples do not declare references. Missing external bib
     declarations stay in gathered.bib_paths for Nguyên; they are not fake blocks.
     """
-    tokens = _tokens(gathered.latex)
+    tokens = _tokens(gathered.latex, declarations(gathered.latex))
     pairs,_ = _environment_pairs(tokens)
     source = _SourceIndex(gathered.source_map)
     return [BibliographyBlock(raw=gathered.latex[a:b], source_spans=source.ranges(a,b))
@@ -179,11 +178,11 @@ def extract_bibliography_blocks(gathered: GatherResult) -> list[BibliographyBloc
 
 
 class _Parser:
-    def __init__(self, gathered: GatherResult):
+    def __init__(self, gathered: GatherResult, declared: Declarations):
         self.g = gathered
         self.text = gathered.latex
-        self.declared = declarations(self.text)
-        self.tokens = _tokens(self.text)
+        self.declared = declared
+        self.tokens = _tokens(self.text, declared)
         self.starts = [t.start for t in self.tokens]
         self.pairs, self.env_errors = _environment_pairs(self.tokens)
         self.source = _SourceIndex(gathered.source_map)
@@ -443,7 +442,7 @@ class _Parser:
             status=status,source_fingerprint=v.source_fingerprint,diagnostics=self.diagnostics)
 
 
-def parse_version(gathered: GatherResult) -> VersionTree:
+def parse_version(gathered: GatherResult, *, macro_context: Declarations | None = None) -> VersionTree:
     """Build an ordered occurrence tree, preserving raw component content and spans.
 
     Production IDs are r/n000001/... in preorder. Inline math stays in sentences;
@@ -460,7 +459,8 @@ def parse_version(gathered: GatherResult) -> VersionTree:
         diagnostics.extend(d for d in gathered.diagnostics if d not in diagnostics)
         return VersionTree(arxiv_id=v.arxiv_id,version=v.version,root_local_id=None,nodes=[],bibliography_blocks=[],
                            status=status,source_fingerprint=v.source_fingerprint,diagnostics=diagnostics)
-    parser = _Parser(gathered)
+    declared = macro_context if macro_context is not None else declarations(gathered.latex)
+    parser = _Parser(gathered, declared)
     try:
         return parser.run()
     except RecursionError:

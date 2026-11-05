@@ -5,6 +5,7 @@ from copy import deepcopy
 from dataclasses import asdict,replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from threading import Event
 from unittest.mock import patch
 from m2_support.fixtures import make_expected_publication,make_publication_input,make_gathered,make_raw_tree,make_extraction,make_unified_bibliography,SNAPSHOT
 from src.parsing.contracts import ParseConfig,MetricsSummary,VersionMetric,VERSION_STATUSES
@@ -251,6 +252,61 @@ class PipelineTests(unittest.TestCase):
             with zipfile.ZipFile(archives[0]) as bundle:
                 self.assertEqual(json.loads(bundle.read('run_manifest.json'))['status'],'failed')
                 self.assertIn(b'manual stop',bundle.read('run_errors.jsonl'))
+
+    def test_backup_overlaps_next_publication_and_freezes_batch_metadata(self):
+        import zipfile
+        from src.parsing.continuation import write_queue
+
+        first = make_publication_input()
+        second_id = '2606.99999'
+        second = replace(first, arxiv_id=second_id,
+                         versions=[replace(version, arxiv_id=second_id) for version in first.versions])
+        first_upload_started, second_checkpoint_written = Event(), Event()
+        original_backup = pipeline.backup_run_batch
+
+        def parse(publication, config):
+            parsed = make_expected_publication()
+            if publication.arxiv_id == second_id:
+                self.assertTrue(first_upload_started.wait(timeout=5))
+                parsed.arxiv_id = second_id
+                for rows in (parsed.elements, parsed.hierarchy, parsed.bibtex, parsed.occurrences,
+                             parsed.bib_occurrences, parsed.diagnostics, parsed.identity_decisions, parsed.conflicts):
+                    for row in rows:
+                        row.arxiv_id = second_id
+                for occurrence in parsed.bib_occurrences:
+                    if occurrence.entry is not None:
+                        occurrence.entry.arxiv_id = second_id
+            return parsed
+
+        def record_queue(root, queue):
+            write_queue(root, queue)
+            if queue['publications'][1]['attempts'] == 1:
+                second_checkpoint_written.set()
+
+        def upload(root, drive, **kwargs):
+            if kwargs['arxiv_ids'] == [first.arxiv_id]:
+                first_upload_started.set()
+                self.assertTrue(second_checkpoint_written.wait(timeout=5))
+            return original_backup(root, drive, **kwargs)
+
+        with TemporaryDirectory(dir=SCRATCH) as tmp:
+            root = Path(tmp)
+            with patch('src.parsing.inputs.load_publications', return_value=[first, second]), \
+                 patch('src.parsing.pipeline.process_publication', side_effect=parse), \
+                 patch('src.parsing.continuation.write_queue', side_effect=record_queue), \
+                 patch('src.parsing.pipeline.backup_run_batch', side_effect=upload):
+                result = pipeline.run_with_backup(root/'raw', root/'out', ParseConfig(code_revision='test'),
+                                                  root/'drive', batch_size=1, max_publications=2)
+
+            receipts = [json.loads(path.read_text('utf-8')) for path in (root/'drive'/result.run_id).glob('*.receipt.json')]
+            batches = sorted(receipts, key=lambda receipt: receipt['batch_number'])
+            self.assertEqual([receipt['arxiv_ids'] for receipt in batches], [[first.arxiv_id], [second_id], []])
+            with zipfile.ZipFile(root/'drive'/result.run_id/batches[0]['archive']) as bundle:
+                manifest = json.loads(bundle.read('run_manifest.json'))
+                queue = json.loads(bundle.read('queue.json'))
+                self.assertEqual([row['arxiv_id'] for row in manifest['publications']], [first.arxiv_id])
+                self.assertEqual(queue['publications'][1]['attempts'], 0)
+                self.assertNotIn('audit/'+pipeline._paper_key(second_id)+'.jsonl', bundle.namelist())
 
     def test_backup_failure_does_not_replace_original_interrupt(self):
         with TemporaryDirectory(dir=SCRATCH) as tmp:

@@ -153,7 +153,9 @@ def write_publication(publication: ParsedPublication, destination: Path) -> list
         for name in _JSON_LISTS: _write_json(staging/(name+'.json'),[asdict(row) for row in getattr(publication,name)])
         _write_json(staging/'citation_key_map.json',{'schema_version':c.OUTPUT_SCHEMA_VERSION,'arxiv_id':publication.arxiv_id,
             'rows':[{'version':v,'old_key':key,'canonical_key':canonical} for (v,key),canonical in sorted(publication.key_map.items())]})
-        if read_publication(staging) != publication: raise ValueError('Publication round-trip mismatch')
+        # Typed decoding and equality with the validated input also prove the
+        # staged publication's invariants, without another full validation pass.
+        if _decode_publication(staging) != publication: raise ValueError('Publication round-trip mismatch')
         _retry_sharing_violation(lambda: staging.rename(destination))
     finally:
         if staging.exists(): shutil.rmtree(staging)
@@ -166,7 +168,12 @@ def read_publication(destination: Path) -> ParsedPublication:
     Đối chiếu publication identity các file, không parse lại TeX. Contract/schema unknown -> ValueError.
     Caller kiểm input/config/code cache signature ngoài publication record trước khi dùng cache.
     """
-    destination = Path(destination)
+    publication = _decode_publication(Path(destination))
+    _check_storage(publication)
+    return publication
+
+
+def _decode_publication(destination: Path) -> ParsedPublication:
     def read(name: str) -> object:
         path = destination/name
         if path.is_symlink(): raise ValueError('Symlink artifact')
@@ -192,10 +199,8 @@ def read_publication(destination: Path) -> ParsedPublication:
         key = (row['version'],row['old_key'])
         if key in key_map: raise ValueError('Duplicate citation key map row')
         key_map[key] = row['canonical_key']
-    result = ParsedPublication(arxiv_id=record.arxiv_id,version_states=record.version_states,root_ids=record.root_ids,
+    return ParsedPublication(arxiv_id=record.arxiv_id,version_states=record.version_states,root_ids=record.root_ids,
         counts_before_after=record.counts_before_after,export_ready=record.export_ready,key_map=key_map,**data)
-    _check_storage(result)
-    return result
 
 
 def read_review_decisions(path: Path | None, *, snapshot_id: str) -> list[IdentityDecision]:
