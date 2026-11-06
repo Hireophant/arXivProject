@@ -13,3 +13,4 @@ dependencies:
   - jinja2=3.1.6
   - matplotlib=3.10.7
   - psutil=7.1.0
+  - pyarrow=22.0.0

@@ -41,6 +41,12 @@ for expected in (1,0):
     assert q['status_counts']=={'done':1},q
     assert q['publications'][0]['attempts']==1
     assert q['publications'][0]['expected_versions']==[1,2]
+    handoff=json.loads((ns['handoff']/'manifest.json').read_text('utf-8'))
+    assert handoff['publications_included']==expected,handoff
+    if expected==0:
+        excluded,=handoff['excluded']
+        assert excluded['arxiv_id']=='2606.20274' and excluded['reason']=='not_attempted'
+        assert handoff['excluded_version_counts']=={'not_attempted':2}
 assert ns['DRIVE_BACKUP_ROOT']==root/'Milestone2'/'Danh1'
 assert ns['RAW_CORPUS_ROOT'].is_dir()
 # Multiple matching snapshots require an explicit archive, never a guessed latest one.
@@ -120,10 +126,14 @@ with TemporaryDirectory() as temporary:
         scratch.mkdir(parents=True, exist_ok=True)
         with TemporaryDirectory(dir=scratch) as temporary:
             root = Path(temporary)
-            prepared_input(root)
+            prepared_input(root, references={'2201-12345': {
+                'title': 'A reference from M1', 'authors': ['Jane Doe'], 'submission_date': None,
+                'semantic_scholar_id': 'synthetic-s2', 'publication_date': None,
+            }})
             code = """import hashlib,json,sys,zipfile
 from pathlib import Path
 from unittest.mock import patch
+import pyarrow.parquet as pq
 root=Path(sys.argv[1])
 notebook=json.loads(Path('src/notebooks/milestone2.ipynb').read_text('utf-8'))
 cells=[''.join(c['source']) for c in notebook['cells'] if c['cell_type']=='code']
@@ -137,6 +147,15 @@ exec(cells[2],scope)
 from parsing import pipeline
 with patch.object(pipeline,'process_publication',wraps=pipeline.process_publication) as parse:
     exec(cells[3],scope)
+    run_id=scope['receipt'].run_id
+    with patch('parsing.handoff.shutil.copyfileobj',side_effect=OSError('simulated Drive upload failure')):
+        try:exec(cells[4],scope)
+        except OSError as error:assert 'simulated Drive' in str(error)
+        else:raise AssertionError('Handoff upload should have failed')
+    assert (root/'out'/run_id/'tables/manifest.json').is_file()
+    assert not (root/'drive'/run_id/'tables').exists()
+    with patch('parsing.handoff._build_tables',side_effect=AssertionError('Rebuilt verified local handoff')):
+        exec(cells[4],scope)
     parse.assert_called_once()
 receipt=scope['receipt']
 assert len(receipt.publications)==1 and receipt.environment['backup_errors']=='0'
@@ -153,13 +172,63 @@ for record in receipts:
 with zipfile.ZipFile(drive/receipts[-1]['archive']) as bundle:
     assert bundle.read('benchmark/receipt.json')==(run_root/'benchmark/receipt.json').read_bytes()
 assert len(list((root/'out').glob('m2-*')))==1
+tables=drive/'tables'
+handoff=json.loads((tables/'manifest.json').read_text())
+assert handoff['run_id']==receipt.run_id and handoff['publications_included']==1
+assert handoff['publications_excluded']==0
+assert set(handoff['rows'])=={'papers','references','elements','hierarchy','bibtex'}
+for item in handoff['files']:
+    file=tables/item['path']
+    assert hashlib.sha256(file.read_bytes()).hexdigest()==item['sha256']
+    assert pq.ParquetFile(file).metadata.num_rows==item['rows']
+reference,=pq.read_table(tables/'references').to_pylist()
+assert reference['ref_arxiv_id']=='2201.12345' and reference['ref_authors']==['Jane Doe']
+assert reference['ref_s2_id']=='synthetic-s2' and reference['ref_submission_date'] is None
 """
             completed = subprocess.run([sys.executable, '-X', 'utf8', '-c', code, str(root)],
                                        cwd=repo, capture_output=True, text=True, encoding='utf-8')
             self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
-            self.assertIn('1/1 processed | last ID 2606.20274 | local tables:', completed.stdout)
-            self.assertIn('[Drive] Verified ZIP:', completed.stdout)
-            self.assertIn('[Drive] Verified benchmark ZIP:', completed.stdout)
+            self.assertIn('[M2] 1/1 bài · Đến 2606.20274', completed.stdout)
+            self.assertIn('[Drive] Thư mục lưu:', completed.stdout)
+            self.assertIn('[Drive] Đã lưu và xác minh batch 1 bài (đến 2606.20274)', completed.stdout)
+            self.assertIn('[Drive] Đã lưu và xác minh benchmark', completed.stdout)
+            self.assertIn('[M3] Đã lưu bảng tại:', completed.stdout)
+
+    def test_handoff_distinguishes_m1_source_failure_from_m2_parse_failure(self):
+        from src.parsing.contracts import ParseConfig
+        from src.parsing.handoff import export_handoff_tables
+        from src.parsing.pipeline import run
+        from src.preparation import prepare_corpus
+        from test_m2_preparation import backup
+
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            backup(root/'m1', 'mixed', versions=(1, 2, 3, 4),
+                   sources={1: b'TeX source with no document class.', 3: None},
+                   source_errors={4: 'HTTP 404'})
+            raw = root/'raw'
+            prepare_corpus(root/'m1', raw)
+            result = run(raw, root/'parsed', ParseConfig(code_revision='mixed-test'))
+            destination = export_handoff_tables(raw, result.manifest_path.parent)
+            manifest = json.loads((destination/'manifest.json').read_text('utf-8'))
+            self.assertEqual(manifest['publications_included'], 0)
+            excluded, = manifest['excluded']
+            parsed_failure, crawl_failure, no_tex, permanent_failure = excluded['versions']
+            self.assertEqual(parsed_failure['cause'], 'm2_parse_or_validation')
+            self.assertIn('ROOT_UNRESOLVED', parsed_failure['m2_error_codes'])
+            self.assertEqual(crawl_failure['cause'], 'm1_crawl_failed')
+            self.assertEqual(crawl_failure['m1_error'], 'HTTP 429')
+            self.assertEqual(crawl_failure['m1_failure_category'], 'transient')
+            self.assertEqual(crawl_failure['m2_status'], 'blocked_input')
+            self.assertEqual(no_tex['cause'], 'empty_no_tex')
+            self.assertEqual(permanent_failure['cause'], 'm1_permanent_source_failure')
+            self.assertEqual(permanent_failure['m1_error'], 'HTTP 404')
+            self.assertEqual(permanent_failure['m1_failure_category'], 'permanent')
+            self.assertEqual(permanent_failure['m1_failure_code'], 'source_404')
+            self.assertEqual(manifest['excluded_version_counts'], {
+                'm2_parse_or_validation': 1, 'm1_crawl_failed': 1, 'empty_no_tex': 1,
+                'm1_permanent_source_failure': 1,
+            })
 
     def test_default_notebook_executes_without_corpus_or_fake_results(self):
         repo=Path(__file__).resolve().parents[1]

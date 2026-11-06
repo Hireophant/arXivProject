@@ -136,9 +136,8 @@ can also be enabled. The benchmark branch parses once and backs up each batch
 in the background. Its wall time and RSS include backup work and waiting for
 the final parser backup. After measurement, the notebook saves benchmark
 files and any working outputs still awaiting verified backup in the same Drive
-run. Progress logs show
-the publication IDs and local output every 50 publications, and each verified
-Drive ZIP and receipt as it becomes available.
+run. The log shows the current publication every 50 papers, the Drive run
+directory once, and a short confirmation for each verified ZIP.
 
 Verified ZIP batches and their `.receipt.json` files are saved under
 `MyDrive/arXivProject/Milestone2/<DATASET_NAME>/<run_id>/`.
@@ -162,12 +161,26 @@ metadata inventory. The archive's `manifest.json` covers only its own publicatio
 batch for restoration; it is not the full-run acceptance report.
 
 For M3, keep each member's full M2 backup tree **and the original `preparationM2`
-input/receipts**. Restore verified batches, deduplicate overlapping publications
-and versions, and inspect the latest full-run manifest and review decisions before
-selecting accepted inputs. Partial/failed results remain available for repair;
-their presence on Drive does not make them export-ready. Hard runtime loss can
-only recover batches already verified on Drive, so confirm the final backup and
-receipt before closing Colab.
+input/receipts**. The final M2 notebook cell publishes
+`Milestone2/<DATASET_NAME>/<run_id>/tables/` by default, with five directly
+readable Parquet datasets (`papers`, `references`, `elements`, `hierarchy`, and
+`bibtex`) and a `manifest.json` listing counts, file hashes, and exclusions.
+Each excluded publication lists its versions with prepared-input status,
+the original M1 source result when available, and M2 status and error codes.
+This distinguishes recorded M1 crawl failures from other input blockers,
+M2 parse/validation failures, and M2 output write failures.
+Source failures classified as permanent by M1 are counted separately and keep
+the original message and M1 failure code.
+All five tables use the export-ready publications from that run. For a bounded
+visit, publications outside that visit are listed as not attempted. The export
+reads local results and prepared M1 metadata, runs outside the benchmark, and
+reports its own elapsed time. Set `EXPORT_HANDOFF_TABLES=False` to skip it.
+If the upload fails, rerun only the export cell while the local run is available.
+
+Use the Parquet folders for M3 and the verified ZIP batches for recovery and
+audit. Deduplicate publications across accounts or overlapping runs before
+building a group-wide dataset. Partial/failed results stay available for repair.
+Confirm the final backup and its receipt before closing Colab.
 
 The manifest lists every expected publication/version, working/published locations
 and audit files. `metrics/run_summary.json` stores counts under `summary`;

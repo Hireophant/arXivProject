@@ -58,7 +58,10 @@ def _environment() -> tuple[dict[str,str],bool]:
     for name in ('COLAB_RELEASE_TAG','COLAB_BACKEND_VERSION','COLAB_GPU','TPU_NAME','M2_COLAB_ACCELERATOR'):
         environment[name] = os.environ.get(name,'unrecorded')
     colab = bool(os.environ.get('COLAB_RELEASE_TAG')) and 'google.colab' in sys.modules
-    cpu_only = colab and os.environ.get('M2_COLAB_ACCELERATOR') == 'None' and os.environ.get('COLAB_GPU') == '0' and not os.environ.get('TPU_NAME')
+    # Colab CPU runtimes can report an explicitly empty GPU marker.
+    cpu_only = (colab and os.environ.get('M2_COLAB_ACCELERATOR') == 'None'
+                and os.environ.get('COLAB_GPU') in ('0', '')
+                and not os.environ.get('TPU_NAME'))
     environment['testbed'] = 'Colab CPU (settings recorded by operator)' if cpu_only else 'local or unverified Colab; not official CPU benchmark'
     return environment,cpu_only
 

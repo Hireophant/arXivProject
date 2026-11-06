@@ -15,6 +15,24 @@ SCRATCH=Path(__file__).resolve().parents[1]/'data/milestone2-dev/danh'
 SCRATCH.mkdir(parents=True,exist_ok=True)
 
 class BenchmarkTests(unittest.TestCase):
+    def test_colab_cpu_evidence_accepts_explicitly_empty_gpu_marker(self):
+        colab = {'COLAB_RELEASE_TAG': 'release-colab-fixture', 'M2_COLAB_ACCELERATOR': 'None'}
+        for markers, expected in (
+            ({'COLAB_GPU': ''}, True),
+            ({'COLAB_GPU': '0'}, True),
+            ({}, False),
+            ({'COLAB_GPU': '1'}, False),
+            ({'COLAB_GPU': '', 'TPU_NAME': 'active-tpu'}, False),
+            ({'COLAB_GPU': '', 'M2_COLAB_ACCELERATOR': 'GPU'}, False),
+            ({'COLAB_GPU': '', 'M2_COLAB_ACCELERATOR': ''}, False),
+            ({'COLAB_GPU': '', 'COLAB_RELEASE_TAG': ''}, False),
+        ):
+            with self.subTest(markers=markers), patch.dict('sys.modules', {'google.colab': object()}), \
+                 patch.dict('os.environ', {**colab, **markers}, clear=True):
+                environment, cpu_only = benchmark._environment()
+                self.assertEqual(cpu_only, expected)
+                self.assertEqual(environment['COLAB_GPU'], markers.get('COLAB_GPU', 'unrecorded'))
+
     def make_run(self,corpus,output,config,resume=False,progress=None):
         root=Path(output)/'local-unit-run';root.mkdir(parents=True)
         files=write_publication(make_expected_publication(),root/'working/paper')

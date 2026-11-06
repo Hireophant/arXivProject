@@ -20,12 +20,14 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def backup(root, name, *, versions=(1,), sources=None, stub=False, when='2026-10-27T12:00:00+00:00', source_elapsed=1.0, identifier=PAPER):
+def backup(root, name, *, versions=(1,), sources=None, stub=False, when='2026-10-27T12:00:00+00:00',
+           source_elapsed=1.0, identifier=PAPER, source_errors=None):
     """Independent fixture implements the existing M1 archive/receipt shapes."""
     key = identifier.replace('.', '-').replace('/', '-')
     folder = root / name
     folder.mkdir(parents=True)
     sources = sources if sources is not None else {1: TEX}
+    source_errors = source_errors or {}
     downloads = {}
     files = {}
     for version in versions:
@@ -36,7 +38,8 @@ def backup(root, name, *, versions=(1,), sources=None, stub=False, when='2026-10
                       source_bytes_after=len(body) if isinstance(body, bytes) else 0,
                       archive_bytes=100, file_count=1 if isinstance(body, bytes) else 0,
                       elapsed_seconds=source_elapsed, attempts=1, used_cache=False,
-                      error='Verified pdf source without TeX.' if body is None else 'HTTP 429' if body == 'missing' else None)
+                      error='Verified pdf source without TeX.' if body is None
+                      else source_errors.get(version, 'HTTP 429') if body == 'missing' else None)
         downloads[str(version)] = result
         if body == 'missing' or stub:
             continue

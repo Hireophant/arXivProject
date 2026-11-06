@@ -336,7 +336,7 @@ def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bo
     try:
         _atomic_json(manifest_path,asdict(manifest))
         if progress is not None:
-            progress(f'[M2] Validating prepared input: {corpus_root}')
+            progress('[M2] Đang kiểm tra dữ liệu đầu vào.')
         publications = _stage('validation_inputs',lambda:load_publications(corpus_root))
         if not publications: raise ValueError('No expected publications')
         contexts = {(p.snapshot_id,p.preparation_run_id) for p in publications}
@@ -372,7 +372,9 @@ def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bo
             'note':'Run startup through full input validation/review/cache index; not a fresh-network prepare measurement'})
         total_publications = len(publications)
         if progress is not None and publications:
-            progress(f'[M2] Starting {total_publications} publications at {publications[0].arxiv_id}. Local run: {root}')
+            progress(f'[M2] Bắt đầu {total_publications} bài, từ {publications[0].arxiv_id}.')
+        if progress is not None and backup is not None:
+            progress(f'[Drive] Thư mục lưu: {backup.root/run_id}')
         for index, publication in enumerate(publications, 1):
             if publication.arxiv_id in seen: raise ValueError('Duplicate publication in input')
             seen.add(publication.arxiv_id)
@@ -450,10 +452,9 @@ def run(corpus_root: Path, output_root: Path, config: ParseConfig, *, resume: bo
                     'audit_sha256':_hash(audit),'export_ready':record.export_ready})
                 write_queue(root,queue)
             if progress is not None and (index % 50 == 0 or index == total_publications):
-                local_output = str(root/record.working_path) if record.working_path else 'tables unavailable'
-                next_id = publications[index].arxiv_id if index < total_publications else 'finished parsing'
-                progress(f'[M2] {index}/{total_publications} processed | last ID {record.arxiv_id} '
-                         f'| local tables: {local_output} | audit: {root/record.audit_path} | next: {next_id}')
+                next_step = (f'Tiếp theo {publications[index].arxiv_id}'
+                             if index < total_publications else 'Đã xử lý hết lượt')
+                progress(f'[M2] {index}/{total_publications} bài · Đến {record.arxiv_id} · {next_step}')
             if backup is not None and backup.add(publication.arxiv_id):
                 backup_step(backup.wait)
                 backup_step(lambda: backup.submit(root), publication.arxiv_id)
@@ -658,18 +659,18 @@ class _BackgroundBackup:
         del self.pending[:self.batch_size]
 
     def upload(self, run_root: Path, arxiv_ids: list[str], snapshot: _BackupSnapshot | None = None) -> None:
-        batch = (f'{len(arxiv_ids)} processed publications ({arxiv_ids[0]} to {arxiv_ids[-1]})'
-                 if arxiv_ids else 'run metadata')
+        batch = (f'batch {len(arxiv_ids)} bài (đến {arxiv_ids[-1]})'
+                 if arxiv_ids else 'thông tin tổng kết lượt chạy')
         if self.progress is not None:
-            self.progress(f'[Drive] Backing up {batch} to {self.root/run_root.name}')
+            self.progress(f'[Drive] Đang lưu {batch}.')
         try:
             archive = backup_run_batch(run_root,self.root,arxiv_ids=arxiv_ids,_snapshot=snapshot)
         except (OSError, ValueError) as exc:
             if self.progress is not None:
-                self.progress(f'[Drive] Backup failed for {batch}: {exc}')
+                self.progress(f'[Drive] Lưu {batch} thất bại: {exc}')
             raise
         if archive is not None and self.progress is not None:
-            self.progress(f'[Drive] Verified ZIP: {archive} | receipt: {archive}.receipt.json')
+            self.progress(f'[Drive] Đã lưu và xác minh {batch} · {archive.name}')
 
     def wait(self) -> None:
         if self.future is None: return

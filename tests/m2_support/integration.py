@@ -10,7 +10,7 @@ import zipfile
 from test_m2_preparation import backup
 
 
-def prepared_input(root):
+def prepared_input(root, *, references=None):
     """Create a signed two-version, multi-file input via real preparation."""
     from src.preparation import prepare_corpus
 
@@ -27,6 +27,12 @@ def prepared_input(root):
     with zipfile.ZipFile(archive) as stream:
         entries = {name: stream.read(name) for name in stream.namelist()}
     manifest = json.loads(entries['manifest.json'])
+    if references is not None:
+        result = manifest['papers']['2606.20274']['references']
+        result['references'] = references
+        result['all_references'] = [dict(row, arxiv_id=key.replace('-', '.')) for key, row in references.items()]
+        entries['2606-20274/references.json'] = json.dumps(result['references']).encode()
+        entries['2606-20274/references_all.json'] = json.dumps(result['all_references']).encode()
     for version, key in ((1, 'alpha'), (2, 'beta')):
         prefix = f'2606-20274/sources/v{version}/'
         additions = {
